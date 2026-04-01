@@ -1,0 +1,37 @@
+.level-pill {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 32px;
+  background: var(--surface);
+  backdrop-filter: blur(24px);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  -webkit-app-region: drag;
+}
+
+.level-text {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.xp-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.dot {
+  color: var(--text-faint);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.dot.filled {
+  color: var(--accent-orange);
+}

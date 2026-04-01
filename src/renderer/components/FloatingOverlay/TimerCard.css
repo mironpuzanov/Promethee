@@ -1,0 +1,68 @@
+.timer-card {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  background: var(--surface);
+  backdrop-filter: blur(24px);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  -webkit-app-region: drag;
+}
+
+.timer-ring {
+  position: relative;
+  width: 72px;
+  height: 72px;
+}
+
+.timer-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.elapsed-time {
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.task-name {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 400;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xp-so-far {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.stop-button {
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: none;
+  color: #444;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-app-region: no-drag;
+  transition: color 0.2s;
+}
+
+.stop-button:hover {
+  color: var(--text-muted);
+}

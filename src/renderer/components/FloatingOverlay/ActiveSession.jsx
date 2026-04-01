@@ -1,0 +1,45 @@
+import React, { useState, useEffect } from 'react';
+import LevelPill from './LevelPill';
+import TimerCard from './TimerCard';
+import './ActiveSession.css';
+
+function ActiveSession({ session, onEnd }) {
+  const [elapsed, setElapsed] = useState(0);
+  const [xpSoFar, setXpSoFar] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const elapsedSeconds = Math.floor((now - session.startedAt) / 1000);
+      setElapsed(elapsedSeconds);
+
+      // Calculate XP so far (1 XP per minute, min 60s)
+      const xp = elapsedSeconds < 60 ? 0 : Math.floor(elapsedSeconds / 60);
+      setXpSoFar(xp);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [session]);
+
+  const formatTime = (seconds) => {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+
+    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <div className="active-session">
+      <LevelPill />
+      <TimerCard
+        elapsed={formatTime(elapsed)}
+        task={session.task || 'Working...'}
+        xpSoFar={xpSoFar}
+        onStop={onEnd}
+      />
+    </div>
+  );
+}
+
+export default ActiveSession;
