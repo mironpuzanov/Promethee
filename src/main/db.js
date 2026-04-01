@@ -57,7 +57,7 @@ export { db };
 // Helper functions
 export function createSession(userId, task) {
   const database = getDb();
-  const id = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const id = crypto.randomUUID();
   const startedAt = Date.now();
 
   const stmt = database.prepare(`

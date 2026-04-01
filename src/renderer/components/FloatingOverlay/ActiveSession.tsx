@@ -3,7 +3,19 @@ import LevelPill from './LevelPill';
 import TimerCard from './TimerCard';
 import './ActiveSession.css';
 
-function ActiveSession({ session, onEnd }) {
+interface Session {
+  id: string;
+  task?: string;
+  startedAt: number;
+  userId?: string;
+}
+
+interface ActiveSessionProps {
+  session: Session;
+  onEnd: () => void;
+}
+
+function ActiveSession({ session, onEnd }: ActiveSessionProps) {
   const [elapsed, setElapsed] = useState(0);
   const [xpSoFar, setXpSoFar] = useState(0);
 
@@ -12,8 +24,6 @@ function ActiveSession({ session, onEnd }) {
       const now = Date.now();
       const elapsedSeconds = Math.floor((now - session.startedAt) / 1000);
       setElapsed(elapsedSeconds);
-
-      // Calculate XP so far (10 XP per minute, min 60s)
       const xp = elapsedSeconds < 60 ? 0 : Math.floor(elapsedSeconds / 60) * 10;
       setXpSoFar(xp);
     }, 1000);
@@ -21,11 +31,10 @@ function ActiveSession({ session, onEnd }) {
     return () => clearInterval(interval);
   }, [session]);
 
-  const formatTime = (seconds) => {
+  const formatTime = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
-
     return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 

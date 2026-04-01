@@ -3,29 +3,39 @@ import IdleBar from './IdleBar';
 import ActiveSession from './ActiveSession';
 import './FloatingOverlay.css';
 
-function FloatingOverlay({ user, setUser }) {
-  const [activeSession, setActiveSession] = useState(null);
+interface User {
+  id: string;
+  email: string;
+}
+
+interface Session {
+  id: string;
+  task?: string;
+  startedAt: number;
+  userId?: string;
+}
+
+interface FloatingOverlayProps {
+  user: User | null;
+  setUser: (user: User | null) => void;
+}
+
+function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
+  const [activeSession, setActiveSession] = useState<Session | null>(null);
   const [showResumePrompt, setShowResumePrompt] = useState(false);
 
   useEffect(() => {
-    // Check if there's an active session
-    window.promethee.session.getActive().then(result => {
+    window.promethee.session.getActive().then((result: { success: boolean; session?: Session }) => {
       if (result.success && result.session) {
         setActiveSession(result.session);
       }
     });
 
-    // Listen for power events
-    window.promethee.power.onSuspend((pausedSession) => {
-      console.log('Power suspended, paused session:', pausedSession);
-    });
-
-    window.promethee.power.onResume(() => {
-      setShowResumePrompt(true);
-    });
+    window.promethee.power.onSuspend(() => {});
+    window.promethee.power.onResume(() => setShowResumePrompt(true));
   }, []);
 
-  const handleStartSession = async (task) => {
+  const handleStartSession = async (task: string) => {
     const result = await window.promethee.session.start(task);
     if (result.success) {
       setActiveSession(result.session);
@@ -39,9 +49,8 @@ function FloatingOverlay({ user, setUser }) {
     const result = await window.promethee.session.end();
     if (result.success) {
       setActiveSession(null);
-      // Show XP earned notification
       if (result.session?.xpEarned > 0) {
-        alert(`Session complete! You earned ${result.session.xpEarned} XP`);
+        alert(`Session complete! +${result.session.xpEarned} XP`);
       }
     } else {
       console.error('Failed to end session:', result.error);
@@ -49,11 +58,9 @@ function FloatingOverlay({ user, setUser }) {
     }
   };
 
-  const handleResumeSession = (resume) => {
+  const handleResumeSession = (resume: boolean) => {
     setShowResumePrompt(false);
-    if (!resume) {
-      setActiveSession(null);
-    }
+    if (!resume) setActiveSession(null);
   };
 
   if (showResumePrompt) {

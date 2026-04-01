@@ -1,15 +1,23 @@
 import React, { useState } from 'react';
 import './IdleBar.css';
 
-function IdleBar({ user, onStartSession }) {
+interface User {
+  id: string;
+  email: string;
+}
+
+interface IdleBarProps {
+  user: User | null;
+  onStartSession: (task: string) => void;
+}
+
+function IdleBar({ user, onStartSession }: IdleBarProps) {
   const [showTaskInput, setShowTaskInput] = useState(false);
   const [task, setTask] = useState('');
 
-  const handleStartClick = () => {
-    setShowTaskInput(true);
-  };
+  const handleStartClick = () => setShowTaskInput(true);
 
-  const handleKeyDown = (e) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && task.trim()) {
       onStartSession(task);
       setTask('');
@@ -20,35 +28,19 @@ function IdleBar({ user, onStartSession }) {
     }
   };
 
-  const handleMentorClick = () => {
-    alert('Mentor feature coming soon!');
-  };
-
-  const handleMenuClick = () => {
-    window.promethee.window.toggleFullWindow();
-  };
+  const handleMenuClick = () => window.promethee.window.toggleFullWindow();
 
   const getInitial = () => {
     if (!user) return '?';
-    const email = user.email || '';
-    return email.charAt(0).toUpperCase();
+    return (user.email || '').charAt(0).toUpperCase();
   };
 
-  const handleMouseEnter = () => {
-    window.promethee.window.setIgnoreMouseEvents(false);
-  };
-
-  const handleMouseLeave = () => {
-    window.promethee.window.setIgnoreMouseEvents(true);
-  };
+  const handleMouseEnter = () => window.promethee.window.setIgnoreMouseEvents(false);
+  const handleMouseLeave = () => window.promethee.window.setIgnoreMouseEvents(true);
 
   return (
-    <div
-      className="idle-bar"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-    >
-      <button className="mentor-button" onClick={handleMentorClick}>
+    <div className="idle-bar" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+      <button className="mentor-button" onClick={() => alert('Mentor coming soon!')}>
         Mentor
       </button>
 
@@ -60,11 +52,7 @@ function IdleBar({ user, onStartSession }) {
           value={task}
           onChange={(e) => setTask(e.target.value)}
           onKeyDown={handleKeyDown}
-          onBlur={() => {
-            if (!task.trim()) {
-              setShowTaskInput(false);
-            }
-          }}
+          onBlur={() => { if (!task.trim()) setShowTaskInput(false); }}
           autoFocus
         />
       ) : (

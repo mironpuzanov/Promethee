@@ -4,23 +4,37 @@ import CharacterPanel from './CharacterPanel';
 import RightPanel from './RightPanel';
 import './FullWindow.css';
 
+interface User {
+  id: string;
+  email: string;
+  user_metadata?: { display_name?: string };
+}
+
+interface Session {
+  id: string;
+  task?: string;
+  started_at: number;
+  duration_seconds?: number;
+  xp_earned?: number;
+}
+
 function SessionLog() {
-  const [sessions, setSessions] = useState([]);
+  const [sessions, setSessions] = useState<Session[]>([]);
 
   useEffect(() => {
-    window.promethee.db.getSessions().then(result => {
+    window.promethee.db.getSessions().then((result: { success: boolean; sessions?: Session[] }) => {
       if (result.success) setSessions(result.sessions || []);
     });
   }, []);
 
-  const formatDuration = (seconds) => {
+  const formatDuration = (seconds?: number) => {
     if (!seconds) return '—';
     const m = Math.floor(seconds / 60);
     const h = Math.floor(m / 60);
     return h > 0 ? `${h}h ${m % 60}m` : `${m}m`;
   };
 
-  const formatDate = (ts) => {
+  const formatDate = (ts?: number) => {
     if (!ts) return '—';
     return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
@@ -48,7 +62,7 @@ function SessionLog() {
   );
 }
 
-function PlaceholderTab({ title }) {
+function PlaceholderTab({ title }: { title: string }) {
   return (
     <div className="tab-panel">
       <h2 className="tab-title">{title}</h2>
@@ -57,27 +71,24 @@ function PlaceholderTab({ title }) {
   );
 }
 
-function FullWindow({ user, setUser }) {
+interface FullWindowProps {
+  user: User | null;
+  setUser: (user: User | null) => void;
+}
+
+function FullWindow({ user, setUser }: FullWindowProps) {
   const [activeTab, setActiveTab] = useState('home');
 
   const renderMain = () => {
     switch (activeTab) {
-      case 'home':
-        return <CharacterPanel user={user} />;
-      case 'log':
-        return <SessionLog />;
-      case 'quests':
-        return <PlaceholderTab title="Quests" />;
-      case 'habits':
-        return <PlaceholderTab title="Habits" />;
-      case 'skills':
-        return <PlaceholderTab title="Skills" />;
-      case 'journal':
-        return <PlaceholderTab title="Journal" />;
-      case 'mentor':
-        return <PlaceholderTab title="Mentor" />;
-      default:
-        return <CharacterPanel user={user} />;
+      case 'home':    return <CharacterPanel user={user} />;
+      case 'log':     return <SessionLog />;
+      case 'quests':  return <PlaceholderTab title="Quests" />;
+      case 'habits':  return <PlaceholderTab title="Habits" />;
+      case 'skills':  return <PlaceholderTab title="Skills" />;
+      case 'journal': return <PlaceholderTab title="Journal" />;
+      case 'mentor':  return <PlaceholderTab title="Mentor" />;
+      default:        return <CharacterPanel user={user} />;
     }
   };
 
@@ -87,7 +98,7 @@ function FullWindow({ user, setUser }) {
     <div className={`full-window${isHome ? '' : ' no-right-panel'}`}>
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
       {renderMain()}
-      {isHome && <RightPanel user={user} />}
+      {isHome && <RightPanel />}
     </div>
   );
 }

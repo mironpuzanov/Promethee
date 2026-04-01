@@ -1,12 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import './CharacterPanel.css';
 
-function CharacterPanel({ user }) {
+interface User {
+  id: string;
+  email: string;
+  user_metadata?: { display_name?: string };
+}
+
+interface UserProfile {
+  total_xp: number;
+  level: number;
+  display_name?: string;
+}
+
+interface CharacterPanelProps {
+  user: User | null;
+}
+
+function CharacterPanel({ user }: CharacterPanelProps) {
   const userName = user?.email?.split('@')[0] || 'Guest';
-  const [profile, setProfile] = useState({ total_xp: 0, level: 1 });
+  const [profile, setProfile] = useState<UserProfile>({ total_xp: 0, level: 1 });
 
   useEffect(() => {
-    window.promethee.db.getUserProfile().then(result => {
+    window.promethee.db.getUserProfile().then((result: { success: boolean; profile?: UserProfile }) => {
       if (result.success && result.profile) {
         setProfile(result.profile);
       }
@@ -21,7 +37,7 @@ function CharacterPanel({ user }) {
   const skills = [
     { name: 'Willpower', value: 4 },
     { name: 'Discipline', value: 2 },
-    { name: 'Rigor', value: 1 }
+    { name: 'Rigor', value: 1 },
   ];
 
   const xpDots = Array.from({ length: 12 }, (_, i) => i < Math.floor((totalXP / xpForNextLevel) * 12));

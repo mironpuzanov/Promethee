@@ -3,23 +3,27 @@ import FloatingOverlay from './components/FloatingOverlay';
 import FullWindow from './components/FullWindow';
 import './App.css';
 
+interface User {
+  id: string;
+  email: string;
+  user_metadata?: { display_name?: string };
+}
+
 function App() {
   const [mode, setMode] = useState('floating');
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    // Get mode from URL params
     const params = new URLSearchParams(window.location.search);
     const urlMode = params.get('mode') || 'floating';
     setMode(urlMode);
 
-    // Get user - with error handling
-    if (window.promethee && window.promethee.auth) {
-      window.promethee.auth.getUser().then(result => {
+    if (window.promethee?.auth) {
+      window.promethee.auth.getUser().then((result: { success: boolean; user?: User }) => {
         if (result.success && result.user) {
           setUser(result.user);
         }
-      }).catch(error => {
+      }).catch((error: Error) => {
         console.error('Error getting user:', error);
       });
     }

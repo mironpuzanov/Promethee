@@ -1,23 +1,21 @@
 import React from 'react';
 import './TimerCard.css';
 
-function TimerCard({ elapsed, task, xpSoFar, onStop }) {
+interface TimerCardProps {
+  elapsed: string;
+  task: string;
+  xpSoFar: number;
+  onStop: () => void;
+}
+
+function TimerCard({ elapsed, task, xpSoFar, onStop }: TimerCardProps) {
   return (
     <div className="timer-card">
       <div className="timer-ring">
         <svg width="72" height="72" viewBox="0 0 72 72">
+          <circle cx="36" cy="36" r="32" fill="none" stroke="rgba(6, 182, 212, 0.2)" strokeWidth="3" />
           <circle
-            cx="36"
-            cy="36"
-            r="32"
-            fill="none"
-            stroke="rgba(6, 182, 212, 0.2)"
-            strokeWidth="3"
-          />
-          <circle
-            cx="36"
-            cy="36"
-            r="32"
+            cx="36" cy="36" r="32"
             fill="none"
             stroke="var(--accent-cyan)"
             strokeWidth="3"
@@ -33,9 +31,7 @@ function TimerCard({ elapsed, task, xpSoFar, onStop }) {
         <div className="task-name">{task}</div>
         <div className="xp-so-far">+{xpSoFar} XP so far</div>
       </div>
-      <button className="stop-button" onClick={onStop}>
-        ■
-      </button>
+      <button className="stop-button" onClick={onStop}>■</button>
     </div>
   );
 }

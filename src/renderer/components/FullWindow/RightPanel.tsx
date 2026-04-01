@@ -1,17 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import './RightPanel.css';
 
-function RightPanel({ user }) {
-  const [todayStats, setTodayStats] = useState({ hours: 0, xp: 0, rank: null });
+interface TodayStats {
+  hours: string;
+  xp: number;
+  rank: number | null;
+}
+
+function RightPanel() {
+  const [todayStats, setTodayStats] = useState<TodayStats>({ hours: '0.0', xp: 0, rank: null });
 
   useEffect(() => {
-    // Fetch today's sessions
-    window.promethee.session.getToday().then(result => {
+    window.promethee.session.getToday().then((result: { success: boolean; sessions?: Array<{ duration_seconds?: number; xp_earned?: number }> }) => {
       if (result.success && result.sessions) {
         const totalSeconds = result.sessions.reduce((sum, s) => sum + (s.duration_seconds || 0), 0);
         const totalXP = result.sessions.reduce((sum, s) => sum + (s.xp_earned || 0), 0);
         const hours = (totalSeconds / 3600).toFixed(1);
-
         setTodayStats({ hours, xp: totalXP, rank: null });
       }
     });
@@ -19,12 +23,12 @@ function RightPanel({ user }) {
 
   const quests = [
     { id: 1, title: 'Build prototype', completed: false },
-    { id: 2, title: 'Ship before Paris', completed: false }
+    { id: 2, title: 'Ship before Paris', completed: false },
   ];
 
   const titles = [
     { name: 'Builder', progress: 75 },
-    { name: 'Focused', progress: 25 }
+    { name: 'Focused', progress: 25 },
   ];
 
   return (
@@ -38,11 +42,7 @@ function RightPanel({ user }) {
         <div className="quest-list">
           {quests.map(quest => (
             <div key={quest.id} className="quest-item">
-              <input
-                type="checkbox"
-                checked={quest.completed}
-                onChange={() => {}}
-              />
+              <input type="checkbox" checked={quest.completed} onChange={() => {}} />
               <span>{quest.title}</span>
             </div>
           ))}
@@ -59,10 +59,7 @@ function RightPanel({ user }) {
                 <span className="title-progress">{title.progress}%</span>
               </div>
               <div className="progress-bar">
-                <div
-                  className="progress-fill"
-                  style={{ width: `${title.progress}%` }}
-                />
+                <div className="progress-fill" style={{ width: `${title.progress}%` }} />
               </div>
             </div>
           ))}

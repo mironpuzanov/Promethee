@@ -72,16 +72,11 @@ const createFloatingWindow = () => {
 
   floatingWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
     debugLog(`Window failed to load: ${errorCode} ${errorDescription}`);
-
-    // Retry loading if connection refused (Vite not ready yet)
-    if (errorCode === -102) { // ERR_CONNECTION_REFUSED
-      debugLog('Vite not ready, retrying in 1 second...');
+    // Keep retrying until Vite is ready
+    if (errorCode === -102 && MAIN_WINDOW_VITE_DEV_SERVER_URL) {
       setTimeout(() => {
-        debugLog('Retrying window load...');
-        if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-          floatingWindow.loadURL(`${MAIN_WINDOW_VITE_DEV_SERVER_URL}?mode=floating`);
-        }
-      }, 1000);
+        floatingWindow?.loadURL(`${MAIN_WINDOW_VITE_DEV_SERVER_URL}?mode=floating`);
+      }, 1500);
     }
   });
 

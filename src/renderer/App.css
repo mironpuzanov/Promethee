@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+@import "tailwindcss";
 
 * {
   margin: 0;
@@ -18,15 +19,76 @@ body {
   background: transparent;
 }
 
+/* ─── Promethee design tokens ──────────────────────────────────── */
 :root {
+  /* Raw values (used in legacy CSS files) */
   --accent-orange: #FF6B35;
-  --accent-cyan: #06B6D4;
-  --text-primary: #ffffff;
+  --accent-cyan:   #06B6D4;
+  --text-primary:   #ffffff;
   --text-secondary: #cccccc;
-  --text-muted: #666666;
-  --text-faint: #333333;
-  --surface: rgba(16, 16, 16, 0.88);
-  --border: rgba(255, 255, 255, 0.07);
-  --bg: #0a0a0a;
-  --sidebar-bg: #000000;
+  --text-muted:     #666666;
+  --text-faint:     #333333;
+  --surface:        rgba(16, 16, 16, 0.88);
+  --border:         rgba(255, 255, 255, 0.07);
+  --bg:             #0a0a0a;
+  --sidebar-bg:     #000000;
+
+  /* shadcn-compatible tokens — mapped to Promethee palette */
+  --background:         #0a0a0a;
+  --foreground:         #ffffff;
+
+  --card:               #111111;
+  --card-foreground:    #ffffff;
+
+  --popover:            #111111;
+  --popover-foreground: #ffffff;
+
+  --primary:            #ffffff;
+  --primary-foreground: #000000;
+
+  --secondary:          #1a1a1a;
+  --secondary-foreground: #cccccc;
+
+  --muted:              #1a1a1a;
+  --muted-foreground:   #666666;
+
+  --accent:             rgba(255,255,255,0.06);
+  --accent-foreground:  #ffffff;
+
+  --destructive:        #ef4444;
+  --destructive-foreground: #ffffff;
+
+  --border-color:       rgba(255,255,255,0.07);
+  --input:              rgba(255,255,255,0.07);
+  --ring:               #06B6D4;
+}
+
+/* ─── Tailwind v4 theme — exposes tokens as Tailwind utility classes ── */
+@theme {
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* Promethee accent colors */
+  --color-accent-orange: #FF6B35;
+  --color-accent-cyan:   #06B6D4;
+
+  /* shadcn semantic colors — reference the CSS vars above */
+  --color-background:         var(--background);
+  --color-foreground:         var(--foreground);
+  --color-card:               var(--card);
+  --color-card-foreground:    var(--card-foreground);
+  --color-popover:            var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary:            var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary:          var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted:              var(--muted);
+  --color-muted-foreground:   var(--muted-foreground);
+  --color-accent:             var(--accent);
+  --color-accent-foreground:  var(--accent-foreground);
+  --color-destructive:        var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border:             var(--border-color);
+  --color-input:              var(--input);
+  --color-ring:               var(--ring);
 }
