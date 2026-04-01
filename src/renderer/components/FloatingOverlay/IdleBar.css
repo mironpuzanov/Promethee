@@ -1,4 +1,8 @@
 .idle-bar {
+  position: absolute;
+  left: 50%;
+  top: 70%;
+  transform: translate(-50%, -50%);
   width: 560px;
   height: 52px;
   background: var(--surface);
@@ -10,7 +14,6 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  -webkit-app-region: drag;
   pointer-events: auto;
 }
 
@@ -51,10 +54,23 @@
   text-align: center;
   -webkit-app-region: no-drag;
   transition: color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .start-button:hover {
   color: var(--text-secondary);
+}
+
+.start-circle {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  display: inline-block;
+  flex-shrink: 0;
 }
 
 .task-input {
@@ -97,14 +113,15 @@
 .menu-button {
   background: transparent;
   border: none;
-  color: #444;
-  font-size: 16px;
+  color: #555;
   cursor: pointer;
-  padding: 0;
-  line-height: 1;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: color 0.2s;
 }
 
 .menu-button:hover {
-  color: var(--text-muted);
+  color: #888;
 }

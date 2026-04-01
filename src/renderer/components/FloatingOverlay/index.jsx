@@ -58,7 +58,11 @@ function FloatingOverlay({ user, setUser }) {
 
   if (showResumePrompt) {
     return (
-      <div className="floating-overlay">
+      <div
+        className="floating-overlay"
+        onMouseEnter={() => window.promethee.window.setIgnoreMouseEvents(false)}
+        onMouseLeave={() => window.promethee.window.setIgnoreMouseEvents(true)}
+      >
         <div className="resume-prompt">
           <p>Resume session?</p>
           <button onClick={() => handleResumeSession(true)}>Yes</button>

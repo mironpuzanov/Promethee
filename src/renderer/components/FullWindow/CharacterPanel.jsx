@@ -1,12 +1,22 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import './CharacterPanel.css';
 
 function CharacterPanel({ user }) {
   const userName = user?.email?.split('@')[0] || 'Guest';
-  const level = 1;
+  const [profile, setProfile] = useState({ total_xp: 0, level: 1 });
+
+  useEffect(() => {
+    window.promethee.db.getUserProfile().then(result => {
+      if (result.success && result.profile) {
+        setProfile(result.profile);
+      }
+    });
+  }, []);
+
+  const totalXP = profile.total_xp || 0;
+  const level = profile.level || 1;
   const tier = 'Apprentice';
-  const totalXP = 24;
-  const xpForNextLevel = 100;
+  const xpForNextLevel = level * 100;
 
   const skills = [
     { name: 'Willpower', value: 4 },

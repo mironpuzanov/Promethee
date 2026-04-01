@@ -28,7 +28,7 @@ async function fetchLeaderboard() {
     const { data: topUsers, error: topError } = await supabase
       .from('leaderboard_weekly')
       .select('*')
-      .order('total_xp', { ascending: false })
+      .order('weekly_xp', { ascending: false })
       .limit(50);
 
     if (topError) {
@@ -53,7 +53,7 @@ export async function getLeaderboard() {
     const { data, error } = await supabase
       .from('leaderboard_weekly')
       .select('*')
-      .order('total_xp', { ascending: false })
+      .order('weekly_xp', { ascending: false })
       .limit(50);
 
     if (error) {

@@ -36,13 +36,17 @@ contextBridge.exposeInMainWorld('promethee', {
 
   // DB APIs
   db: {
-    getSessions: () => ipcRenderer.invoke('db:getSessions')
+    getSessions: () => ipcRenderer.invoke('db:getSessions'),
+    getUserProfile: () => ipcRenderer.invoke('db:getUserProfile')
   },
 
   // Window controls
   window: {
     close: () => ipcRenderer.invoke('window:close'),
     minimize: () => ipcRenderer.invoke('window:minimize'),
-    toggleFullWindow: () => ipcRenderer.invoke('window:toggleFullWindow')
+    toggleFullWindow: () => ipcRenderer.invoke('window:toggleFullWindow'),
+    setIgnoreMouseEvents: (ignore) => {
+      ipcRenderer.send(ignore ? 'set-ignore-mouse-events-true' : 'set-ignore-mouse-events-false');
+    }
   }
 });

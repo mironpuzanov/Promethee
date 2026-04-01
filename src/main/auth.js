@@ -10,10 +10,10 @@ let currentUser = null;
 // Create a mock user for testing (bypass auth)
 function createMockUser() {
   return {
-    id: 'test_user_' + Date.now(),
-    email: 'test@promethee.dev',
+    id: 'mock_user_miron',
+    email: 'miron@promethee.dev',
     user_metadata: {
-      display_name: 'Test User'
+      display_name: 'Miron'
     }
   };
 }

@@ -13,8 +13,8 @@ function ActiveSession({ session, onEnd }) {
       const elapsedSeconds = Math.floor((now - session.startedAt) / 1000);
       setElapsed(elapsedSeconds);
 
-      // Calculate XP so far (1 XP per minute, min 60s)
-      const xp = elapsedSeconds < 60 ? 0 : Math.floor(elapsedSeconds / 60);
+      // Calculate XP so far (10 XP per minute, min 60s)
+      const xp = elapsedSeconds < 60 ? 0 : Math.floor(elapsedSeconds / 60) * 10;
       setXpSoFar(xp);
     }, 1000);
 

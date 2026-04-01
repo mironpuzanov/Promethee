@@ -22,7 +22,7 @@ import { startSession, endSessionAndSync, getActiveSession, flushPendingSyncs } 
 import { signIn, signOut, getUser } from './auth.js';
 import { setupPowerMonitoring } from './power.js';
 import { setupLeaderboardPolling, stopLeaderboardPolling, getLeaderboard } from './leaderboard.js';
-import { getTodaysSessions, getSessions, initializeDatabase } from './db.js';
+import { getTodaysSessions, getSessions, getUserProfile, initializeDatabase } from './db.js';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling
 // Commented out for now as it's causing issues with ES modules
@@ -84,6 +84,9 @@ const createFloatingWindow = () => {
       }, 1000);
     }
   });
+
+  // Allow clicks to pass through transparent areas — only overlay elements receive events
+  floatingWindow.setIgnoreMouseEvents(true, { forward: true });
 
   floatingWindow.on('closed', () => {
     floatingWindow = null;
@@ -248,6 +251,15 @@ app.on('before-quit', () => {
   stopLeaderboardPolling();
 });
 
+// Mouse passthrough for floating overlay
+ipcMain.on('set-ignore-mouse-events-true', () => {
+  floatingWindow?.setIgnoreMouseEvents(true, { forward: true });
+});
+
+ipcMain.on('set-ignore-mouse-events-false', () => {
+  floatingWindow?.setIgnoreMouseEvents(false);
+});
+
 // IPC Handlers
 ipcMain.handle('session:start', async (event, task) => {
   try {
@@ -340,6 +352,20 @@ ipcMain.handle('db:getSessions', async () => {
 
     const sessions = getSessions(user.id);
     return { success: true, sessions };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:getUserProfile', async () => {
+  try {
+    const user = await getUser();
+    if (!user) {
+      return { success: false, error: 'User not authenticated' };
+    }
+
+    const profile = getUserProfile(user.id);
+    return { success: true, profile };
   } catch (error) {
     return { success: false, error: error.message };
   }

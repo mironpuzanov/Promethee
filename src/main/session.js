@@ -30,8 +30,8 @@ export async function endSessionAndSync() {
   const endedAt = Date.now();
   const durationSeconds = Math.floor((endedAt - activeSession.startedAt) / 1000);
 
-  // Calculate XP: 1 XP per minute, minimum 60s for any XP
-  const xpEarned = durationSeconds < 60 ? 0 : Math.floor(durationSeconds / 60);
+  // Calculate XP: 10 XP per minute, minimum 60s for any XP
+  const xpEarned = durationSeconds < 60 ? 0 : Math.floor(durationSeconds / 60) * 10;
 
   // Save to local database
   dbEndSession(activeSession.id, xpEarned, durationSeconds);
@@ -66,8 +66,8 @@ async function syncSessionToSupabase(sessionData) {
     id: sessionData.id,
     user_id: sessionData.userId,
     task: sessionData.task,
-    started_at: new Date(sessionData.startedAt).toISOString(),
-    ended_at: sessionData.endedAt ? new Date(sessionData.endedAt).toISOString() : null,
+    started_at: sessionData.startedAt,
+    ended_at: sessionData.endedAt || null,
     duration_seconds: sessionData.durationSeconds,
     xp_earned: sessionData.xpEarned,
     source: 'manual',

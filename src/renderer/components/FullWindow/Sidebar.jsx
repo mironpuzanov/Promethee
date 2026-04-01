@@ -3,13 +3,13 @@ import './Sidebar.css';
 
 function Sidebar({ activeTab, setActiveTab }) {
   const navItems = [
-    { id: 'home', label: 'Home', icon: '⌂' },
-    { id: 'log', label: 'Log', icon: '📊' },
-    { id: 'quests', label: 'Quests', icon: '⚔' },
-    { id: 'habits', label: 'Habits', icon: '✓' },
-    { id: 'skills', label: 'Skills', icon: '⚡' },
-    { id: 'journal', label: 'Journal', icon: '📝' },
-    { id: 'mentor', label: 'Mentor', icon: '🔥' }
+    { id: 'home', label: 'Home' },
+    { id: 'log', label: 'Log' },
+    { id: 'quests', label: 'Quests' },
+    { id: 'habits', label: 'Habits' },
+    { id: 'skills', label: 'Skills' },
+    { id: 'journal', label: 'Journal' },
+    { id: 'mentor', label: 'Mentor' }
   ];
 
   return (
@@ -22,7 +22,6 @@ function Sidebar({ activeTab, setActiveTab }) {
             className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
             onClick={() => setActiveTab(item.id)}
           >
-            <span className="nav-icon">{item.icon}</span>
             <span className="nav-label">{item.label}</span>
           </button>
         ))}
