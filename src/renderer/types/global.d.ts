@@ -32,6 +32,18 @@ declare global {
         toggleFullWindow: () => Promise<void>;
         setIgnoreMouseEvents: (ignore: boolean) => void;
       };
+      agent: {
+        getToken: () => Promise<{ success: boolean; token?: string; error?: string }>;
+        setToken: (key: string) => Promise<{ success: boolean; error?: string }>;
+        getChats: () => Promise<{ success: boolean; chats?: any[]; error?: string }>;
+        getOrCreateChat: (title: string, sessionId: string | null, systemPrompt: string) => Promise<{ success: boolean; chat?: any; error?: string }>;
+        createChat: (title: string, sessionId: string | null, systemPrompt: string) => Promise<{ success: boolean; chat?: any; error?: string }>;
+        getMessages: (chatId: string) => Promise<{ success: boolean; messages?: any[]; error?: string }>;
+        sendMessage: (chatId: string, content: string, messages: any[]) => Promise<{ success: boolean; error?: string }>;
+        onChunk: (callback: (data: { chatId: string; delta: string }) => void) => () => void;
+        onStreamEnd: (callback: (data: { chatId: string; message: any }) => void) => () => void;
+        onStreamError: (callback: (data: { chatId: string; error: string }) => void) => () => void;
+      };
     };
   }
 }

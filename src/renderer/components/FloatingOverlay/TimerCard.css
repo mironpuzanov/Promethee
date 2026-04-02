@@ -13,10 +13,29 @@
   -webkit-app-region: drag;
 }
 
+.timer-card--minimized {
+  padding: 8px;
+  border-radius: 50%;
+  width: 64px;
+  height: 64px;
+  justify-content: center;
+}
+
 .timer-ring {
   position: relative;
   width: 72px;
   height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.timer-ring-label {
+  position: absolute;
+  font-size: 9px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
 }
 
 .timer-info {
@@ -46,6 +65,14 @@
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 400;
+}
+
+.timer-card button,
+.timer-card input,
+.timer-card svg,
+.timer-ring {
+  -webkit-app-region: no-drag;
+  pointer-events: auto;
 }
 
 .stop-button {

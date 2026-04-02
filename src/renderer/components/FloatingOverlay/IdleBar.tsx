@@ -65,13 +65,13 @@ function IdleBar({ user, onStartSession }: IdleBarProps) {
       <div className="user-controls">
         <div className="user-avatar">{getInitial()}</div>
         <button className="menu-button" onClick={handleMenuClick} title="Open dashboard">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <circle cx="2.5" cy="2.5" r="1.5" fill="currentColor"/>
-            <circle cx="7" cy="2.5" r="1.5" fill="currentColor"/>
-            <circle cx="11.5" cy="2.5" r="1.5" fill="currentColor"/>
-            <circle cx="2.5" cy="7" r="1.5" fill="currentColor"/>
-            <circle cx="7" cy="7" r="1.5" fill="currentColor"/>
-            <circle cx="11.5" cy="7" r="1.5" fill="currentColor"/>
+          <svg width="14" height="10" viewBox="0 0 14 10" fill="none">
+            <circle cx="2" cy="2" r="1.5" fill="currentColor"/>
+            <circle cx="7" cy="2" r="1.5" fill="currentColor"/>
+            <circle cx="12" cy="2" r="1.5" fill="currentColor"/>
+            <circle cx="2" cy="8" r="1.5" fill="currentColor"/>
+            <circle cx="7" cy="8" r="1.5" fill="currentColor"/>
+            <circle cx="12" cy="8" r="1.5" fill="currentColor"/>
           </svg>
         </button>
       </div>

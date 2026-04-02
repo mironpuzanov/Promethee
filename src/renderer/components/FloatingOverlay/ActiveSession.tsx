@@ -18,6 +18,7 @@ interface ActiveSessionProps {
 function ActiveSession({ session, onEnd }: ActiveSessionProps) {
   const [elapsed, setElapsed] = useState(0);
   const [xpSoFar, setXpSoFar] = useState(0);
+  const [minimized, setMinimized] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -31,6 +32,14 @@ function ActiveSession({ session, onEnd }: ActiveSessionProps) {
     return () => clearInterval(interval);
   }, [session]);
 
+  // Ensure mouse passthrough when component mounts/unmounts
+  useEffect(() => {
+    window.promethee.window.setIgnoreMouseEvents(true);
+    return () => {
+      window.promethee.window.setIgnoreMouseEvents(true);
+    };
+  }, []);
+
   const formatTime = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
@@ -43,9 +52,12 @@ function ActiveSession({ session, onEnd }: ActiveSessionProps) {
       <LevelPill />
       <TimerCard
         elapsed={formatTime(elapsed)}
+        elapsedSeconds={elapsed}
         task={session.task || 'Working...'}
         xpSoFar={xpSoFar}
         onStop={onEnd}
+        minimized={minimized}
+        onToggleMinimize={() => setMinimized(m => !m)}
       />
     </div>
   );

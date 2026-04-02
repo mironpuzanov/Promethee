@@ -1,8 +1,20 @@
 import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { Zap } from 'lucide-react';
 import Sidebar from './Sidebar';
 import CharacterPanel from './CharacterPanel';
 import RightPanel from './RightPanel';
 import './FullWindow.css';
+
+const listVariants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { staggerChildren: 0.05 } },
+};
+
+const rowVariants = {
+  hidden: { opacity: 0, y: 8 },
+  visible: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 120, damping: 18 } },
+};
 
 interface User {
   id: string;
@@ -40,23 +52,35 @@ function SessionLog() {
   };
 
   return (
-    <div className="tab-panel">
-      <h2 className="tab-title">Session Log</h2>
+    <div className="flex flex-col bg-background px-10 py-10 overflow-y-auto gap-6">
+      <h2 className="text-2xl font-light text-foreground">Session Log</h2>
       {sessions.length === 0 ? (
-        <p className="tab-empty">No sessions yet. Start your first session from the overlay.</p>
+        <p className="text-sm text-muted-foreground">No sessions yet. Start your first session from the overlay.</p>
       ) : (
-        <div className="session-list">
+        <motion.div
+          className="flex flex-col gap-1"
+          initial="hidden"
+          animate="visible"
+          variants={listVariants}
+        >
           {sessions.map(s => (
-            <div key={s.id} className="session-row">
-              <div className="session-task">{s.task || 'Untitled session'}</div>
-              <div className="session-meta">
+            <motion.div
+              key={s.id}
+              variants={rowVariants}
+              className="flex justify-between items-center px-4 py-3 rounded-lg bg-card hover:bg-accent transition-colors gap-4"
+            >
+              <span className="text-sm text-foreground flex-1 truncate">{s.task || 'Untitled session'}</span>
+              <div className="flex items-center gap-4 flex-shrink-0 text-xs text-muted-foreground">
                 <span>{formatDate(s.started_at)}</span>
                 <span>{formatDuration(s.duration_seconds)}</span>
-                <span className="session-xp">+{s.xp_earned || 0} XP</span>
+                <span className="flex items-center gap-1 text-accent-orange font-medium">
+                  <Zap size={11} />
+                  {s.xp_earned || 0} XP
+                </span>
               </div>
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       )}
     </div>
   );
@@ -64,9 +88,9 @@ function SessionLog() {
 
 function PlaceholderTab({ title }: { title: string }) {
   return (
-    <div className="tab-panel">
-      <h2 className="tab-title">{title}</h2>
-      <p className="tab-empty">Coming soon.</p>
+    <div className="flex flex-col bg-background px-10 py-10 overflow-y-auto gap-6">
+      <h2 className="text-2xl font-light text-foreground">{title}</h2>
+      <p className="text-sm text-muted-foreground">Coming soon.</p>
     </div>
   );
 }
@@ -96,7 +120,8 @@ function FullWindow({ user, setUser }: FullWindowProps) {
 
   return (
     <div className={`full-window${isHome ? '' : ' no-right-panel'}`}>
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <div className="titlebar-drag" />
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} user={user} />
       {renderMain()}
       {isHome && <RightPanel />}
     </div>

@@ -48,5 +48,34 @@ contextBridge.exposeInMainWorld('promethee', {
     setIgnoreMouseEvents: (ignore) => {
       ipcRenderer.send(ignore ? 'set-ignore-mouse-events-true' : 'set-ignore-mouse-events-false');
     }
+  },
+
+  // Agent APIs
+  agent: {
+    getToken: () => ipcRenderer.invoke('agent:getToken'),
+    setToken: (key) => ipcRenderer.invoke('agent:setToken', key),
+    getChats: () => ipcRenderer.invoke('agent:getChats'),
+    getOrCreateChat: (title, sessionId, systemPrompt) =>
+      ipcRenderer.invoke('agent:getOrCreateChat', title, sessionId, systemPrompt),
+    createChat: (title, sessionId, systemPrompt) =>
+      ipcRenderer.invoke('agent:createChat', title, sessionId, systemPrompt),
+    getMessages: (chatId) => ipcRenderer.invoke('agent:getMessages', chatId),
+    sendMessage: (chatId, content, messages) =>
+      ipcRenderer.invoke('agent:sendMessage', chatId, content, messages),
+    onChunk: (callback) => {
+      const listener = (_event, data) => callback(data);
+      ipcRenderer.on('agent:chunk', listener);
+      return () => ipcRenderer.removeListener('agent:chunk', listener);
+    },
+    onStreamEnd: (callback) => {
+      const listener = (_event, data) => callback(data);
+      ipcRenderer.on('agent:streamEnd', listener);
+      return () => ipcRenderer.removeListener('agent:streamEnd', listener);
+    },
+    onStreamError: (callback) => {
+      const listener = (_event, data) => callback(data);
+      ipcRenderer.on('agent:streamError', listener);
+      return () => ipcRenderer.removeListener('agent:streamError', listener);
+    }
   }
 });

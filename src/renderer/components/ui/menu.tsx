@@ -1,8 +1,10 @@
+// 1. Import Dependencies
 import * as React from 'react';
 import { motion } from 'framer-motion';
 import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+// 2. Define Prop Types
 interface NavItem {
   icon: React.ReactNode;
   label: string;
@@ -10,18 +12,33 @@ interface NavItem {
   isSeparator?: boolean;
 }
 
+interface UserProfile {
+  name: string;
+  email: string;
+  avatarUrl: string;
+}
+
 interface UserProfileSidebarProps {
+  user: UserProfile;
   navItems: NavItem[];
   activeTab: string;
   onTabChange: (id: string) => void;
+  logoutItem: {
+    icon: React.ReactNode;
+    label: string;
+    onClick: () => void;
+  };
   className?: string;
 }
 
+// 3. Define Animation Variants
 const sidebarVariants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.08 },
+    transition: {
+      staggerChildren: 0.08,
+    },
   },
 };
 
@@ -38,8 +55,9 @@ const itemVariants = {
   },
 };
 
+// 4. Create the Component
 export const UserProfileSidebar = React.forwardRef<HTMLDivElement, UserProfileSidebarProps>(
-  ({ navItems, activeTab, onTabChange, className }, ref) => {
+  ({ user, navItems, activeTab, onTabChange, logoutItem, className }, ref) => {
     return (
       <motion.aside
         ref={ref}
@@ -50,16 +68,24 @@ export const UserProfileSidebar = React.forwardRef<HTMLDivElement, UserProfileSi
         initial="hidden"
         animate="visible"
         variants={sidebarVariants}
-        aria-label="Navigation"
+        aria-label="User Profile Menu"
       >
-        {/* Promethee dot mark */}
-        <motion.div variants={itemVariants} className="flex gap-[3px] px-2 pb-6 pt-1">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="w-[3px] h-[3px] rounded-full bg-muted-foreground/30" />
-          ))}
+        {/* User Info Header */}
+        <motion.div variants={itemVariants} className="flex items-center space-x-4 p-2">
+          <img
+            src={user.avatarUrl}
+            alt={`${user.name}'s avatar`}
+            className="h-12 w-12 rounded-full object-cover flex-shrink-0"
+          />
+          <div className="flex flex-col truncate">
+            <span className="font-semibold text-lg text-foreground">{user.name}</span>
+            <span className="text-sm text-muted-foreground truncate">{user.email}</span>
+          </div>
         </motion.div>
 
-        {/* Navigation */}
+        <motion.div variants={itemVariants} className="my-4 border-t border-border" />
+
+        {/* Navigation Links */}
         <nav className="flex-1 space-y-1" role="navigation">
           {navItems.map((item, index) => {
             const isActive = activeTab === item.id;
@@ -78,16 +104,29 @@ export const UserProfileSidebar = React.forwardRef<HTMLDivElement, UserProfileSi
                       : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                   )}
                 >
-                  <span className="mr-3 h-4 w-4 flex-shrink-0">{item.icon}</span>
+                  <span className="mr-3 flex h-5 w-5 items-center justify-center flex-shrink-0">
+                    {item.icon}
+                  </span>
                   <span>{item.label}</span>
-                  <ChevronRight
-                    className="ml-auto h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100"
-                  />
+                  <ChevronRight className="ml-auto h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100" />
                 </motion.button>
               </React.Fragment>
             );
           })}
         </nav>
+
+        {/* Logout Button */}
+        <motion.div variants={itemVariants} className="mt-4">
+          <button
+            onClick={logoutItem.onClick}
+            className="group flex w-full items-center rounded-md px-3 py-2.5 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
+          >
+            <span className="mr-3 flex h-5 w-5 items-center justify-center flex-shrink-0">
+              {logoutItem.icon}
+            </span>
+            <span>{logoutItem.label}</span>
+          </button>
+        </motion.div>
       </motion.aside>
     );
   }

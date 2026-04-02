@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import IdleBar from './IdleBar';
 import ActiveSession from './ActiveSession';
+import AgentBubble from './AgentBubble';
 import './FloatingOverlay.css';
 
 interface User {
@@ -75,15 +76,26 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
           <button onClick={() => handleResumeSession(true)}>Yes</button>
           <button onClick={() => handleResumeSession(false)}>No</button>
         </div>
+        <AgentBubble activeSession={activeSession} />
       </div>
     );
   }
 
   if (activeSession) {
-    return <ActiveSession session={activeSession} onEnd={handleEndSession} />;
+    return (
+      <>
+        <ActiveSession session={activeSession} onEnd={handleEndSession} />
+        <AgentBubble activeSession={activeSession} />
+      </>
+    );
   }
 
-  return <IdleBar user={user} onStartSession={handleStartSession} />;
+  return (
+    <>
+      <IdleBar user={user} onStartSession={handleStartSession} />
+      <AgentBubble activeSession={null} />
+    </>
+  );
 }
 
 export default FloatingOverlay;

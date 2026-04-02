@@ -22,7 +22,9 @@ import { startSession, endSessionAndSync, getActiveSession, flushPendingSyncs } 
 import { signIn, signOut, getUser } from './auth.js';
 import { setupPowerMonitoring } from './power.js';
 import { setupLeaderboardPolling, stopLeaderboardPolling, getLeaderboard } from './leaderboard.js';
-import { getTodaysSessions, getSessions, getUserProfile, initializeDatabase } from './db.js';
+import { getTodaysSessions, getSessions, getUserProfile, initializeDatabase, getAgentChats, getOrCreateAgentChat, createAgentChat, getAgentMessages, addAgentMessage } from './db.js';
+import keytar from 'keytar';
+import OpenAI from 'openai';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling
 // Commented out for now as it's causing issues with ES modules
@@ -66,9 +68,7 @@ const createFloatingWindow = () => {
   }
 
   // Open DevTools in development
-  // if (process.env.NODE_ENV === 'development') {
-  //   floatingWindow.webContents.openDevTools({ mode: 'detach' });
-  // }
+  // floatingWindow.webContents.openDevTools({ mode: 'detach' });
 
   floatingWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
     debugLog(`Window failed to load: ${errorCode} ${errorDescription}`);
@@ -83,6 +83,10 @@ const createFloatingWindow = () => {
   // Allow clicks to pass through transparent areas — only overlay elements receive events
   floatingWindow.setIgnoreMouseEvents(true, { forward: true });
 
+  // Must be called after creation to actually stick on all spaces + fullscreen apps
+  floatingWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  floatingWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+
   floatingWindow.on('closed', () => {
     floatingWindow = null;
   });
@@ -92,9 +96,12 @@ const createFullWindow = () => {
   fullWindow = new BrowserWindow({
     width: 1200,
     height: 800,
-    frame: true,
+    frame: false,
+    titleBarStyle: 'hiddenInset',
+    trafficLightPosition: { x: 16, y: 16 },
     transparent: false,
     backgroundColor: '#0a0a0a',
+    title: 'Promethee',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -387,5 +394,157 @@ ipcMain.handle('window:toggleFullWindow', () => {
     fullWindow.hide();
   } else {
     fullWindow.show();
+  }
+});
+
+// Agent IPC Handlers
+
+const AGENT_KEYCHAIN_SERVICE = 'Promethee';
+const AGENT_KEYCHAIN_ACCOUNT = 'openai-key';
+
+ipcMain.handle('agent:getToken', async () => {
+  try {
+    const key = await keytar.getPassword(AGENT_KEYCHAIN_SERVICE, AGENT_KEYCHAIN_ACCOUNT);
+    if (!key) {
+      return { success: false, error: 'No API key configured. Set it via agent:setToken.' };
+    }
+    return { success: true, token: key };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('agent:setToken', async (_event, key) => {
+  try {
+    await keytar.setPassword(AGENT_KEYCHAIN_SERVICE, AGENT_KEYCHAIN_ACCOUNT, key);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('agent:getChats', async () => {
+  try {
+    const user = await getUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+    const chats = getAgentChats(user.id);
+    return { success: true, chats };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('agent:getOrCreateChat', async (_event, title, sessionId, systemPrompt) => {
+  try {
+    const user = await getUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+    const chat = getOrCreateAgentChat(user.id, title, sessionId, systemPrompt);
+    return { success: true, chat };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('agent:createChat', async (_event, title, sessionId, systemPrompt) => {
+  try {
+    const user = await getUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+    const chat = createAgentChat(user.id, title, sessionId, systemPrompt);
+    return { success: true, chat };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('agent:getMessages', async (_event, chatId) => {
+  try {
+    const messages = getAgentMessages(chatId);
+    return { success: true, messages };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('agent:sendMessage', async (_event, chatId, content, previousMessages) => {
+  try {
+    const keyResult = await keytar.getPassword(AGENT_KEYCHAIN_SERVICE, AGENT_KEYCHAIN_ACCOUNT);
+    if (!keyResult) {
+      return { success: false, error: 'No API key. Configure it first.' };
+    }
+
+    // Persist user message
+    addAgentMessage(chatId, 'user', content);
+
+    const openai = new OpenAI({ apiKey: keyResult });
+
+    // Build system prompt fresh from DB so the agent always has current stats
+    const user = await getUser();
+    const activeSession = getActiveSession();
+    const todaysSessions = user ? getTodaysSessions(user.id) : [];
+    const profile = user ? getUserProfile(user.id) : null;
+
+    const xpToday = todaysSessions.reduce((sum, s) => sum + (s.xp_earned || 0), 0);
+    const sessionCountToday = todaysSessions.length;
+    const recentNames = todaysSessions.slice(0, 5).map(s => {
+      const mins = s.duration_seconds ? Math.round(s.duration_seconds / 60) : '?';
+      return `"${s.task || 'Untitled'}" — ${mins}m`;
+    }).join(', ');
+
+    const level = profile?.level || 1;
+    const totalXp = profile?.total_xp || 0;
+
+    let resolvedSystemPrompt;
+    if (activeSession) {
+      const elapsedMinutes = Math.floor((Date.now() - activeSession.startedAt) / 60000);
+      resolvedSystemPrompt = `You are the Promethee AI agent. You help users stay focused and get unstuck without leaving their work.
+
+Current session: "${activeSession.task || 'Untitled'}" — ${elapsedMinutes} minute${elapsedMinutes !== 1 ? 's' : ''} in.
+Today: ${xpToday} XP earned across ${sessionCountToday} session${sessionCountToday !== 1 ? 's' : ''}.
+User level: ${level} (${totalXp} XP total).
+Recent sessions: ${recentNames || 'none yet'}.
+
+Answer concisely. You already know what they're working on — don't ask them to re-explain.`;
+    } else {
+      resolvedSystemPrompt = `You are the Promethee AI agent. You help users stay focused and get unstuck.
+
+Today: ${xpToday} XP earned across ${sessionCountToday} session${sessionCountToday !== 1 ? 's' : ''}.
+User level: ${level} (${totalXp} XP total).
+Recent sessions: ${recentNames || 'none yet'}.
+
+Answer concisely.`;
+    }
+
+    const messagesForApi = [
+      { role: 'system', content: resolvedSystemPrompt },
+      ...previousMessages
+        .filter(m => m.content != null && m.content !== '')
+        .map(m => ({ role: m.role, content: String(m.content) })),
+      { role: 'user', content }
+    ];
+
+    const stream = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: messagesForApi,
+      stream: true
+    });
+
+    let fullContent = '';
+
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content || '';
+      if (delta) {
+        fullContent += delta;
+        floatingWindow?.webContents.send('agent:chunk', { chatId, delta });
+      }
+    }
+
+    // Persist assistant message
+    const saved = addAgentMessage(chatId, 'assistant', fullContent);
+    floatingWindow?.webContents.send('agent:streamEnd', { chatId, message: saved });
+
+    return { success: true };
+  } catch (error) {
+    floatingWindow?.webContents.send('agent:streamError', { chatId, error: error.message });
+    return { success: false, error: error.message };
   }
 });

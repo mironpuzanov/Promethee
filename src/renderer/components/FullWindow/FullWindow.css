@@ -3,12 +3,26 @@
   height: 100vh;
   background: var(--bg);
   display: grid;
-  grid-template-columns: 200px 1fr 240px;
+  grid-template-columns: 280px 1fr 240px;
+  grid-template-rows: 1fr;
   overflow: hidden;
+  padding-top: env(titlebar-area-height, 0px);
+}
+
+/* macOS hiddenInset titlebar drag region */
+.titlebar-drag {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 48px;
+  -webkit-app-region: drag;
+  z-index: 100;
+  pointer-events: none;
 }
 
 .full-window.no-right-panel {
-  grid-template-columns: 200px 1fr;
+  grid-template-columns: 280px 1fr;
 }
 
 .tab-panel {

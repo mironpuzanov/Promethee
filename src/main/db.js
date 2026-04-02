@@ -40,6 +40,27 @@ export function initializeDatabase() {
       level INTEGER DEFAULT 1,
       created_at INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS agent_chats (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      session_id TEXT REFERENCES sessions(id),
+      system_prompt TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS agent_messages (
+      id TEXT PRIMARY KEY,
+      chat_id TEXT NOT NULL REFERENCES agent_chats(id) ON DELETE CASCADE,
+      role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
+      content TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_agent_chats_user ON agent_chats(user_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_agent_messages_chat ON agent_messages(chat_id, created_at ASC);
   `);
 
   return db;
@@ -187,4 +208,73 @@ export function updateUserXP(userId, xpToAdd) {
     `);
     levelStmt.run(newLevel, userId);
   }
+}
+
+// Agent chat functions
+
+export function getAgentChats(userId) {
+  const database = getDb();
+  return database.prepare(`
+    SELECT * FROM agent_chats
+    WHERE user_id = ?
+    ORDER BY updated_at DESC
+    LIMIT 50
+  `).all(userId);
+}
+
+export function getOrCreateAgentChat(userId, title, sessionId, systemPrompt) {
+  const database = getDb();
+  // If session_id provided, reuse existing chat for that session
+  if (sessionId) {
+    const existing = database.prepare(`
+      SELECT * FROM agent_chats WHERE user_id = ? AND session_id = ?
+    `).get(userId, sessionId);
+    if (existing) return existing;
+  }
+
+  const id = crypto.randomUUID();
+  const now = Date.now();
+  database.prepare(`
+    INSERT INTO agent_chats (id, user_id, title, session_id, system_prompt, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(id, userId, title, sessionId || null, systemPrompt, now, now);
+
+  return database.prepare(`SELECT * FROM agent_chats WHERE id = ?`).get(id);
+}
+
+export function createAgentChat(userId, title, sessionId, systemPrompt) {
+  const database = getDb();
+  const id = crypto.randomUUID();
+  const now = Date.now();
+  database.prepare(`
+    INSERT INTO agent_chats (id, user_id, title, session_id, system_prompt, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(id, userId, title, sessionId || null, systemPrompt, now, now);
+
+  return database.prepare(`SELECT * FROM agent_chats WHERE id = ?`).get(id);
+}
+
+export function getAgentMessages(chatId) {
+  const database = getDb();
+  return database.prepare(`
+    SELECT * FROM agent_messages
+    WHERE chat_id = ?
+    ORDER BY created_at ASC
+    LIMIT 50
+  `).all(chatId);
+}
+
+export function addAgentMessage(chatId, role, content) {
+  const database = getDb();
+  const id = crypto.randomUUID();
+  const now = Date.now();
+  database.prepare(`
+    INSERT INTO agent_messages (id, chat_id, role, content, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(id, chatId, role, content, now);
+
+  // Update chat updated_at
+  database.prepare(`UPDATE agent_chats SET updated_at = ? WHERE id = ?`).run(now, chatId);
+
+  return { id, chatId, role, content, createdAt: now };
 }

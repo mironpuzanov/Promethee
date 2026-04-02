@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import './CharacterPanel.css';
+import { motion } from 'framer-motion';
 
 interface User {
   id: string;
@@ -17,8 +17,18 @@ interface CharacterPanelProps {
   user: User | null;
 }
 
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { staggerChildren: 0.08 } },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 16 },
+  visible: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 100, damping: 15 } },
+};
+
 function CharacterPanel({ user }: CharacterPanelProps) {
-  const userName = user?.email?.split('@')[0] || 'Guest';
+  const userName = user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'Guest';
   const [profile, setProfile] = useState<UserProfile>({ total_xp: 0, level: 1 });
 
   useEffect(() => {
@@ -33,6 +43,7 @@ function CharacterPanel({ user }: CharacterPanelProps) {
   const level = profile.level || 1;
   const tier = 'Apprentice';
   const xpForNextLevel = level * 100;
+  const xpProgress = Math.min((totalXP % xpForNextLevel) / xpForNextLevel, 1);
 
   const skills = [
     { name: 'Willpower', value: 4 },
@@ -40,59 +51,90 @@ function CharacterPanel({ user }: CharacterPanelProps) {
     { name: 'Rigor', value: 1 },
   ];
 
-  const xpDots = Array.from({ length: 12 }, (_, i) => i < Math.floor((totalXP / xpForNextLevel) * 12));
+  const xpDots = Array.from({ length: 12 }, (_, i) => i < Math.floor(xpProgress * 12));
 
   return (
-    <div className="character-panel">
-      <div className="character-header">
-        <h1 className="character-name">{userName}</h1>
-        <p className="character-level">Level {level} · {tier}</p>
-        <div className="xp-bar">
+    <motion.main
+      className="flex flex-col bg-background px-10 py-10 overflow-y-auto gap-8"
+      initial="hidden"
+      animate="visible"
+      variants={containerVariants}
+    >
+      {/* Header */}
+      <motion.div variants={itemVariants} className="flex flex-col gap-2">
+        <h1 className="text-2xl font-light text-foreground">{userName}</h1>
+        <p className="text-xs uppercase tracking-widest text-muted-foreground">Level {level} · {tier}</p>
+        <div className="flex items-center gap-2 mt-3">
           {xpDots.map((filled, i) => (
-            <span key={i} className={`xp-dot ${filled ? 'filled' : ''}`}>█</span>
+            <span
+              key={i}
+              className={`text-xs leading-none ${filled ? 'text-accent-orange' : 'text-muted'}`}
+            >█</span>
           ))}
-          <span className="xp-text">{totalXP} XP</span>
+          <span className="text-sm font-medium text-secondary-foreground ml-2">{totalXP} XP</span>
         </div>
-      </div>
+      </motion.div>
 
-      <div className="character-silhouette">
-        <svg width="200" height="300" viewBox="0 0 200 300">
-          <ellipse cx="100" cy="60" rx="40" ry="50" fill="var(--text-faint)" opacity="0.3" />
-          <rect x="60" y="110" width="80" height="120" rx="10" fill="var(--text-faint)" opacity="0.3" />
-          <rect x="40" y="120" width="20" height="80" rx="10" fill="var(--text-faint)" opacity="0.3" />
-          <rect x="140" y="120" width="20" height="80" rx="10" fill="var(--text-faint)" opacity="0.3" />
-          <rect x="70" y="230" width="25" height="60" rx="10" fill="var(--text-faint)" opacity="0.3" />
-          <rect x="105" y="230" width="25" height="60" rx="10" fill="var(--text-faint)" opacity="0.3" />
-        </svg>
-      </div>
+      {/* XP Progress bar */}
+      <motion.div variants={itemVariants} className="flex flex-col gap-1.5">
+        <div className="flex justify-between text-xs text-muted-foreground">
+          <span>Progress to Level {level + 1}</span>
+          <span>{totalXP} / {xpForNextLevel}</span>
+        </div>
+        <div className="h-1 bg-muted rounded-full overflow-hidden">
+          <motion.div
+            className="h-full bg-accent-orange rounded-full"
+            initial={{ width: 0 }}
+            animate={{ width: `${xpProgress * 100}%` }}
+            transition={{ duration: 0.8, ease: 'easeOut' }}
+          />
+        </div>
+      </motion.div>
 
-      <div className="skills-list">
-        {skills.map(skill => (
-          <div key={skill.name} className="skill-item">
-            <span className="skill-name">{skill.name}</span>
-            <span className="skill-value">{skill.value}</span>
-          </div>
-        ))}
-      </div>
+      {/* Skills */}
+      <motion.div variants={itemVariants} className="flex flex-col gap-3">
+        <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Skills</p>
+        <div className="flex flex-col gap-2">
+          {skills.map(skill => (
+            <div key={skill.name} className="flex justify-between items-center py-2 border-b border-border last:border-0">
+              <span className="text-sm text-secondary-foreground">{skill.name}</span>
+              <span className="text-base font-medium text-foreground">{skill.value}</span>
+            </div>
+          ))}
+        </div>
+      </motion.div>
 
-      <div className="habits-section">
-        <h3 className="section-title">Habits</h3>
-        <div className="habits-chart">
-          <svg width="100%" height="100" viewBox="0 0 300 100">
-            <line x1="0" y1="25" x2="300" y2="25" stroke="#333" strokeWidth="1" />
-            <line x1="0" y1="50" x2="300" y2="50" stroke="#333" strokeWidth="1" />
-            <line x1="0" y1="75" x2="300" y2="75" stroke="#333" strokeWidth="1" />
+      {/* Habits chart */}
+      <motion.div variants={itemVariants} className="flex flex-col gap-3">
+        <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Habits</p>
+        <div className="w-full h-24 bg-card rounded-lg p-2">
+          <svg width="100%" height="100%" viewBox="0 0 300 80" preserveAspectRatio="none">
+            <line x1="0" y1="20" x2="300" y2="20" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+            <line x1="0" y1="40" x2="300" y2="40" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+            <line x1="0" y1="60" x2="300" y2="60" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
             <polyline
-              points="0,80 60,60 120,50 180,40 240,30 300,25"
+              points="0,64 60,48 120,40 180,32 240,24 300,20"
               fill="none"
-              stroke="var(--accent-orange)"
+              stroke="#FF6B35"
               strokeWidth="2"
-              opacity="0.5"
+              opacity="0.6"
             />
+            <polyline
+              points="0,64 60,48 120,40 180,32 240,24 300,20"
+              fill="url(#grad)"
+              stroke="none"
+              opacity="0.1"
+            />
+            <defs>
+              <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#FF6B35" stopOpacity="1" />
+                <stop offset="100%" stopColor="#FF6B35" stopOpacity="0" />
+              </linearGradient>
+            </defs>
           </svg>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.main>
   );
 }
 
