@@ -20,12 +20,12 @@
 }
 
 .mentor-button {
-  background: linear-gradient(135deg, #FF6B35 0%, #E85D20 100%);
-  border: none;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 999px;
-  padding: 8px 14px;
-  color: var(--text-primary);
-  font-family: 'Inter', sans-serif;
+  padding: 6px 14px;
+  color: rgba(255, 255, 255, 0.70);
+  font-family: 'Geist', sans-serif;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -33,7 +33,7 @@
   align-items: center;
   gap: 6px;
   -webkit-app-region: no-drag;
-  transition: transform 0.1s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 
 .mentor-button:hover {
@@ -49,7 +49,7 @@
   background: transparent;
   border: none;
   color: #888;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Geist', sans-serif;
   font-size: 13px;
   font-weight: 400;
   cursor: pointer;
@@ -80,7 +80,7 @@
   background: transparent;
   border: none;
   color: var(--text-primary);
-  font-family: 'Inter', sans-serif;
+  font-family: 'Geist', sans-serif;
   font-size: 13px;
   font-weight: 400;
   outline: none;
@@ -103,7 +103,7 @@
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: var(--accent-cyan);
+  background: var(--accent-fire);
   display: flex;
   align-items: center;
   justify-content: center;

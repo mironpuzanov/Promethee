@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
-  Home, ScrollText, Sword, CheckSquare, Zap, BookOpen, MessageCircle, LogOut
+  Home, ScrollText, Sword, CheckSquare, Zap, BookOpen, MessageCircle, LogOut, Users, Trophy, ChevronDown
 } from 'lucide-react';
 import { UserProfileSidebar } from '@/components/ui/menu';
 
@@ -16,17 +16,29 @@ interface SidebarProps {
   user: User | null;
 }
 
+const COMMUNITY_CHILDREN = [
+  { id: 'leaderboard', label: 'Leaderboard', icon: <Trophy size={15} /> },
+  { id: 'rooms',       label: 'Rooms',       icon: <Users size={15} /> },
+];
+
 const navItems = [
   { id: 'home',    label: 'Home',    icon: <Home size={18} /> },
-  { id: 'log',     label: 'Log',     icon: <ScrollText size={18} /> },
+  { id: 'log',     label: 'Sessions', icon: <ScrollText size={18} /> },
+  { id: 'community', label: 'Community', icon: <Users size={18} />, children: COMMUNITY_CHILDREN },
   { id: 'quests',  label: 'Quests',  icon: <Sword size={18} /> },
-  { id: 'habits',  label: 'Habits',  icon: <CheckSquare size={18} /> },
-  { id: 'skills',  label: 'Skills',  icon: <Zap size={18} />, isSeparator: true },
+  { id: 'habits',  label: 'Habits',  icon: <CheckSquare size={18} />, isSeparator: true },
+  { id: 'skills',  label: 'Skills',  icon: <Zap size={18} /> },
   { id: 'journal', label: 'Journal', icon: <BookOpen size={18} /> },
   { id: 'mentor',  label: 'Mentor',  icon: <MessageCircle size={18} /> },
 ];
 
+const COMMUNITY_TABS = new Set(['leaderboard', 'rooms']);
+
 function Sidebar({ activeTab, setActiveTab, user }: SidebarProps) {
+  const [communityOpen, setCommunityOpen] = useState(
+    COMMUNITY_TABS.has(activeTab) || activeTab === 'community'
+  );
+
   const userName = user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'Guest';
   const userEmail = user?.email || '';
 
@@ -42,13 +54,50 @@ function Sidebar({ activeTab, setActiveTab, user }: SidebarProps) {
     onClick: () => window.promethee.auth.signOut(),
   };
 
+  // Build nav items, replacing 'community' with the expandable group for UserProfileSidebar
+  const flatItems = navItems.flatMap((item) => {
+    if (item.id === 'community') {
+      // Always include the group header; children shown conditionally
+      const headerItem = {
+        id: 'community',
+        label: 'Community',
+        icon: (
+          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+            <Users size={18} />
+          </span>
+        ),
+        onClick: () => setCommunityOpen(o => !o),
+        isGroupHeader: true,
+        isOpen: communityOpen,
+      };
+      if (communityOpen) {
+        return [
+          headerItem,
+          ...COMMUNITY_CHILDREN.map(c => ({ ...c, isChild: true })),
+        ];
+      }
+      return [headerItem];
+    }
+    return [item];
+  });
+
+  // Which tab is "active" for highlighting — community children take priority
+  const effectiveActive = COMMUNITY_TABS.has(activeTab) ? activeTab : activeTab;
+
   return (
     <UserProfileSidebar
       user={userProfile}
-      navItems={navItems}
-      activeTab={activeTab}
-      onTabChange={setActiveTab}
+      navItems={flatItems}
+      activeTab={effectiveActive}
+      onTabChange={(id) => {
+        if (id === 'community') {
+          setCommunityOpen(o => !o);
+        } else {
+          setActiveTab(id);
+        }
+      }}
       logoutItem={logoutItem}
+      onStartFocusSession={() => window.promethee.window.startFocusSession(null)}
       className="pt-14"
     />
   );

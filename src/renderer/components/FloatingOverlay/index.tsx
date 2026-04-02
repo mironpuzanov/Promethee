@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import IdleBar from './IdleBar';
 import ActiveSession from './ActiveSession';
 import AgentBubble from './AgentBubble';
+import RoomsPanel from './RoomsPanel';
 import './FloatingOverlay.css';
 
 interface User {
@@ -14,6 +16,7 @@ interface Session {
   task?: string;
   startedAt: number;
   userId?: string;
+  roomId?: string | null;
 }
 
 interface FloatingOverlayProps {
@@ -24,6 +27,10 @@ interface FloatingOverlayProps {
 function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
   const [activeSession, setActiveSession] = useState<Session | null>(null);
   const [showResumePrompt, setShowResumePrompt] = useState(false);
+  const [showRooms, setShowRooms] = useState(false);
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  const [focusTaskInput, setFocusTaskInput] = useState(false);
+  const [agentOpen, setAgentOpen] = useState(false);
 
   useEffect(() => {
     window.promethee.session.getActive().then((result: { success: boolean; session?: Session }) => {
@@ -34,12 +41,20 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
 
     window.promethee.power.onSuspend(() => {});
     window.promethee.power.onResume(() => setShowResumePrompt(true));
+
+    const unsub = window.promethee.window.onFocusTaskInput((data: { roomId: string | null }) => {
+      if (data.roomId) setSelectedRoomId(data.roomId);
+      setFocusTaskInput(true);
+    });
+    return unsub;
   }, []);
 
-  const handleStartSession = async (task: string) => {
-    const result = await window.promethee.session.start(task);
+  const handleStartSession = async (task: string, roomId?: string | null) => {
+    const room = roomId ?? selectedRoomId ?? null;
+    const result = await window.promethee.session.start(task, room);
     if (result.success) {
-      setActiveSession(result.session);
+      setActiveSession({ ...result.session, roomId: room });
+      setSelectedRoomId(null);
     } else {
       console.error('Failed to start session:', result.error);
       alert(result.error);
@@ -48,14 +63,16 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
 
   const handleEndSession = async () => {
     const result = await window.promethee.session.end();
-    if (result.success) {
+    if (result.success && result.session) {
       setActiveSession(null);
-      if (result.session?.xpEarned > 0) {
-        alert(`Session complete! +${result.session.xpEarned} XP`);
-      }
-    } else {
+      // Open dashboard with session complete screen
+      window.promethee.window.openSessionComplete({
+        task: result.session.task || 'Session',
+        durationSeconds: result.session.durationSeconds || 0,
+        xpEarned: result.session.xpEarned || 0,
+      });
+    } else if (!result.success) {
       console.error('Failed to end session:', result.error);
-      alert(result.error);
     }
   };
 
@@ -92,8 +109,27 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
 
   return (
     <>
-      <IdleBar user={user} onStartSession={handleStartSession} />
-      <AgentBubble activeSession={null} />
+      <IdleBar
+        user={user}
+        onStartSession={handleStartSession}
+        onOpenRooms={() => setShowRooms(r => !r)}
+        autoFocusInput={focusTaskInput}
+        onAutoFocusConsumed={() => setFocusTaskInput(false)}
+        onOpenMentor={() => setAgentOpen(true)}
+      />
+      <AgentBubble activeSession={null} defaultOpen={agentOpen} />
+      <AnimatePresence>
+        {showRooms && (
+          <RoomsPanel
+            onClose={() => setShowRooms(false)}
+            onJoinRoom={(roomId) => {
+              setSelectedRoomId(roomId);
+              setShowRooms(false);
+            }}
+            activeRoomId={selectedRoomId}
+          />
+        )}
+      </AnimatePresence>
     </>
   );
 }

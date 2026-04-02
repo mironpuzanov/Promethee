@@ -4,19 +4,31 @@ declare global {
   interface Window {
     promethee: {
       session: {
-        start: (task: string) => Promise<{ success: boolean; session?: any; error?: string }>;
+        start: (task: string, roomId?: string | null) => Promise<{ success: boolean; session?: any; error?: string }>;
         end: () => Promise<{ success: boolean; session?: any; error?: string }>;
         getToday: () => Promise<{ success: boolean; sessions?: any[]; error?: string }>;
         getActive: () => Promise<{ success: boolean; session?: any; error?: string }>;
       };
       auth: {
-        signIn: (email: string) => Promise<{ success: boolean; error?: string }>;
+        signIn: (email: string, password: string) => Promise<{ success: boolean; user?: any; error?: string }>;
+        signUp: (email: string, password: string) => Promise<{ success: boolean; needsConfirmation?: boolean; error?: string }>;
+        sendMagicLink: (email: string) => Promise<{ success: boolean; error?: string }>;
         signOut: () => Promise<{ success: boolean; error?: string }>;
         getUser: () => Promise<{ success: boolean; user?: any; error?: string }>;
+        setSession: (accessToken: string, refreshToken: string) => Promise<{ success: boolean; user?: any; error?: string }>;
+        onAuthSuccess: (callback: (user: any) => void) => () => void;
+        onAuthError: (callback: (message: string) => void) => () => void;
+        onSignedOut: (callback: () => void) => () => void;
       };
       leaderboard: {
         get: () => Promise<{ success: boolean; leaderboard?: any[]; error?: string }>;
         onUpdate: (callback: (data: any) => void) => void;
+      };
+      presence: {
+        getCount: () => Promise<{ success: boolean; count?: number; error?: string }>;
+        getRooms: () => Promise<{ success: boolean; rooms?: any[]; roomPresence?: Record<string, any[]>; error?: string }>;
+        onCount: (callback: (count: number) => void) => () => void;
+        onFeed: (callback: (feed: any[]) => void) => () => void;
       };
       power: {
         onSuspend: (callback: (data: any) => void) => void;
@@ -31,6 +43,11 @@ declare global {
         minimize: () => Promise<void>;
         toggleFullWindow: () => Promise<void>;
         setIgnoreMouseEvents: (ignore: boolean) => void;
+        openSessionComplete: (data: { task: string; durationSeconds: number; xpEarned: number }) => Promise<{ success: boolean }>;
+        onSessionComplete: (callback: (data: { task: string; durationSeconds: number; xpEarned: number }) => void) => () => void;
+        getPendingSessionComplete: () => Promise<{ task: string; durationSeconds: number; xpEarned: number } | null>;
+        startFocusSession: (roomId?: string | null) => Promise<{ success: boolean }>;
+        onFocusTaskInput: (callback: (data: { roomId: string | null }) => void) => () => void;
       };
       agent: {
         getToken: () => Promise<{ success: boolean; token?: string; error?: string }>;

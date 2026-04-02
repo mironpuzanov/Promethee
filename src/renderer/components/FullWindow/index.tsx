@@ -4,6 +4,9 @@ import { Zap } from 'lucide-react';
 import Sidebar from './Sidebar';
 import CharacterPanel from './CharacterPanel';
 import RightPanel from './RightPanel';
+import LeaderboardTab from './LeaderboardTab';
+import RoomsTab from './RoomsTab';
+import SessionCompleteScreen from './SessionCompleteScreen';
 import './FullWindow.css';
 
 const listVariants = {
@@ -102,28 +105,57 @@ interface FullWindowProps {
 
 function FullWindow({ user, setUser }: FullWindowProps) {
   const [activeTab, setActiveTab] = useState('home');
+  const [completedSession, setCompletedSession] = useState<{ task: string; durationSeconds: number; xpEarned: number } | null>(null);
+
+  useEffect(() => {
+    // Check if main process has a pending session complete from before this window mounted
+    window.promethee.window.getPendingSessionComplete().then((data) => {
+      if (data) setCompletedSession(data);
+    });
+
+    // Also listen for direct sends (when window was already open)
+    const unsub = window.promethee.window.onSessionComplete((data) => {
+      setCompletedSession(data);
+    });
+    return unsub;
+  }, []);
 
   const renderMain = () => {
     switch (activeTab) {
-      case 'home':    return <CharacterPanel user={user} />;
-      case 'log':     return <SessionLog />;
-      case 'quests':  return <PlaceholderTab title="Quests" />;
-      case 'habits':  return <PlaceholderTab title="Habits" />;
-      case 'skills':  return <PlaceholderTab title="Skills" />;
-      case 'journal': return <PlaceholderTab title="Journal" />;
-      case 'mentor':  return <PlaceholderTab title="Mentor" />;
+      case 'home':        return <CharacterPanel user={user} />;
+      case 'log':         return <SessionLog />;
+      case 'leaderboard': return <LeaderboardTab />;
+      case 'rooms':       return <RoomsTab />;
+      case 'quests':      return <PlaceholderTab title="Quests" />;
+      case 'habits':      return <PlaceholderTab title="Habits" />;
+      case 'skills':      return <PlaceholderTab title="Skills" />;
+      case 'journal':     return <PlaceholderTab title="Journal" />;
+      case 'mentor':      return <PlaceholderTab title="Mentor" />;
       default:        return <CharacterPanel user={user} />;
     }
   };
 
   const isHome = activeTab === 'home';
+  const showRightPanel = activeTab === 'home';
+
+  // Session complete: show ONLY the completion screen, no dashboard behind it
+  if (completedSession) {
+    return (
+      <SessionCompleteScreen
+        task={completedSession.task}
+        durationSeconds={completedSession.durationSeconds}
+        xpEarned={completedSession.xpEarned}
+        onClose={() => setCompletedSession(null)}
+      />
+    );
+  }
 
   return (
     <div className={`full-window${isHome ? '' : ' no-right-panel'}`}>
       <div className="titlebar-drag" />
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} user={user} />
       {renderMain()}
-      {isHome && <RightPanel />}
+      {showRightPanel && <RightPanel />}
     </div>
   );
 }

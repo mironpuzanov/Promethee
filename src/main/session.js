@@ -9,12 +9,13 @@ import { supabase } from '../lib/supabase.js';
 
 let activeSession = null;
 
-export function startSession(userId, task) {
+export function startSession(userId, task, roomId = null) {
   if (activeSession) {
     throw new Error('A session is already active');
   }
 
   activeSession = createSession(userId, task);
+  if (roomId) activeSession.roomId = roomId;
   return activeSession;
 }
 
@@ -71,7 +72,8 @@ async function syncSessionToSupabase(sessionData) {
     duration_seconds: sessionData.durationSeconds,
     xp_earned: sessionData.xpEarned,
     source: 'manual',
-    app_context: null
+    app_context: null,
+    room_id: sessionData.roomId || null
   });
 
   if (error) {
@@ -79,10 +81,18 @@ async function syncSessionToSupabase(sessionData) {
   }
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function flushPendingSyncs() {
   const unsyncedSessions = getUnsyncedSessions();
 
   for (const session of unsyncedSessions) {
+    // Skip sessions from the old mock user or non-UUID IDs — they can never sync
+    if (!UUID_REGEX.test(session.user_id) || !UUID_REGEX.test(session.id)) {
+      markSessionSynced(session.id);
+      continue;
+    }
+
     try {
       await syncSessionToSupabase({
         id: session.id,

@@ -1,3 +1,8 @@
+@keyframes presencePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+
 .floating-overlay {
   position: fixed;
   top: 0;

@@ -115,7 +115,7 @@ function CharacterPanel({ user }: CharacterPanelProps) {
             <polyline
               points="0,64 60,48 120,40 180,32 240,24 300,20"
               fill="none"
-              stroke="#FF6B35"
+              stroke="#E8922A"
               strokeWidth="2"
               opacity="0.6"
             />
@@ -127,8 +127,8 @@ function CharacterPanel({ user }: CharacterPanelProps) {
             />
             <defs>
               <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#FF6B35" stopOpacity="1" />
-                <stop offset="100%" stopColor="#FF6B35" stopOpacity="0" />
+                <stop offset="0%" stopColor="#E8922A" stopOpacity="1" />
+                <stop offset="100%" stopColor="#E8922A" stopOpacity="0" />
               </linearGradient>
             </defs>
           </svg>

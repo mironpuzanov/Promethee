@@ -34,11 +34,11 @@ function TimerCard({ elapsed, elapsedSeconds, task, xpSoFar, onStop, minimized, 
       >
         <div className="timer-ring">
           <svg width="48" height="48" viewBox="0 0 72 72">
-            <circle cx="36" cy="36" r="32" fill="none" stroke="rgba(6, 182, 212, 0.15)" strokeWidth="3" />
+            <circle cx="36" cy="36" r="32" fill="none" stroke="rgba(232, 146, 42, 0.15)" strokeWidth="3" />
             <circle
               cx="36" cy="36" r="32"
               fill="none"
-              stroke="var(--accent-cyan)"
+              stroke="var(--accent-fire)"
               strokeWidth="3"
               strokeDasharray={CIRCUMFERENCE}
               strokeDashoffset={dashOffset}
@@ -61,11 +61,11 @@ function TimerCard({ elapsed, elapsedSeconds, task, xpSoFar, onStop, minimized, 
     >
       <div className="timer-ring" onClick={onToggleMinimize} title="Minimize" style={{ cursor: 'pointer' }}>
         <svg width="72" height="72" viewBox="0 0 72 72">
-          <circle cx="36" cy="36" r="32" fill="none" stroke="rgba(6, 182, 212, 0.15)" strokeWidth="3" />
+          <circle cx="36" cy="36" r="32" fill="none" stroke="rgba(232, 146, 42, 0.15)" strokeWidth="3" />
           <circle
             cx="36" cy="36" r="32"
             fill="none"
-            stroke="var(--accent-cyan)"
+            stroke="var(--accent-fire)"
             strokeWidth="3"
             strokeDasharray={CIRCUMFERENCE}
             strokeDashoffset={dashOffset}

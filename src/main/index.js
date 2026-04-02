@@ -13,15 +13,19 @@ const debugLog = (msg) => {
 
 debugLog('=== Promethee main process starting ===');
 
+// Set app name immediately — fixes "Electron" showing in dock tooltip and menu bar
+app.setName('Promethee');
+
 // ES module compatibility
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Import modules
 import { startSession, endSessionAndSync, getActiveSession, flushPendingSyncs } from './session.js';
-import { signIn, signOut, getUser } from './auth.js';
+import { signIn, signUp, signOut, sendMagicLink, getUser, setSession, getCurrentUser } from './auth.js';
 import { setupPowerMonitoring } from './power.js';
 import { setupLeaderboardPolling, stopLeaderboardPolling, getLeaderboard } from './leaderboard.js';
+import { setupPresence, stopPresence, sendHeartbeat, removePresence, postToLiveFeed, getPresenceCount, getRooms, getRoomPresence } from './presence.js';
 import { getTodaysSessions, getSessions, getUserProfile, initializeDatabase, getAgentChats, getOrCreateAgentChat, createAgentChat, getAgentMessages, addAgentMessage } from './db.js';
 import keytar from 'keytar';
 import OpenAI from 'openai';
@@ -43,6 +47,7 @@ const createFloatingWindow = () => {
     width: width,
     height: height,
     x: 0,
+    show: false, // don't flash — shown explicitly after auth check
     y: 0,
     frame: false,
     transparent: true,
@@ -51,6 +56,7 @@ const createFloatingWindow = () => {
     skipTaskbar: true,
     visibleOnAllWorkspaces: true,
     hasShadow: false,
+    type: process.platform === 'darwin' ? 'panel' : undefined,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -84,8 +90,9 @@ const createFloatingWindow = () => {
   floatingWindow.setIgnoreMouseEvents(true, { forward: true });
 
   // Must be called after creation to actually stick on all spaces + fullscreen apps
+  // Use 'floating' level — 'screen-saver' can prevent the window from following across spaces on macOS
   floatingWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  floatingWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+  floatingWindow.setAlwaysOnTop(true, 'floating', 1);
 
   floatingWindow.on('closed', () => {
     floatingWindow = null;
@@ -117,59 +124,48 @@ const createFullWindow = () => {
     });
   }
 
+  // Hide overlay while dashboard is open, restore it when dashboard closes
+  floatingWindow?.hide();
+
   fullWindow.on('closed', () => {
     fullWindow = null;
+    floatingWindow?.show();
   });
 };
 
 const createTray = () => {
-  // Create a simple tray icon using nativeImage
-  const icon = nativeImage.createEmpty();
+  // __dirname = .vite/build/ in dev — resolve up to project root
+  const trayIconPath = path.resolve(__dirname, '../../src/assets/tray-icon.png');
+  let icon;
+  if (fs.existsSync(trayIconPath)) {
+    icon = nativeImage.createFromPath(trayIconPath);
+    icon.setTemplateImage(true);
+  } else {
+    icon = nativeImage.createEmpty();
+  }
   tray = new Tray(icon);
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: 'Show/Hide Overlay',
+      label: 'Show Overlay',
       click: () => {
-        if (floatingWindow) {
-          if (floatingWindow.isVisible()) {
-            floatingWindow.hide();
-          } else {
-            floatingWindow.show();
-          }
-        }
-      }
-    },
-    {
-      label: 'Open Dashboard',
-      click: () => {
-        if (!fullWindow) {
-          createFullWindow();
-        } else {
-          fullWindow.show();
-        }
+        if (fullWindow) fullWindow.close();
+        floatingWindow?.show();
       }
     },
     { type: 'separator' },
     {
       label: 'Quit',
-      click: () => {
-        app.quit();
-      }
+      click: () => app.quit()
     }
   ]);
 
   tray.setToolTip('Promethee');
   tray.setContextMenu(contextMenu);
 
+  // Click = just open the context menu, nothing else
   tray.on('click', () => {
-    if (floatingWindow) {
-      if (floatingWindow.isVisible()) {
-        floatingWindow.hide();
-      } else {
-        floatingWindow.show();
-      }
-    }
+    tray.popUpContextMenu();
   });
 
   tray.on('double-click', () => {
@@ -194,47 +190,120 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled rejection at:', promise, 'reason:', reason);
 });
 
+// Register promethee:// deep link protocol (must be before app.whenReady)
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient('promethee', process.execPath, [path.resolve(process.argv[1])]);
+  }
+} else {
+  app.setAsDefaultProtocolClient('promethee');
+}
+
+// Handle deep link on macOS (app already open)
+app.on('open-url', async (event, url) => {
+  event.preventDefault();
+  await handleDeepLink(url);
+});
+
+async function handleDeepLink(url) {
+  debugLog(`Deep link received: ${url}`);
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname === 'auth' && parsed.pathname === '/callback') {
+      // Supabase returns tokens in the hash fragment (#access_token=...), not query params
+      const hash = parsed.hash.startsWith('#') ? parsed.hash.slice(1) : parsed.hash;
+      const params = new URLSearchParams(hash);
+
+      const error = params.get('error');
+      if (error) {
+        debugLog(`Auth callback error: ${error} — ${params.get('error_description')}`);
+        // Notify the login window to show an error
+        fullWindow?.webContents.send('auth:error', params.get('error_description'));
+        return;
+      }
+
+      const accessToken = params.get('access_token');
+      const refreshToken = params.get('refresh_token');
+
+      if (accessToken && refreshToken) {
+        const user = await setSession(accessToken, refreshToken);
+        if (user) {
+          debugLog(`Auth callback: signed in as ${user.email}`);
+          // Close login window, open dashboard, keep overlay hidden until dashboard closes
+          if (fullWindow) {
+            fullWindow.close();
+          }
+          floatingWindow?.webContents.send('auth:success', user);
+          // Open dashboard as the first thing user sees after login
+          createFullWindow();
+          floatingWindow?.hide();
+        }
+      }
+    }
+  } catch (err) {
+    debugLog(`Deep link error: ${err.message}`);
+  }
+}
+
+// Set activation policy before ready — this is the correct timing per Electron docs.
+// Do NOT call app.dock.show() — it triggers macOS to unhide all hidden apps.
+if (process.platform === 'darwin') {
+  app.setActivationPolicy('accessory'); // start as background, promote to regular after ready
+}
+
 debugLog('Setting up app.whenReady handler');
 
 // App lifecycle
 app.whenReady().then(async () => {
   debugLog('=== App is ready, starting initialization ===');
+
+  // Promote to regular app (shows in dock + Cmd+Tab) without triggering macOS "unhide all"
+  if (process.platform === 'darwin') {
+    app.setActivationPolicy('regular');
+    // Set dock icon — __dirname is .vite/build/ in dev, so go up to project root
+    try {
+      const iconPath = path.resolve(__dirname, '../../src/assets/icon.png');
+      if (app.dock && fs.existsSync(iconPath)) {
+        app.dock.setIcon(nativeImage.createFromPath(iconPath));
+      }
+    } catch (e) {}
+  }
+
   try {
-    // Initialize database first
-    debugLog('Initializing database...');
     initializeDatabase();
-    debugLog('Database initialized successfully');
-
-    debugLog('Creating floating window...');
-    createFloatingWindow();
-    debugLog('Floating window created');
-
-    debugLog('Creating tray...');
     createTray();
-    debugLog('Tray created');
   } catch (error) {
     debugLog(`!!! Error during initialization: ${error.message}`);
     debugLog(error.stack);
-    console.error('!!! Error during initialization:', error);
-    console.error(error.stack);
     throw error;
   }
 
-  // Set up power monitoring
-  setupPowerMonitoring(floatingWindow);
-
-  // Set up leaderboard polling
-  setupLeaderboardPolling(floatingWindow);
-
-  // Flush pending syncs
-  await flushPendingSyncs();
-
-  // Try to restore user session
+  // Auth check first — create windows based on result
   try {
-    await getUser();
+    debugLog('Attempting to restore user session...');
+    const user = await getUser();
+    debugLog(`Session restore result: ${user ? `found user ${user.email}` : 'no session'}`);
+
+    // Always create floating window now (needed regardless of auth state)
+    createFloatingWindow();
+
+    if (!user) {
+      // No session — show login, floating stays hidden until dashboard closes
+      createFullWindow();
+    } else {
+      // Session restored — go straight to dashboard, floating hidden
+      createFullWindow();
+      await flushPendingSyncs();
+    }
   } catch (error) {
-    console.error('Failed to restore user session:', error);
+    debugLog(`Failed to restore user session: ${error.message}`);
+    createFloatingWindow();
+    createFullWindow();
   }
+
+  setupPowerMonitoring(floatingWindow);
+  setupLeaderboardPolling(floatingWindow);
+  setupPresence(floatingWindow);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -249,8 +318,11 @@ app.on('window-all-closed', () => {
   }
 });
 
-app.on('before-quit', () => {
+app.on('before-quit', async () => {
   stopLeaderboardPolling();
+  stopPresence();
+  const user = getCurrentUser();
+  if (user) await removePresence(user.id);
 });
 
 // Mouse passthrough for floating overlay
@@ -263,14 +335,19 @@ ipcMain.on('set-ignore-mouse-events-false', () => {
 });
 
 // IPC Handlers
-ipcMain.handle('session:start', async (event, task) => {
+ipcMain.handle('session:start', async (event, task, roomId = null) => {
   try {
     const user = await getUser();
     if (!user) {
       throw new Error('User not authenticated');
     }
 
-    const session = startSession(user.id, task);
+    const session = startSession(user.id, task, roomId);
+
+    // Post to live feed + start heartbeat
+    await postToLiveFeed(task, roomId);
+    await sendHeartbeat(roomId);
+
     return { success: true, session };
   } catch (error) {
     return { success: false, error: error.message };
@@ -279,7 +356,12 @@ ipcMain.handle('session:start', async (event, task) => {
 
 ipcMain.handle('session:end', async () => {
   try {
+    const user = getCurrentUser();
     const session = await endSessionAndSync();
+
+    // Remove presence when session ends
+    if (user) await removePresence(user.id);
+
     return { success: true, session };
   } catch (error) {
     return { success: false, error: error.message };
@@ -309,10 +391,53 @@ ipcMain.handle('session:getActive', async () => {
   }
 });
 
-ipcMain.handle('auth:signIn', async (event, email) => {
+ipcMain.handle('auth:signIn', async (event, email, password) => {
   try {
-    const result = await signIn(email);
+    const result = await signIn(email, password);
+    if (result.user) {
+      // Password sign-in succeeded — open dashboard immediately, no deep link needed
+      if (fullWindow) fullWindow.close();
+      floatingWindow?.webContents.send('auth:success', result.user);
+      createFullWindow();
+      floatingWindow?.hide();
+    }
     return { success: true, ...result };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('auth:sendMagicLink', async (event, email) => {
+  try {
+    const result = await sendMagicLink(email);
+    return { success: true, ...result };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('auth:signUp', async (event, email, password) => {
+  try {
+    const result = await signUp(email, password);
+    if (result.session) {
+      // Auto-confirmed — set session and open dashboard
+      const user = await setSession(result.session.access_token, result.session.refresh_token);
+      if (user) {
+        if (fullWindow) fullWindow.close();
+        createFullWindow();
+        floatingWindow?.hide();
+      }
+    }
+    return { success: true, ...result };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('auth:setSession', async (event, accessToken, refreshToken) => {
+  try {
+    const user = await setSession(accessToken, refreshToken);
+    return { success: true, user };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -321,6 +446,11 @@ ipcMain.handle('auth:signIn', async (event, email) => {
 ipcMain.handle('auth:signOut', async () => {
   try {
     const result = await signOut();
+    // Close dashboard, open login screen, hide overlay
+    if (fullWindow) fullWindow.close();
+    floatingWindow?.hide();
+    floatingWindow?.webContents.send('auth:signed-out');
+    createFullWindow();
     return { success: true, ...result };
   } catch (error) {
     return { success: false, error: error.message };
@@ -340,6 +470,25 @@ ipcMain.handle('leaderboard:get', async () => {
   try {
     const leaderboard = await getLeaderboard();
     return { success: true, leaderboard };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('presence:getCount', async () => {
+  try {
+    const count = await getPresenceCount();
+    return { success: true, count };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('presence:getRooms', async () => {
+  try {
+    const rooms = await getRooms();
+    const roomPresence = await getRoomPresence();
+    return { success: true, rooms, roomPresence };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -373,6 +522,41 @@ ipcMain.handle('db:getUserProfile', async () => {
   }
 });
 
+ipcMain.handle('window:startFocusFromDashboard', async (event, roomId) => {
+  // Close dashboard, show overlay, tell overlay to open task input
+  if (fullWindow) {
+    fullWindow.close();
+  }
+  floatingWindow?.show();
+  // Small delay for window transition, then focus the input
+  setTimeout(() => {
+    floatingWindow?.webContents.send('focus:taskInput', { roomId: roomId || null });
+  }, 120);
+  return { success: true };
+});
+
+let pendingSessionComplete = null;
+
+ipcMain.handle('window:getPendingSessionComplete', () => {
+  const data = pendingSessionComplete;
+  pendingSessionComplete = null;
+  return data;
+});
+
+ipcMain.handle('window:openSessionComplete', async (event, sessionData) => {
+  floatingWindow?.hide();
+  pendingSessionComplete = sessionData;
+  if (!fullWindow) {
+    createFullWindow();
+  } else {
+    fullWindow.show();
+    // Window already loaded — send directly
+    fullWindow.webContents.send('window:sessionComplete', sessionData);
+    pendingSessionComplete = null;
+  }
+  return { success: true };
+});
+
 ipcMain.handle('window:close', () => {
   const window = BrowserWindow.getFocusedWindow();
   if (window) {
@@ -389,11 +573,13 @@ ipcMain.handle('window:minimize', () => {
 
 ipcMain.handle('window:toggleFullWindow', () => {
   if (!fullWindow) {
-    createFullWindow();
+    createFullWindow(); // createFullWindow already hides overlay
   } else if (fullWindow.isVisible()) {
     fullWindow.hide();
+    floatingWindow?.show();
   } else {
     fullWindow.show();
+    floatingWindow?.hide();
   }
 });
 

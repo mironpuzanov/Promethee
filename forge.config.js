@@ -4,6 +4,15 @@ const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 module.exports = {
   packagerConfig: {
     asar: true,
+    name: 'Promethee',
+    executableName: 'Promethee',
+    icon: 'src/assets/icon',
+    extendInfo: {
+      LSUIElement: false,
+      NSHighResolutionCapable: true,
+      CFBundleDisplayName: 'Promethee',
+      CFBundleName: 'Promethee',
+    },
   },
   rebuildConfig: {},
   makers: [

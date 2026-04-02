@@ -17,6 +17,7 @@ interface Chat {
 
 interface AgentBubbleProps {
   activeSession: { id: string; task?: string; startedAt: number } | null;
+  defaultOpen?: boolean;
 }
 
 function buildSystemPrompt(session: AgentBubbleProps['activeSession']): string {
@@ -35,8 +36,8 @@ Current session: "${task}" — ${elapsedMinutes} minute${elapsedMinutes !== 1 ? 
 Answer concisely. You already know what they're working on — don't ask them to re-explain.`;
 }
 
-function AgentBubble({ activeSession }: AgentBubbleProps) {
-  const [open, setOpen] = useState(false);
+function AgentBubble({ activeSession, defaultOpen = false }: AgentBubbleProps) {
+  const [open, setOpen] = useState(defaultOpen);
   const [chat, setChat] = useState<Chat | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -286,21 +287,15 @@ function AgentBubble({ activeSession }: AgentBubbleProps) {
         )}
       </AnimatePresence>
 
-      {/* Bubble trigger */}
+      {/* Bubble trigger — logo mark */}
       <motion.button
         className={`agent-bubble ${open ? 'agent-bubble--open' : ''}`}
         onClick={() => setOpen(o => !o)}
-        whileHover={{ scale: 1.08 }}
+        whileHover={{ scale: 1.06 }}
         whileTap={{ scale: 0.94 }}
         title="Ask Promethee AI"
       >
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <path
-            d="M9 1C4.58 1 1 4.13 1 8c0 1.77.7 3.38 1.85 4.62L2 17l4.5-1.5C7.27 15.82 8.12 16 9 16c4.42 0 8-3.13 8-7s-3.58-8-8-8z"
-            fill="currentColor"
-            opacity="0.9"
-          />
-        </svg>
+        <img src="../../assets/icon.png" width="22" height="22" style={{ borderRadius: 4, opacity: open ? 1 : 0.75 }} />
         {activeSession && <span className="agent-bubble-dot" />}
       </motion.button>
     </div>

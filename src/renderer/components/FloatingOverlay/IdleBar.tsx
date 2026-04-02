@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import PresencePill from './PresencePill';
 import './IdleBar.css';
 
 interface User {
@@ -8,18 +9,30 @@ interface User {
 
 interface IdleBarProps {
   user: User | null;
-  onStartSession: (task: string) => void;
+  onStartSession: (task: string, roomId?: string | null) => void;
+  onOpenRooms?: () => void;
+  autoFocusInput?: boolean;
+  onAutoFocusConsumed?: () => void;
+  onOpenMentor?: () => void;
 }
 
-function IdleBar({ user, onStartSession }: IdleBarProps) {
+function IdleBar({ user, onStartSession, onOpenRooms, autoFocusInput, onAutoFocusConsumed, onOpenMentor }: IdleBarProps) {
   const [showTaskInput, setShowTaskInput] = useState(false);
   const [task, setTask] = useState('');
+
+  // When dashboard sends "start focus session", auto-open the task input
+  useEffect(() => {
+    if (autoFocusInput) {
+      setShowTaskInput(true);
+      onAutoFocusConsumed?.();
+    }
+  }, [autoFocusInput]);
 
   const handleStartClick = () => setShowTaskInput(true);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && task.trim()) {
-      onStartSession(task);
+      onStartSession(task, null);
       setTask('');
       setShowTaskInput(false);
     } else if (e.key === 'Escape') {
@@ -40,7 +53,20 @@ function IdleBar({ user, onStartSession }: IdleBarProps) {
 
   return (
     <div className="idle-bar" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
-      <button className="mentor-button" onClick={() => alert('Mentor coming soon!')}>
+      <button
+        className="mentor-button"
+        onClick={onOpenMentor}
+        onMouseEnter={e => {
+          e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.20)';
+          e.currentTarget.style.color = 'rgba(255,255,255,0.95)';
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.background = 'transparent';
+          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)';
+          e.currentTarget.style.color = 'rgba(255,255,255,0.70)';
+        }}
+      >
         Mentor
       </button>
 
@@ -63,6 +89,7 @@ function IdleBar({ user, onStartSession }: IdleBarProps) {
       )}
 
       <div className="user-controls">
+        <PresencePill onClick={onOpenRooms} />
         <div className="user-avatar">{getInitial()}</div>
         <button className="menu-button" onClick={handleMenuClick} title="Open dashboard">
           <svg width="14" height="10" viewBox="0 0 14 10" fill="none">

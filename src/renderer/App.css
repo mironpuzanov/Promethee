@@ -1,5 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap');
 @import "tailwindcss";
+@import "tw-animate-css";
 
 /* Tailwind's base layer handles resets — don't override with * selector */
 
@@ -9,7 +10,7 @@ html, body, #root {
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: transparent;
@@ -18,54 +19,61 @@ body {
 /* ─── Promethee design tokens ──────────────────────────────────── */
 :root {
   /* Raw values (used in legacy CSS files) */
-  --accent-orange: #FF6B35;
-  --accent-cyan:   #06B6D4;
-  --text-primary:   #ffffff;
-  --text-secondary: #cccccc;
-  --text-muted:     #666666;
-  --text-faint:     #333333;
-  --surface:        rgba(16, 16, 16, 0.88);
-  --border:         rgba(255, 255, 255, 0.07);
-  --bg:             #0a0a0a;
-  --sidebar-bg:     #000000;
+  --accent-fire:    #E8922A;
+  --accent-orange:  #E8922A; /* alias — points to fire accent */
+  --accent-glow:    rgba(232, 146, 42, 0.15);
+  --accent-glow-strong: rgba(232, 146, 42, 0.25);
+  --text-primary:   #F2EDE8;
+  --text-secondary: #A09890;
+  --text-muted:     #5C5450;
+  --text-faint:     #2E2A27;
+  --surface:        rgba(20, 17, 14, 0.90);
+  --surface-overlay: rgba(12, 10, 9, 0.65);
+  --border:         rgba(255, 255, 255, 0.06);
+  --border-accent:  rgba(232, 146, 42, 0.30);
+  --bg:             #0C0A09;
+  --sidebar-bg:     #070605;
 
   /* shadcn-compatible tokens — mapped to Promethee palette */
-  --background:         #0a0a0a;
-  --foreground:         #ffffff;
+  --background:         #0C0A09;
+  --foreground:         #F2EDE8;
 
-  --card:               #0f0f0f;
-  --card-foreground:    #ffffff;
+  --card:               #0E0C0A;
+  --card-foreground:    #F2EDE8;
 
-  --popover:            #111111;
-  --popover-foreground: #ffffff;
+  --popover:            #131109;
+  --popover-foreground: #F2EDE8;
 
-  --primary:            #ffffff;
-  --primary-foreground: #000000;
+  --primary:            #F2EDE8;
+  --primary-foreground: #0C0A09;
 
-  --secondary:          #1a1a1a;
-  --secondary-foreground: #cccccc;
+  --secondary:          #1A1714;
+  --secondary-foreground: #A09890;
 
-  --muted:              #1a1a1a;
-  --muted-foreground:   #666666;
+  --muted:              #1A1714;
+  --muted-foreground:   #5C5450;
 
-  --accent:             rgba(255,255,255,0.06);
-  --accent-foreground:  #ffffff;
+  --accent:             rgba(255,255,255,0.05);
+  --accent-foreground:  #F2EDE8;
 
   --destructive:        #ef4444;
-  --destructive-foreground: #ffffff;
+  --destructive-foreground: #F2EDE8;
 
-  --border-color:       rgba(255,255,255,0.07);
-  --input:              rgba(255,255,255,0.07);
-  --ring:               #06B6D4;
+  --border-color:       rgba(255,255,255,0.06);
+  --input:              rgba(255,255,255,0.06);
+  --ring:               #E8922A;
 }
 
 /* ─── Tailwind v4 theme — exposes tokens as Tailwind utility classes ── */
 @theme {
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono', 'JetBrains Mono', monospace;
+  --font-serif: 'Instrument Serif', Georgia, serif;
 
   /* Promethee accent colors */
-  --color-accent-orange: #FF6B35;
-  --color-accent-cyan:   #06B6D4;
+  --color-accent-fire:   #E8922A;
+  --color-accent-orange: #E8922A; /* alias — keeps existing utility classes working */
+  --color-accent-glow:   rgba(232, 146, 42, 0.15);
 
   /* shadcn semantic colors — reference the CSS vars above */
   --color-background:         var(--background);
@@ -87,4 +95,80 @@ body {
   --color-border:             var(--border-color);
   --color-input:              var(--input);
   --color-ring:               var(--ring);
+}
+
+/* ─── Sign-in / onboarding animations ─────────────────────────── */
+.animate-element {
+  opacity: 0;
+  filter: blur(4px);
+  transform: translateY(12px);
+  animation: fadeSlideIn 0.5s ease forwards;
+}
+
+.animate-slide-right {
+  opacity: 0;
+  filter: blur(4px);
+  transform: translateX(24px);
+  animation: slideRightIn 0.6s ease forwards;
+}
+
+.animate-testimonial {
+  opacity: 0;
+  filter: blur(4px);
+  transform: translateY(12px) scale(0.97);
+  animation: testimonialIn 0.5s ease forwards;
+}
+
+@keyframes fadeSlideIn {
+  to { opacity: 1; filter: blur(0px); transform: translateY(0px); }
+}
+
+@keyframes slideRightIn {
+  to { opacity: 1; filter: blur(0px); transform: translateX(0px); }
+}
+
+@keyframes testimonialIn {
+  to { opacity: 1; filter: blur(0px); transform: translateY(0px) scale(1); }
+}
+
+.animate-delay-100  { animation-delay: 100ms; }
+.animate-delay-200  { animation-delay: 200ms; }
+.animate-delay-300  { animation-delay: 300ms; }
+.animate-delay-400  { animation-delay: 400ms; }
+.animate-delay-500  { animation-delay: 500ms; }
+.animate-delay-600  { animation-delay: 600ms; }
+.animate-delay-700  { animation-delay: 700ms; }
+.animate-delay-800  { animation-delay: 800ms; }
+.animate-delay-900  { animation-delay: 900ms; }
+.animate-delay-1000 { animation-delay: 1000ms; }
+.animate-delay-1200 { animation-delay: 1200ms; }
+.animate-delay-1400 { animation-delay: 1400ms; }
+
+/* Custom checkbox styling */
+.custom-checkbox {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+}
+.custom-checkbox:checked {
+  background: #E8922A;
+  border-color: #E8922A;
+}
+.custom-checkbox:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: 2px solid white;
+  border-top: none;
+  border-left: none;
+  transform: rotate(45deg);
 }

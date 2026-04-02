@@ -10,6 +10,9 @@ interface NavItem {
   label: string;
   id: string;
   isSeparator?: boolean;
+  isChild?: boolean;
+  isGroupHeader?: boolean;
+  isOpen?: boolean;
 }
 
 interface UserProfile {
@@ -28,6 +31,7 @@ interface UserProfileSidebarProps {
     label: string;
     onClick: () => void;
   };
+  onStartFocusSession?: () => void;
   className?: string;
 }
 
@@ -57,7 +61,7 @@ const itemVariants = {
 
 // 4. Create the Component
 export const UserProfileSidebar = React.forwardRef<HTMLDivElement, UserProfileSidebarProps>(
-  ({ user, navItems, activeTab, onTabChange, logoutItem, className }, ref) => {
+  ({ user, navItems, activeTab, onTabChange, logoutItem, onStartFocusSession, className }, ref) => {
     return (
       <motion.aside
         ref={ref}
@@ -87,36 +91,72 @@ export const UserProfileSidebar = React.forwardRef<HTMLDivElement, UserProfileSi
 
         {/* Navigation Links */}
         <nav className="flex-1 space-y-1" role="navigation">
-          {navItems.map((item, index) => {
+          {navItems.map((item) => {
             const isActive = activeTab === item.id;
             return (
-              <React.Fragment key={index}>
+              <React.Fragment key={item.id}>
                 {item.isSeparator && (
-                  <motion.div variants={itemVariants} className="h-6" />
+                  <motion.div layout className="h-6" />
                 )}
                 <motion.button
+                  layout
                   variants={itemVariants}
                   onClick={() => onTabChange(item.id)}
                   className={cn(
-                    'group flex w-full items-center rounded-md px-3 py-2.5 text-sm font-medium transition-colors text-left',
+                    'group flex w-full items-center rounded-md text-sm font-medium transition-colors text-left',
+                    item.isChild ? 'px-3 py-2 pl-8' : 'px-3 py-2.5',
                     isActive
-                      ? 'text-foreground'
+                      ? 'text-foreground bg-accent'
                       : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                   )}
                 >
-                  <span className="mr-3 flex h-5 w-5 items-center justify-center flex-shrink-0">
+                  <span className={cn('flex items-center justify-center flex-shrink-0', item.isChild ? 'mr-2 h-4 w-4' : 'mr-3 h-5 w-5')}>
                     {item.icon}
                   </span>
                   <span>{item.label}</span>
-                  <ChevronRight className="ml-auto h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100" />
+                  {item.isGroupHeader && (
+                    <ChevronRight
+                      className={cn('ml-auto h-3.5 w-3.5 text-muted-foreground transition-transform', item.isOpen && 'rotate-90')}
+                    />
+                  )}
+                  {!item.isGroupHeader && !item.isChild && (
+                    <ChevronRight className="ml-auto h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100" />
+                  )}
                 </motion.button>
               </React.Fragment>
             );
           })}
         </nav>
 
+        {/* Start Focus Session CTA */}
+        {onStartFocusSession && (
+          <motion.div variants={itemVariants} className="mt-2 mb-2">
+            <button
+              onClick={onStartFocusSession}
+              className="flex w-full items-center justify-center rounded-lg px-3 py-2.5 text-sm font-medium transition-all cursor-pointer"
+              style={{
+                background: 'transparent',
+                color: 'rgba(255,255,255,0.75)',
+                border: '1px solid rgba(255,255,255,0.12)',
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)';
+                (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.22)';
+                (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.95)';
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+                (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.12)';
+                (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.75)';
+              }}
+            >
+              Start focus session
+            </button>
+          </motion.div>
+        )}
+
         {/* Logout Button */}
-        <motion.div variants={itemVariants} className="mt-4">
+        <motion.div variants={itemVariants} className="mt-2">
           <button
             onClick={logoutItem.onClick}
             className="group flex w-full items-center rounded-md px-3 py-2.5 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"

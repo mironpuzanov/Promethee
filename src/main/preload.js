@@ -11,9 +11,27 @@ contextBridge.exposeInMainWorld('promethee', {
 
   // Auth APIs
   auth: {
-    signIn: (email) => ipcRenderer.invoke('auth:signIn', email),
+    signIn: (email, password) => ipcRenderer.invoke('auth:signIn', email, password),
+    signUp: (email, password) => ipcRenderer.invoke('auth:signUp', email, password),
+    sendMagicLink: (email) => ipcRenderer.invoke('auth:sendMagicLink', email),
     signOut: () => ipcRenderer.invoke('auth:signOut'),
-    getUser: () => ipcRenderer.invoke('auth:getUser')
+    getUser: () => ipcRenderer.invoke('auth:getUser'),
+    setSession: (accessToken, refreshToken) => ipcRenderer.invoke('auth:setSession', accessToken, refreshToken),
+    onAuthSuccess: (callback) => {
+      const listener = (_event, user) => callback(user);
+      ipcRenderer.on('auth:success', listener);
+      return () => ipcRenderer.removeListener('auth:success', listener);
+    },
+    onAuthError: (callback) => {
+      const listener = (_event, message) => callback(message);
+      ipcRenderer.on('auth:error', listener);
+      return () => ipcRenderer.removeListener('auth:error', listener);
+    },
+    onSignedOut: (callback) => {
+      const listener = () => callback();
+      ipcRenderer.on('auth:signed-out', listener);
+      return () => ipcRenderer.removeListener('auth:signed-out', listener);
+    }
   },
 
   // Leaderboard APIs
@@ -42,11 +60,40 @@ contextBridge.exposeInMainWorld('promethee', {
 
   // Window controls
   window: {
+    openSessionComplete: (sessionData) => ipcRenderer.invoke('window:openSessionComplete', sessionData),
     close: () => ipcRenderer.invoke('window:close'),
     minimize: () => ipcRenderer.invoke('window:minimize'),
     toggleFullWindow: () => ipcRenderer.invoke('window:toggleFullWindow'),
     setIgnoreMouseEvents: (ignore) => {
       ipcRenderer.send(ignore ? 'set-ignore-mouse-events-true' : 'set-ignore-mouse-events-false');
+    },
+    onSessionComplete: (callback) => {
+      const listener = (_event, data) => callback(data);
+      ipcRenderer.on('window:sessionComplete', listener);
+      return () => ipcRenderer.removeListener('window:sessionComplete', listener);
+    },
+    getPendingSessionComplete: () => ipcRenderer.invoke('window:getPendingSessionComplete'),
+    startFocusSession: (roomId) => ipcRenderer.invoke('window:startFocusFromDashboard', roomId),
+    onFocusTaskInput: (callback) => {
+      const listener = (_event, data) => callback(data);
+      ipcRenderer.on('focus:taskInput', listener);
+      return () => ipcRenderer.removeListener('focus:taskInput', listener);
+    }
+  },
+
+  // Presence APIs
+  presence: {
+    getCount: () => ipcRenderer.invoke('presence:getCount'),
+    getRooms: () => ipcRenderer.invoke('presence:getRooms'),
+    onCount: (callback) => {
+      const listener = (_event, count) => callback(count);
+      ipcRenderer.on('presence:count', listener);
+      return () => ipcRenderer.removeListener('presence:count', listener);
+    },
+    onFeed: (callback) => {
+      const listener = (_event, feed) => callback(feed);
+      ipcRenderer.on('presence:feed', listener);
+      return () => ipcRenderer.removeListener('presence:feed', listener);
     }
   },
 
