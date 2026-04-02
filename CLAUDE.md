@@ -20,3 +20,23 @@
 ## Build goal
 Read BUILD.md and implement everything in it.
 Work directory: /Users/mironpuzanov/Promethee/
+
+## Skill routing
+
+When the user's request matches an available skill, ALWAYS invoke it using the Skill
+tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
+
+Key routing rules:
+- Product ideas, "what should we build", "what's next", brainstorming, strategy → invoke office-hours
+- Bugs, errors, "why is this broken", crash, "not working" → invoke investigate
+- Ship, commit and push, create PR, "let's push" → invoke ship
+- QA, "test the app", "find bugs", "does this work" → invoke qa
+- Code review, "check my diff", "review this" → invoke review
+- Update docs after shipping → invoke document-release
+- Weekly retro, "how did this week go" → invoke retro
+- Design system, brand, colors, tokens → invoke design-consultation
+- Visual audit, "make it look better", UI polish → invoke design-review
+- Architecture review, "review the plan", "eng review" → invoke plan-eng-review
+- Save progress, checkpoint, "I'll continue later" → invoke checkpoint
+- Codebase health, "is the code clean" → invoke health
+- Something is slow, performance → invoke benchmark
