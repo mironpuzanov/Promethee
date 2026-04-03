@@ -7,7 +7,7 @@ import { UserProfileSidebar } from '@/components/ui/menu';
 interface User {
   id: string;
   email: string;
-  user_metadata?: { display_name?: string };
+  user_metadata?: { display_name?: string; avatar_url?: string };
 }
 
 interface SidebarProps {
@@ -46,7 +46,7 @@ function Sidebar({ activeTab, setActiveTab, user }: SidebarProps) {
   const userProfile = {
     name: userName,
     email: userEmail,
-    avatarUrl: 'https://images.unsplash.com/photo-1544723795-3fb6469f5b39?w=200&auto=format&fit=crop&q=60',
+    avatarUrl: user?.user_metadata?.avatar_url || '',
   };
 
   const logoutItem = {

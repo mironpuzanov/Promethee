@@ -22,7 +22,7 @@ const __dirname = path.dirname(__filename);
 
 // Import modules
 import { startSession, endSessionAndSync, getActiveSession, flushPendingSyncs } from './session.js';
-import { signIn, signUp, signOut, sendMagicLink, getUser, setSession, getCurrentUser, updateProfile, updatePassword } from './auth.js';
+import { signIn, signUp, signOut, sendMagicLink, getUser, setSession, getCurrentUser, updateProfile, updatePassword, uploadAvatar } from './auth.js';
 import { setupPowerMonitoring } from './power.js';
 import { setupLeaderboardPolling, stopLeaderboardPolling, getLeaderboard } from './leaderboard.js';
 import { setupPresence, stopPresence, sendHeartbeat, removePresence, postToLiveFeed, getPresenceCount, getRooms, getRoomPresence } from './presence.js';
@@ -99,10 +99,15 @@ const createFloatingWindow = () => {
   });
 };
 
-const createFullWindow = () => {
+const createFullWindow = ({ sessionComplete = false } = {}) => {
+  const w = sessionComplete ? 380 : 1200;
+  const h = sessionComplete ? 620 : 800;
+  const { width, height } = screen.getPrimaryDisplay().workAreaSize;
   fullWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: w,
+    height: h,
+    x: Math.round((width - w) / 2),
+    y: Math.round((height - h) / 2),
     frame: false,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
@@ -489,6 +494,16 @@ ipcMain.handle('auth:updatePassword', async (event, newPassword) => {
   }
 });
 
+ipcMain.handle('auth:uploadAvatar', async (event, fileBuffer, mimeType) => {
+  try {
+    const buffer = Buffer.from(fileBuffer);
+    const result = await uploadAvatar(buffer, mimeType);
+    return result;
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('leaderboard:get', async () => {
   try {
     const leaderboard = await getLeaderboard();
@@ -570,13 +585,117 @@ ipcMain.handle('window:openSessionComplete', async (event, sessionData) => {
   floatingWindow?.hide();
   pendingSessionComplete = sessionData;
   if (!fullWindow) {
-    createFullWindow();
+    // Create window already at portrait size — no resize needed after
+    createFullWindow({ sessionComplete: true });
   } else {
+    // Window already open — resize instantly before showing the screen
+    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+    fullWindow.setResizable(true);
+    fullWindow.setBounds({
+      x: Math.round((width - 380) / 2),
+      y: Math.round((height - 620) / 2),
+      width: 380,
+      height: 620,
+    });
+    fullWindow.setResizable(false);
     fullWindow.show();
-    // Window already loaded — send directly
     fullWindow.webContents.send('window:sessionComplete', sessionData);
     pendingSessionComplete = null;
   }
+  return { success: true };
+});
+
+ipcMain.handle('window:resizeForSessionComplete', () => {
+  if (fullWindow) {
+    fullWindow.setResizable(true);
+    fullWindow.setSize(380, 620, true);
+    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+    fullWindow.setPosition(
+      Math.round((width - 380) / 2),
+      Math.round((height - 620) / 2),
+      true
+    );
+    fullWindow.setResizable(false);
+  }
+});
+
+ipcMain.handle('window:restoreFromSessionComplete', () => {
+  if (fullWindow) {
+    fullWindow.setResizable(true);
+    fullWindow.setSize(1200, 800, true);
+    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+    fullWindow.setPosition(
+      Math.round((width - 1200) / 2),
+      Math.round((height - 800) / 2),
+      true
+    );
+    fullWindow.setResizable(true);
+  }
+});
+
+ipcMain.handle('window:captureSessionCard', async () => {
+  if (!fullWindow) return { success: false, error: 'No window' };
+  try {
+    const [w, h] = fullWindow.getSize();
+    const image = await fullWindow.webContents.capturePage({
+      x: 0, y: 0, width: w, height: h - 80,
+    });
+    // Save to Downloads so the user can easily find it
+    const downloadsPath = app.getPath('downloads');
+    const filePath = path.join(downloadsPath, `promethee-session-${Date.now()}.png`);
+    fs.writeFileSync(filePath, image.toPNG());
+    // Reveal in Finder
+    const { shell } = await import('electron');
+    shell.showItemInFolder(filePath);
+    return { success: true, path: filePath };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('window:copyImageToClipboard', async () => {
+  if (!fullWindow) return { success: false };
+  try {
+    const [w, h] = fullWindow.getSize();
+    const image = await fullWindow.webContents.capturePage({
+      x: 0, y: 0, width: w, height: h - 80,
+    });
+    const { clipboard } = await import('electron');
+    clipboard.writeImage(image);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('window:copyImageAndText', async (_event, text) => {
+  if (!fullWindow) return { success: false };
+  try {
+    const [w, h] = fullWindow.getSize();
+    const image = await fullWindow.webContents.capturePage({
+      x: 0, y: 0, width: w, height: h - 80,
+    });
+    const { clipboard, nativeImage } = await import('electron');
+    // Write both image and text to clipboard simultaneously
+    clipboard.write({
+      image: nativeImage.createFromBuffer(image.toPNG()),
+      text,
+    });
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('window:openExternal', async (_event, url) => {
+  const { shell } = await import('electron');
+  await shell.openExternal(url);
+  return { success: true };
+});
+
+ipcMain.handle('window:copyText', async (_event, text) => {
+  const { clipboard } = await import('electron');
+  clipboard.writeText(text);
   return { success: true };
 });
 
@@ -748,6 +867,97 @@ Answer concisely.`;
     }
 
     // Persist assistant message
+    const saved = addAgentMessage(chatId, 'assistant', fullContent);
+    floatingWindow?.webContents.send('agent:streamEnd', { chatId, message: saved });
+
+    return { success: true };
+  } catch (error) {
+    floatingWindow?.webContents.send('agent:streamError', { chatId, error: error.message });
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('agent:sendMessageWithImages', async (_event, chatId, content, images, previousMessages) => {
+  try {
+    const keyResult = await keytar.getPassword(AGENT_KEYCHAIN_SERVICE, AGENT_KEYCHAIN_ACCOUNT);
+    if (!keyResult) {
+      return { success: false, error: 'No API key. Configure it first.' };
+    }
+
+    // Persist only text content to SQLite (images are ephemeral)
+    addAgentMessage(chatId, 'user', content);
+
+    const openai = new OpenAI({ apiKey: keyResult });
+
+    const user = await getUser();
+    const activeSession = getActiveSession();
+    const todaysSessions = user ? getTodaysSessions(user.id) : [];
+    const profile = user ? getUserProfile(user.id) : null;
+
+    const xpToday = todaysSessions.reduce((sum, s) => sum + (s.xp_earned || 0), 0);
+    const sessionCountToday = todaysSessions.length;
+    const recentNames = todaysSessions.slice(0, 5).map(s => {
+      const mins = s.duration_seconds ? Math.round(s.duration_seconds / 60) : '?';
+      return `"${s.task || 'Untitled'}" — ${mins}m`;
+    }).join(', ');
+
+    const level = profile?.level || 1;
+    const totalXp = profile?.total_xp || 0;
+
+    let resolvedSystemPrompt;
+    if (activeSession) {
+      const elapsedMinutes = Math.floor((Date.now() - activeSession.startedAt) / 60000);
+      resolvedSystemPrompt = `You are the Promethee AI agent. You help users stay focused and get unstuck without leaving their work.
+
+Current session: "${activeSession.task || 'Untitled'}" — ${elapsedMinutes} minute${elapsedMinutes !== 1 ? 's' : ''} in.
+Today: ${xpToday} XP earned across ${sessionCountToday} session${sessionCountToday !== 1 ? 's' : ''}.
+User level: ${level} (${totalXp} XP total).
+Recent sessions: ${recentNames || 'none yet'}.
+
+Answer concisely. You already know what they're working on — don't ask them to re-explain.`;
+    } else {
+      resolvedSystemPrompt = `You are the Promethee AI agent. You help users stay focused and get unstuck.
+
+Today: ${xpToday} XP earned across ${sessionCountToday} session${sessionCountToday !== 1 ? 's' : ''}.
+User level: ${level} (${totalXp} XP total).
+Recent sessions: ${recentNames || 'none yet'}.
+
+Answer concisely.`;
+    }
+
+    // Build the final user message with text + image content blocks
+    const userContent = [
+      { type: 'text', text: content },
+      ...images.map(dataUrl => ({
+        type: 'image_url',
+        image_url: { url: dataUrl, detail: 'auto' }
+      }))
+    ];
+
+    const messagesForApi = [
+      { role: 'system', content: resolvedSystemPrompt },
+      ...previousMessages
+        .filter(m => m.content != null && m.content !== '')
+        .map(m => ({ role: m.role, content: String(m.content) })),
+      { role: 'user', content: userContent }
+    ];
+
+    const stream = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: messagesForApi,
+      stream: true
+    });
+
+    let fullContent = '';
+
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content || '';
+      if (delta) {
+        fullContent += delta;
+        floatingWindow?.webContents.send('agent:chunk', { chatId, delta });
+      }
+    }
+
     const saved = addAgentMessage(chatId, 'assistant', fullContent);
     floatingWindow?.webContents.send('agent:streamEnd', { chatId, message: saved });
 

@@ -1,171 +1,208 @@
-# Promethee — Autonomous Build Instructions
-*For Claude Code --dangerously-skip-permissions overnight run*
+# Promethee — Build Status
+*Last updated: 2026-04-03*
 
-## Goal
-Build the Promethee Electron desktop app prototype. Running on this machine by April 6.
-No packaging needed. `npm start` should launch the app.
+## What's been built
 
-## Read first
-- docs/product-spec.md — full product strategy, stack decisions, constraints
-- docs/design-spec.md — UI spec, spacing system, colors, all surfaces
-- docs/ui-patterns.md — patterns from Nicolas's actual Promethee designs
-- .env — Supabase URL and anon key (already configured)
+The prototype is complete and running. `npm start` launches the app.
 
-## What to build
+---
 
-### 1. Project scaffold
-- electron-forge with vite + react template
-- TypeScript optional, JS is fine
-- File structure:
-  ```
-  src/
-    main/         ← Electron main process
-      index.js    ← app entry, BrowserWindow setup
-      preload.js  ← contextBridge IPC
-      session.js  ← session start/stop/flush logic
-      auth.js     ← Supabase magic link + keytar
-      power.js    ← lid close/resume events
-      leaderboard.js ← 30s poll
-      db.js       ← SQLite setup + queries
-    renderer/     ← React UI
-      App.jsx
-      components/
-        MenubarIcon.jsx
-        FloatingOverlay/
-          IdleBar.jsx
-          ActiveSession.jsx
-          LevelPill.jsx
-          TimerCard.jsx
-        FullWindow/
-          Sidebar.jsx
-          CharacterPanel.jsx
-          RightPanel.jsx
-    lib/
-      supabase.js ← Supabase client
-  ```
+### Electron shell
+- Electron Forge + Vite + React + TypeScript
+- App name: **Promethee** (set via `app.setName()`, `CFBundleDisplayName`, `forge.config.js`)
+- App icon: custom `.icns` with rounded dark bg, white logo, 8% transparent padding (matches 1Password sizing in dock)
+- Tray icon: 22×22 template image (white symbol, transparent bg), adapts to light/dark menu bar
+- `type: 'panel'` on floating window — follows across all Mission Control spaces and fullscreen apps
+- `setAlwaysOnTop(true, 'floating', 1)` — stays on top without covering system UI
+- `show: false` on window creation — no flash on startup
+- Auth check runs before any window is shown — no blank screen flicker
+- `app.setActivationPolicy('regular')` — shows in dock without unhiding other hidden apps
+- Tray click opens context menu only (Show Overlay / Quit) — does not toggle windows
 
-### 2. Electron IPC (contextBridge)
-- nodeIntegration: false, contextIsolation: true
-- preload.js exposes window.promethee with typed channels:
-  - session: start(task), end(), getToday()
-  - auth: signIn(email), signOut(), getUser()
-  - leaderboard: get()
-  - power: onSuspend(cb), onResume(cb)
-  - db: getSessions()
+---
 
-### 3. SQLite schema (better-sqlite3)
+### Auth (`src/main/auth.js`)
+- Magic link only (Supabase `signInWithOtp`)
+- Session token stored in OS keychain via `keytar`
+- Token restored on app start — no re-login after restart
+- `onAuthStateChange` listener syncs state in real time
+- OTP code entry supported (for desktop — no browser redirect needed)
+
+---
+
+### SQLite database (`src/main/db.js`)
+Schema:
 ```sql
-CREATE TABLE IF NOT EXISTS sessions (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL,
-  task TEXT,
-  started_at INTEGER NOT NULL,
-  ended_at INTEGER,
-  duration_seconds INTEGER,
-  xp_earned INTEGER DEFAULT 0,
-  source TEXT DEFAULT 'manual',
-  app_context TEXT,
-  synced_at INTEGER
-);
-CREATE TABLE IF NOT EXISTS user_profile (
-  id TEXT PRIMARY KEY,
-  email TEXT,
-  display_name TEXT,
-  total_xp INTEGER DEFAULT 0,
-  level INTEGER DEFAULT 1,
-  created_at INTEGER NOT NULL
-);
+sessions (id, user_id, task, started_at, ended_at, duration_seconds, xp_earned, source, app_context, synced_at)
+user_profile (id, email, display_name, total_xp, level, created_at)
+agent_chats (id, user_id, title, session_id, system_prompt, created_at, updated_at)
+agent_messages (id, chat_id, role, content, created_at)
 ```
+- `getAgentChats` filters to chats with at least one message (no empty ghost chats)
 
-### 4. Session logic (main/session.js)
-- startSession(task): creates session in SQLite, returns id
-- endSession(): calculates duration + XP (1 XP/min, min 60s = 0 XP), writes SQLite, attempts Supabase sync
-- flushPendingSyncs(): on app start, sync all sessions where synced_at IS NULL
-- XP formula: Math.floor(duration_seconds / 60) — sessions under 60s earn 0 XP
+---
 
-### 5. Power management (main/power.js)
-- Listen to Electron powerMonitor 'suspend' event → pause active session
-- Listen to 'resume' event → send 'power:resume' to renderer
-- Renderer shows "Resume session?" prompt with Yes/No
+### Sessions (`src/main/session.js`)
+- `startSession(task)` — creates SQLite row, returns session object
+- `endSession()` — calculates duration + XP (1 XP/min, 0 XP under 60s), writes SQLite, syncs to Supabase
+- `flushPendingSyncs()` — on app start, retries all unsynced sessions
+- Active session persists across app restarts
 
-### 6. Auth (main/auth.js)
-- Magic link only (no Discord/Google for prototype)
-- Supabase signInWithOtp({ email })
-- Store session token in OS keychain via keytar
-- Load token on app start, restore session if valid
-- Expose via preload: signIn(email), signOut(), getUser()
+---
 
-### 7. Leaderboard (main/leaderboard.js)
-- Poll every 30 seconds (setInterval)
-- Query Supabase leaderboard_weekly view, top 50
-- Also fetch current user's rank separately
-- Push update to renderer via ipcMain → webContents.send('leaderboard:update', data)
+### Floating overlay (`src/renderer/components/FloatingOverlay/`)
+- `IdleBar` — 560×52px glass pill, bottom center, 24px from edge
+  - Left: "Mentor AI" button opens AI chat bubble
+  - Center: "Start a session" expands to task input
+  - Right: Rooms button (shows presence count), user avatar
+- `ActiveSession` — timer card bottom left, level pill top center
+- `AgentBubble` — AI chat panel, OpenAI streaming via IPC
+  - Loads/creates chat per session (`getOrCreateChat`)
+  - Streams assistant responses token by token
+  - API key stored in keychain
+- `RoomsPanel` — shows live rooms with presence counts, join button
+- `PresencePill` — live count of online users
+- `SessionEndModal` — shown after session ends
 
-### 8. UI surfaces (follow docs/design-spec.md EXACTLY)
+---
 
-**MenubarIcon:**
-- Tray icon using Electron Tray API
-- Dot: gray when idle, cyan (#06B6D4) when session active
-- Click: show/hide floating overlay
+### Full window dashboard (`src/renderer/components/FullWindow/`)
+- `Sidebar` — nav with animated expand/collapse for Community group
+  - Order: Home → Sessions → Mentor → Community (Leaderboard, Rooms) → Quests → Habits → Skills → Journal → Settings
+- `CharacterPanel` — user name, level, XP bar, stats, today's summary
+- `RightPanel` — active session info, quick stats
+- `LeaderboardTab` — weekly XP leaderboard, live polling
+- `RoomsTab` — room list with presence
+- `MentorTab` — full chat history
+  - List view: all conversations sorted newest first (empty chats hidden)
+  - ChatView: click to read full conversation, back button, scroll to bottom on load
+- `SessionLog` — all past sessions with duration and XP
+- `SettingsTab` — profile, display name, password change, API key config
 
-**FloatingOverlay — Idle (IdleBar.jsx):**
-- Width: 560px, height: 52px
-- Always on top: alwaysOnTop: true, visibleOnAllWorkspaces: true
-- Position: bottom center, 24px from bottom
-- Background: rgba(16,16,16,0.88) + backdrop blur
-- Border: 1px solid rgba(255,255,255,0.07), border-radius: 20px
-- Left: orange pill button "🔥 Mentor" (#FF6B35)
-- Center: "○  Start a session" clickable text
-- Right: user avatar initial + ⋮⋮ dots
-- Clicking "Start a session" → shows task input inline → Enter → starts session
+---
 
-**FloatingOverlay — Active (ActiveSession.jsx):**
-- LevelPill: top center of screen, 32px tall glass pill, "Level 1 · Apprentice · · · ·"
-- TimerCard: bottom left, circular cyan ring, elapsed time, task name, XP so far, stop button
-- On stop: end session, show XP earned toast, return to IdleBar
+### AI Mentor (`src/main/index.js` + AgentBubble)
+- OpenAI GPT-4o via streaming
+- System prompt auto-builds from active session context (task name, elapsed time, today's stats, user profile)
+- Chat history persisted to SQLite, loaded on bubble open
+- Accessible from both idle and active session states
+- Full conversation history readable in MentorTab
 
-**FullWindow:**
-- Open on double-click of tray icon or clicking ⋮⋮
-- Full app window, 1200×800, resizable
-- Sidebar: black, nav items (Home, Log, Quests, Habits, Skills, Journal, Mentor)
-- CharacterPanel: user name, level, XP bar as dots, placeholder silhouette SVG, skills list
-- RightPanel: active quest (hardcoded for prototype), titles, today's summary (hours, XP, rank)
+---
 
-### 9. Vitest unit tests
-Write tests in src/main/__tests__/session.test.js:
-- startSession creates a SQLite record
-- endSession calculates XP correctly (1 XP/min)
-- endSession with duration < 60s earns 0 XP
-- endSession with Supabase offline keeps synced_at null
-- flushPendingSyncs retries unsynced sessions
-- startSession when session active rejects
+### Presence + Rooms (`src/main/presence.js`)
+- Supabase Realtime presence — heartbeat every 30s
+- Live online user count pushed to overlay
+- Room creation and joining
+- Room presence (who's in each room)
 
-### 10. UX testing
-After the app builds and runs:
-- Use Playwright to launch the Electron app
-- Test the full happy path: launch → login screen → enter email → (mock magic link) → home → start session → wait 65s → end session → verify XP earned → verify leaderboard shows
-- Test lid close: simulate suspend event → verify session pauses → simulate resume → verify "Resume?" prompt appears
-- Test offline sync: disconnect network (or mock Supabase to fail) → end session → verify local XP saved → reconnect → verify synced
+---
 
-## Design system (strict)
-From docs/design-spec.md:
-- Font: Inter (load from Google Fonts or bundle)
-- Background: #0a0a0a
-- Surface: rgba(16,16,16,0.88)
-- Border: 1px solid rgba(255,255,255,0.07)
-- Border radius: overlay=20px, cards=14px, buttons=10px
-- Accent orange: #FF6B35 (Mentor button only)
-- Accent cyan: #06B6D4 (active timer ring only)
-- Text primary: #fff, secondary: #ccc, muted: #666
-- Blur: backdrop-filter: blur(24px)
-- Padding: overlay=12px 16px, cards=16px 20px, sidebar=10px 16px
+### Leaderboard (`src/main/leaderboard.js`)
+- Polls Supabase `leaderboard_weekly` view every 30s
+- Fetches top 50 + current user's rank
+- Pushes updates to renderer via IPC
 
-## Done when
-- `npm start` launches the app
-- Menubar icon appears
-- Floating overlay appears bottom center
-- Can start a session (task input → timer runs)
-- Can end a session (XP calculated and shown)
-- Leaderboard loads with seed data
-- Vitest tests pass
-- Playwright UX tests pass
+---
+
+### Power management (`src/main/power.js`)
+- Electron `powerMonitor` suspend/resume events
+- Session pauses on lid close
+- "Resume session?" prompt on wake
+
+---
+
+### Packaging (for distribution)
+`forge.config.js` is configured:
+```js
+packagerConfig: {
+  name: 'Promethee',
+  executableName: 'Promethee',
+  icon: 'src/assets/icon',  // .icns used automatically on macOS
+  extendInfo: {
+    CFBundleDisplayName: 'Promethee',
+    CFBundleName: 'Promethee',
+  }
+}
+```
+Run `npm run make` to produce a `.dmg` / `.zip`. No code signing yet (needs Apple Developer Program, $99/year).
+
+---
+
+## What's NOT built yet (post-Paris backlog)
+
+- **Passive window tracking** — detect active app automatically, no manual start/stop
+  - macOS: Screen Recording permission + `activeWin` or native API
+  - Windows: win32 `GetForegroundWindow`
+  - This is the single biggest UX improvement. Must be in Real v1.
+- **Hero's journey onboarding** — quiz, quest assignment, "first call to adventure" screen
+- **Anatomy model / character** — placeholder silhouette only now
+- **Quests system** — UI placeholder only
+- **Habits system** — UI placeholder only
+- **Skills system** — UI placeholder only
+- **Journal** — UI placeholder only
+- **Achievements / titles** — partially in RightPanel, no logic
+- **Discord data migration** — historical XP/rank from existing community
+- **Auto-updater** — Electron `autoUpdater` + GitHub Releases
+- **Code signing + notarization** — required for distribution without Gatekeeper warning
+- **Onboarding screen** — partial (`OnboardingScreen.tsx` exists, not wired)
+
+---
+
+## Known dev-mode quirks
+
+- Dock tooltip shows "Electron" not "Promethee" — macOS reads from the running binary name, which Forge doesn't rename in dev. Shows correctly in `npm run make` packaged build.
+- `npm run make` is the only way to test the final icon, name, and bundle correctly.
+
+---
+
+## File structure (actual)
+
+```
+src/
+  main/
+    index.js          — app entry, all IPC handlers
+    preload.js        — contextBridge (window.promethee API)
+    auth.js           — Supabase auth + keytar
+    session.js        — session start/stop/sync
+    db.js             — SQLite schema + queries
+    power.js          — suspend/resume events
+    leaderboard.js    — Supabase polling
+    presence.js       — Supabase Realtime presence + rooms
+  renderer/
+    App.tsx           — root, mode routing (floating vs full window)
+    App.css           — global styles, CSS variables
+    components/
+      FloatingOverlay/
+        index.tsx           — overlay root, session state
+        IdleBar.tsx         — idle bar with task input
+        AgentBubble.tsx     — AI chat panel
+        PresencePill.tsx    — live online count
+        RoomsPanel.tsx      — rooms list
+        SessionEndModal.tsx — post-session modal
+      FullWindow/
+        index.tsx           — full window root, tab router
+        Sidebar.tsx         — nav sidebar
+        CharacterPanel.tsx  — home/character screen
+        RightPanel.tsx      — right column
+        LeaderboardTab.tsx  — leaderboard
+        RoomsTab.tsx        — rooms
+        MentorTab.tsx       — chat history
+        SessionCompleteScreen.tsx
+        SettingsTab.tsx
+      OnboardingScreen.tsx  — not yet wired
+      ui/
+        menu.tsx            — UserProfileSidebar component
+        sign-in.tsx         — sign-in form component
+  assets/
+    icon.icns         — dock icon (macOS)
+    icon.png          — dock icon (512×512 PNG)
+    tray-icon.png     — menu bar icon (22×22 template)
+    tray-icon@2x.png  — menu bar icon retina (44×44 template)
+supabase/
+  migrations/         — DB schema migrations
+docs/
+  product-spec.md     — product strategy, roadmap, constraints
+  design-spec.md      — UI spec, spacing, colors (locked)
+  ui-patterns.md      — design patterns from Nicolas's designs
+```

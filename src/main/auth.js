@@ -203,3 +203,27 @@ export async function updatePassword(newPassword) {
   if (error) throw error;
   return { success: true };
 }
+
+export async function uploadAvatar(fileBuffer, mimeType) {
+  if (!currentUser) throw new Error('Not authenticated');
+
+  const userId = currentUser.id;
+  // Use the user ID as the filename so each user has exactly one avatar
+  const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
+  const filePath = `${userId}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from('avatars')
+    .upload(filePath, fileBuffer, {
+      contentType: mimeType,
+      upsert: true,
+    });
+
+  if (uploadError) throw uploadError;
+
+  const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(filePath);
+  const avatarUrl = urlData.publicUrl;
+
+  // Save the URL to user metadata + user_profile table
+  return updateProfile({ avatarUrl });
+}

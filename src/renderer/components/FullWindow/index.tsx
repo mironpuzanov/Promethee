@@ -24,7 +24,7 @@ const rowVariants = {
 interface User {
   id: string;
   email: string;
-  user_metadata?: { display_name?: string };
+  user_metadata?: { display_name?: string; avatar_url?: string };
 }
 
 interface Session {

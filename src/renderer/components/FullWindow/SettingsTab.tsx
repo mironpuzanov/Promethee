@@ -58,7 +58,8 @@ function StatusMessage({ success, error }: { success?: string; error?: string })
 
 function SettingsTab({ user, setUser }: SettingsTabProps) {
   const [displayName, setDisplayName] = useState(user?.user_metadata?.display_name || '');
-  const [avatarUrl, setAvatarUrl] = useState(user?.user_metadata?.avatar_url || '');
+  const [avatarPreview, setAvatarPreview] = useState<string>(user?.user_metadata?.avatar_url || '');
+  const [pendingFile, setPendingFile] = useState<{ buffer: ArrayBuffer; mimeType: string } | null>(null);
   const [profileStatus, setProfileStatus] = useState<{ success?: string; error?: string }>({});
   const [profileLoading, setProfileLoading] = useState(false);
 
@@ -67,13 +68,42 @@ function SettingsTab({ user, setUser }: SettingsTabProps) {
   const [passwordStatus, setPasswordStatus] = useState<{ success?: string; error?: string }>({});
   const [passwordLoading, setPasswordLoading] = useState(false);
 
+  const handleAvatarPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setAvatarPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+    // Also read as ArrayBuffer for upload
+    const bufReader = new FileReader();
+    bufReader.onload = () => {
+      setPendingFile({ buffer: bufReader.result as ArrayBuffer, mimeType: file.type });
+    };
+    bufReader.readAsArrayBuffer(file);
+  };
+
   const handleProfileSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setProfileLoading(true);
     setProfileStatus({});
+
+    // Upload avatar first if a new file was picked
+    if (pendingFile) {
+      const uploadResult = await window.promethee.auth.uploadAvatar(pendingFile.buffer, pendingFile.mimeType);
+      if (!uploadResult.success) {
+        setProfileLoading(false);
+        setProfileStatus({ error: uploadResult.error || 'Avatar upload failed.' });
+        return;
+      }
+      if (uploadResult.user) setUser(uploadResult.user);
+      setPendingFile(null);
+    }
+
+    // Save display name (always, in case only name changed)
     const result = await window.promethee.auth.updateProfile({
       displayName: displayName.trim() || undefined,
-      avatarUrl: avatarUrl.trim() || undefined,
     });
     setProfileLoading(false);
     if (result.success) {
@@ -122,13 +152,32 @@ function SettingsTab({ user, setUser }: SettingsTabProps) {
               placeholder="Your name"
             />
           </Field>
-          <Field label="Avatar URL">
-            <Input
-              type="url"
-              value={avatarUrl}
-              onChange={e => setAvatarUrl(e.target.value)}
-              placeholder="https://…"
-            />
+          <Field label="Avatar">
+            <div className="flex items-center gap-4">
+              {avatarPreview ? (
+                <img
+                  src={avatarPreview}
+                  alt="Avatar preview"
+                  className="w-12 h-12 rounded-full object-cover border border-border"
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-muted border border-border flex items-center justify-center text-muted-foreground text-xs">
+                  none
+                </div>
+              )}
+              <label className="cursor-pointer px-3 py-1.5 rounded-lg text-sm border border-border text-muted-foreground hover:text-foreground hover:border-ring transition-colors">
+                {avatarPreview ? 'Change photo' : 'Upload photo'}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={handleAvatarPick}
+                />
+              </label>
+              {pendingFile && (
+                <span className="text-xs text-muted-foreground">Unsaved</span>
+              )}
+            </div>
           </Field>
           <StatusMessage {...profileStatus} />
           <SaveButton loading={profileLoading} />

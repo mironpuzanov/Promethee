@@ -77,11 +77,17 @@ export const UserProfileSidebar = React.forwardRef<HTMLDivElement, UserProfileSi
       >
         {/* User Info Header */}
         <motion.div variants={itemVariants} className="flex items-center space-x-4 p-2">
-          <img
-            src={user.avatarUrl}
-            alt={`${user.name}'s avatar`}
-            className="h-12 w-12 rounded-full object-cover flex-shrink-0"
-          />
+          {user.avatarUrl ? (
+            <img
+              src={user.avatarUrl}
+              alt={`${user.name}'s avatar`}
+              className="h-12 w-12 rounded-full object-cover flex-shrink-0"
+            />
+          ) : (
+            <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center flex-shrink-0 text-base font-semibold text-muted-foreground">
+              {user.name.charAt(0).toUpperCase()}
+            </div>
+          )}
           <div className="flex flex-col truncate">
             <span className="font-semibold text-lg text-foreground">{user.name}</span>
             <span className="text-sm text-muted-foreground truncate">{user.email}</span>

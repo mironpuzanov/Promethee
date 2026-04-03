@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('promethee', {
     },
     updateProfile: (updates) => ipcRenderer.invoke('auth:updateProfile', updates),
     updatePassword: (newPassword) => ipcRenderer.invoke('auth:updatePassword', newPassword),
+    uploadAvatar: (fileBuffer, mimeType) => ipcRenderer.invoke('auth:uploadAvatar', fileBuffer, mimeType),
   },
 
   // Leaderboard APIs
@@ -75,6 +76,13 @@ contextBridge.exposeInMainWorld('promethee', {
       return () => ipcRenderer.removeListener('window:sessionComplete', listener);
     },
     getPendingSessionComplete: () => ipcRenderer.invoke('window:getPendingSessionComplete'),
+    resizeForSessionComplete: () => ipcRenderer.invoke('window:resizeForSessionComplete'),
+    restoreFromSessionComplete: () => ipcRenderer.invoke('window:restoreFromSessionComplete'),
+    captureSessionCard: () => ipcRenderer.invoke('window:captureSessionCard'),
+    copyImageToClipboard: () => ipcRenderer.invoke('window:copyImageToClipboard'),
+    copyImageAndText: (text) => ipcRenderer.invoke('window:copyImageAndText', text),
+    openExternal: (url) => ipcRenderer.invoke('window:openExternal', url),
+    copyText: (text) => ipcRenderer.invoke('window:copyText', text),
     startFocusSession: (roomId) => ipcRenderer.invoke('window:startFocusFromDashboard', roomId),
     onFocusTaskInput: (callback) => {
       const listener = (_event, data) => callback(data);
@@ -111,6 +119,8 @@ contextBridge.exposeInMainWorld('promethee', {
     getMessages: (chatId) => ipcRenderer.invoke('agent:getMessages', chatId),
     sendMessage: (chatId, content, messages) =>
       ipcRenderer.invoke('agent:sendMessage', chatId, content, messages),
+    sendMessageWithImages: (chatId, content, images, messages) =>
+      ipcRenderer.invoke('agent:sendMessageWithImages', chatId, content, images, messages),
     onChunk: (callback) => {
       const listener = (_event, data) => callback(data);
       ipcRenderer.on('agent:chunk', listener);
