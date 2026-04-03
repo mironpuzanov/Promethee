@@ -7,6 +7,8 @@ import RightPanel from './RightPanel';
 import LeaderboardTab from './LeaderboardTab';
 import RoomsTab from './RoomsTab';
 import SessionCompleteScreen from './SessionCompleteScreen';
+import SettingsTab from './SettingsTab';
+import MentorTab from './MentorTab';
 import './FullWindow.css';
 
 const listVariants = {
@@ -130,7 +132,8 @@ function FullWindow({ user, setUser }: FullWindowProps) {
       case 'habits':      return <PlaceholderTab title="Habits" />;
       case 'skills':      return <PlaceholderTab title="Skills" />;
       case 'journal':     return <PlaceholderTab title="Journal" />;
-      case 'mentor':      return <PlaceholderTab title="Mentor" />;
+      case 'mentor':      return <MentorTab />;
+      case 'settings':    return <SettingsTab user={user} setUser={setUser} />;
       default:        return <CharacterPanel user={user} />;
     }
   };

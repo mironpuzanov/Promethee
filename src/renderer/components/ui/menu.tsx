@@ -13,6 +13,7 @@ interface NavItem {
   isChild?: boolean;
   isGroupHeader?: boolean;
   isOpen?: boolean;
+  comingSoon?: boolean;
 }
 
 interface UserProfile {
@@ -101,7 +102,7 @@ export const UserProfileSidebar = React.forwardRef<HTMLDivElement, UserProfileSi
                 <motion.button
                   layout
                   variants={itemVariants}
-                  onClick={() => onTabChange(item.id)}
+                  onClick={() => { if (!item.comingSoon) onTabChange(item.id); }}
                   className={cn(
                     'group flex w-full items-center rounded-md text-sm font-medium transition-colors text-left',
                     item.isChild ? 'px-3 py-2 pl-8' : 'px-3 py-2.5',
@@ -114,12 +115,15 @@ export const UserProfileSidebar = React.forwardRef<HTMLDivElement, UserProfileSi
                     {item.icon}
                   </span>
                   <span>{item.label}</span>
-                  {item.isGroupHeader && (
+                  {item.comingSoon && (
+                    <span className="ml-auto text-[10px] tracking-wide text-muted-foreground/50">coming soon</span>
+                  )}
+                  {!item.comingSoon && item.isGroupHeader && (
                     <ChevronRight
                       className={cn('ml-auto h-3.5 w-3.5 text-muted-foreground transition-transform', item.isOpen && 'rotate-90')}
                     />
                   )}
-                  {!item.isGroupHeader && !item.isChild && (
+                  {!item.comingSoon && !item.isGroupHeader && !item.isChild && (
                     <ChevronRight className="ml-auto h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100" />
                   )}
                 </motion.button>
