@@ -161,14 +161,13 @@ export async function setSession(accessToken, refreshToken) {
   return null;
 }
 
-async function syncUserProfileToSupabase(userId, email, displayName) {
+async function syncUserProfileToSupabase(userId, email, displayName, avatarUrl) {
   try {
+    const row = { id: userId, email, display_name: displayName };
+    if (avatarUrl !== undefined) row.avatar_url = avatarUrl;
     const { error } = await supabase
       .from('user_profile')
-      .upsert(
-        { id: userId, email, display_name: displayName },
-        { onConflict: 'id', ignoreDuplicates: false }
-      );
+      .upsert(row, { onConflict: 'id', ignoreDuplicates: false });
     if (error) {
       console.error('Failed to sync user profile to Supabase:', error);
     }
@@ -179,4 +178,28 @@ async function syncUserProfileToSupabase(userId, email, displayName) {
 
 export function getCurrentUser() {
   return currentUser;
+}
+
+export async function updateProfile({ displayName, avatarUrl }) {
+  const updates = {};
+  if (displayName !== undefined) updates.display_name = displayName;
+  if (avatarUrl !== undefined) updates.avatar_url = avatarUrl;
+
+  const { data, error } = await supabase.auth.updateUser({ data: updates });
+  if (error) throw error;
+
+  if (data.user) {
+    currentUser = data.user;
+    const dn = data.user.user_metadata?.display_name || data.user.email;
+    const av = data.user.user_metadata?.avatar_url;
+    createOrUpdateUserProfile(data.user.id, data.user.email, dn);
+    await syncUserProfileToSupabase(data.user.id, data.user.email, dn, av);
+  }
+  return { success: true, user: data.user };
+}
+
+export async function updatePassword(newPassword) {
+  const { data, error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw error;
+  return { success: true };
 }

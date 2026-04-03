@@ -31,7 +31,9 @@ contextBridge.exposeInMainWorld('promethee', {
       const listener = () => callback();
       ipcRenderer.on('auth:signed-out', listener);
       return () => ipcRenderer.removeListener('auth:signed-out', listener);
-    }
+    },
+    updateProfile: (updates) => ipcRenderer.invoke('auth:updateProfile', updates),
+    updatePassword: (newPassword) => ipcRenderer.invoke('auth:updatePassword', newPassword),
   },
 
   // Leaderboard APIs

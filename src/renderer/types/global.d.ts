@@ -19,6 +19,8 @@ declare global {
         onAuthSuccess: (callback: (user: any) => void) => () => void;
         onAuthError: (callback: (message: string) => void) => () => void;
         onSignedOut: (callback: () => void) => () => void;
+        updateProfile: (updates: { displayName?: string; avatarUrl?: string }) => Promise<{ success: boolean; user?: any; error?: string }>;
+        updatePassword: (newPassword: string) => Promise<{ success: boolean; error?: string }>;
       };
       leaderboard: {
         get: () => Promise<{ success: boolean; leaderboard?: any[]; error?: string }>;

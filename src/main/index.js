@@ -22,7 +22,7 @@ const __dirname = path.dirname(__filename);
 
 // Import modules
 import { startSession, endSessionAndSync, getActiveSession, flushPendingSyncs } from './session.js';
-import { signIn, signUp, signOut, sendMagicLink, getUser, setSession, getCurrentUser } from './auth.js';
+import { signIn, signUp, signOut, sendMagicLink, getUser, setSession, getCurrentUser, updateProfile, updatePassword } from './auth.js';
 import { setupPowerMonitoring } from './power.js';
 import { setupLeaderboardPolling, stopLeaderboardPolling, getLeaderboard } from './leaderboard.js';
 import { setupPresence, stopPresence, sendHeartbeat, removePresence, postToLiveFeed, getPresenceCount, getRooms, getRoomPresence } from './presence.js';
@@ -136,9 +136,14 @@ const createFullWindow = () => {
 const createTray = () => {
   // __dirname = .vite/build/ in dev — resolve up to project root
   const trayIconPath = path.resolve(__dirname, '../../src/assets/tray-icon.png');
+  const trayIcon2xPath = path.resolve(__dirname, '../../src/assets/tray-icon@2x.png');
   let icon;
   if (fs.existsSync(trayIconPath)) {
-    icon = nativeImage.createFromPath(trayIconPath);
+    icon = nativeImage.createEmpty();
+    icon.addRepresentation({ scaleFactor: 1.0, dataURL: nativeImage.createFromPath(trayIconPath).toDataURL() });
+    if (fs.existsSync(trayIcon2xPath)) {
+      icon.addRepresentation({ scaleFactor: 2.0, dataURL: nativeImage.createFromPath(trayIcon2xPath).toDataURL() });
+    }
     icon.setTemplateImage(true);
   } else {
     icon = nativeImage.createEmpty();
@@ -461,6 +466,24 @@ ipcMain.handle('auth:getUser', async () => {
   try {
     const user = await getUser();
     return { success: true, user };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('auth:updateProfile', async (event, updates) => {
+  try {
+    const result = await updateProfile(updates);
+    return result;
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('auth:updatePassword', async (event, newPassword) => {
+  try {
+    const result = await updatePassword(newPassword);
+    return result;
   } catch (error) {
     return { success: false, error: error.message };
   }
