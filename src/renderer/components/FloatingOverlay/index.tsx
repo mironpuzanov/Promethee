@@ -30,7 +30,7 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
   const [showRooms, setShowRooms] = useState(false);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [focusTaskInput, setFocusTaskInput] = useState(false);
-  const [agentOpen, setAgentOpen] = useState(false);
+  const [agentOpenTrigger, setAgentOpenTrigger] = useState(0);
 
   useEffect(() => {
     window.promethee.session.getActive().then((result: { success: boolean; session?: Session }) => {
@@ -115,9 +115,9 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
         onOpenRooms={() => setShowRooms(r => !r)}
         autoFocusInput={focusTaskInput}
         onAutoFocusConsumed={() => setFocusTaskInput(false)}
-        onOpenMentor={() => setAgentOpen(true)}
+        onOpenMentor={() => setAgentOpenTrigger(n => n + 1)}
       />
-      <AgentBubble activeSession={null} defaultOpen={agentOpen} />
+      <AgentBubble activeSession={null} openTrigger={agentOpenTrigger} />
       <AnimatePresence>
         {showRooms && (
           <RoomsPanel

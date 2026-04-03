@@ -13,31 +13,39 @@
 
 /* ─── Bubble trigger button ─────────────────────────────────────── */
 .agent-bubble {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  color: var(--text-primary);
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  backdrop-filter: blur(16px);
-  transition: background 0.15s, border-color 0.15s;
+  backdrop-filter: blur(24px);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
   -webkit-app-region: no-drag;
   pointer-events: auto;
 }
 
 .agent-bubble:hover {
-  background: rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.18);
+  color: var(--text-primary);
 }
 
 .agent-bubble--open {
-  background: rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.18);
+  color: var(--text-primary);
+}
+
+.agent-bubble-label {
+  font-family: 'Geist', sans-serif;
+  font-size: 13px;
+  font-weight: 400;
 }
 
 /* Green dot when session is active */

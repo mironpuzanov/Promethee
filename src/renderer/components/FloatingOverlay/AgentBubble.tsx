@@ -17,7 +17,7 @@ interface Chat {
 
 interface AgentBubbleProps {
   activeSession: { id: string; task?: string; startedAt: number } | null;
-  defaultOpen?: boolean;
+  openTrigger?: number;
 }
 
 function buildSystemPrompt(session: AgentBubbleProps['activeSession']): string {
@@ -36,8 +36,12 @@ Current session: "${task}" — ${elapsedMinutes} minute${elapsedMinutes !== 1 ? 
 Answer concisely. You already know what they're working on — don't ask them to re-explain.`;
 }
 
-function AgentBubble({ activeSession, defaultOpen = false }: AgentBubbleProps) {
-  const [open, setOpen] = useState(defaultOpen);
+function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (openTrigger > 0) setOpen(true);
+  }, [openTrigger]);
   const [chat, setChat] = useState<Chat | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -287,15 +291,15 @@ function AgentBubble({ activeSession, defaultOpen = false }: AgentBubbleProps) {
         )}
       </AnimatePresence>
 
-      {/* Bubble trigger — logo mark */}
+      {/* Bubble trigger — text pill */}
       <motion.button
         className={`agent-bubble ${open ? 'agent-bubble--open' : ''}`}
         onClick={() => setOpen(o => !o)}
-        whileHover={{ scale: 1.06 }}
-        whileTap={{ scale: 0.94 }}
+        whileHover={{ scale: 1.03 }}
+        whileTap={{ scale: 0.97 }}
         title="Ask Promethee AI"
       >
-        <img src="../../assets/icon.png" width="22" height="22" style={{ borderRadius: 4, opacity: open ? 1 : 0.75 }} />
+        <span className="agent-bubble-label">Mentor AI</span>
         {activeSession && <span className="agent-bubble-dot" />}
       </motion.button>
     </div>
