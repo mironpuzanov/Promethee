@@ -1,23 +1,28 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { getLevelInfo } from '../../../lib/xp';
 import './LevelPill.css';
 
-interface LevelPillProps {
-  level?: number;
-  tier?: string;
-  totalXP?: number;
-  xpForNextLevel?: number;
-}
+function LevelPill() {
+  const [totalXP, setTotalXP] = useState(0);
 
-function LevelPill({ level = 1, tier = 'Apprentice', totalXP = 0, xpForNextLevel = 100 }: LevelPillProps) {
-  const filled = Math.round((totalXP / xpForNextLevel) * 5);
-  const xpProgress = Array.from({ length: 5 }, (_, i) => i < filled);
+  useEffect(() => {
+    window.promethee.db.getUserProfile().then((result: { success: boolean; profile?: { total_xp: number } }) => {
+      if (result.success && result.profile) {
+        setTotalXP(result.profile.total_xp || 0);
+      }
+    });
+  }, []);
+
+  const { level, tier, xpIntoLevel, xpForCurrentLevel } = getLevelInfo(totalXP);
+  const filled = Math.round((xpIntoLevel / xpForCurrentLevel) * 5);
+  const dots = Array.from({ length: 5 }, (_, i) => i < filled);
 
   return (
     <div className="level-pill">
       <span className="level-text">Level {level} · {tier}</span>
       <div className="xp-dots">
-        {xpProgress.map((f, i) => (
-          <span key={i} className={`dot ${f ? 'filled' : ''}`}>·</span>
+        {dots.map((f, i) => (
+          <span key={i} className={`dot ${f ? 'filled' : ''}`} />
         ))}
       </div>
     </div>

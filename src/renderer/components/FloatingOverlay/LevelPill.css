@@ -27,11 +27,14 @@
 }
 
 .dot {
-  color: var(--text-faint);
-  font-size: 16px;
-  line-height: 1;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  display: inline-block;
+  flex-shrink: 0;
 }
 
 .dot.filled {
-  color: var(--accent-orange);
+  background: var(--accent-fire);
 }

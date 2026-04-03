@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { getLevelInfo } from '../../../lib/xp';
 
 interface User {
   id: string;
@@ -39,11 +40,8 @@ function CharacterPanel({ user }: CharacterPanelProps) {
     });
   }, []);
 
-  const totalXP = profile.total_xp || 0;
-  const level = profile.level || 1;
-  const tier = 'Apprentice';
-  const xpForNextLevel = level * 100;
-  const xpProgress = Math.min((totalXP % xpForNextLevel) / xpForNextLevel, 1);
+  const levelInfo = getLevelInfo(profile.total_xp || 0);
+  const { level, tier, totalXP, xpIntoLevel, xpForCurrentLevel, progress: xpProgress } = levelInfo;
 
   const skills = [
     { name: 'Willpower', value: 4 },
@@ -71,7 +69,7 @@ function CharacterPanel({ user }: CharacterPanelProps) {
               className={`text-xs leading-none ${filled ? 'text-accent-orange' : 'text-muted'}`}
             >█</span>
           ))}
-          <span className="text-sm font-medium text-secondary-foreground ml-2">{totalXP} XP</span>
+          <span className="text-sm font-medium text-secondary-foreground ml-2">{totalXP} XP total</span>
         </div>
       </motion.div>
 
@@ -79,7 +77,7 @@ function CharacterPanel({ user }: CharacterPanelProps) {
       <motion.div variants={itemVariants} className="flex flex-col gap-1.5">
         <div className="flex justify-between text-xs text-muted-foreground">
           <span>Progress to Level {level + 1}</span>
-          <span>{totalXP} / {xpForNextLevel}</span>
+          <span>{xpIntoLevel} / {xpForCurrentLevel}</span>
         </div>
         <div className="h-1 bg-muted rounded-full overflow-hidden">
           <motion.div

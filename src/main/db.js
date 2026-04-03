@@ -197,10 +197,16 @@ export function updateUserXP(userId, xpToAdd) {
 
   stmt.run(xpToAdd, userId);
 
-  // Update level based on XP
+  // Update level based on XP — threshold: level * 100 XP per level
+  // Total XP to reach level N: N*(N-1)/2 * 100
   const profile = getUserProfile(userId);
   if (profile) {
-    const newLevel = Math.floor(profile.total_xp / 100) + 1; // 100 XP per level
+    let newLevel = 1;
+    while (true) {
+      const xpNeeded = newLevel * (newLevel + 1) / 2 * 100;
+      if (xpNeeded > profile.total_xp) break;
+      newLevel++;
+    }
     const levelStmt = database.prepare(`
       UPDATE user_profile
       SET level = ?
@@ -215,9 +221,10 @@ export function updateUserXP(userId, xpToAdd) {
 export function getAgentChats(userId) {
   const database = getDb();
   return database.prepare(`
-    SELECT * FROM agent_chats
-    WHERE user_id = ?
-    ORDER BY updated_at DESC
+    SELECT ac.* FROM agent_chats ac
+    WHERE ac.user_id = ?
+      AND EXISTS (SELECT 1 FROM agent_messages am WHERE am.chat_id = ac.id)
+    ORDER BY ac.updated_at DESC
     LIMIT 50
   `).all(userId);
 }
