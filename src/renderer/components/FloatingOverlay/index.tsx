@@ -122,11 +122,6 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
         {showRooms && (
           <RoomsPanel
             onClose={() => setShowRooms(false)}
-            onJoinRoom={(roomId) => {
-              setSelectedRoomId(roomId);
-              setShowRooms(false);
-            }}
-            activeRoomId={selectedRoomId}
           />
         )}
       </AnimatePresence>

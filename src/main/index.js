@@ -56,6 +56,7 @@ const createFloatingWindow = () => {
     skipTaskbar: true,
     visibleOnAllWorkspaces: true,
     hasShadow: false,
+    focusable: false,
     type: process.platform === 'darwin' ? 'panel' : undefined,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -108,11 +109,15 @@ const createFullWindow = ({ sessionComplete = false } = {}) => {
     height: h,
     x: Math.round((width - w) / 2),
     y: Math.round((height - h) / 2),
+    show: false, // show after load to avoid flash
     frame: false,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
     transparent: false,
     backgroundColor: '#0a0a0a',
+    hasShadow: true,
+    movable: true,
+    skipTaskbar: false,
     title: 'Promethee',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -128,6 +133,16 @@ const createFullWindow = ({ sessionComplete = false } = {}) => {
       query: { mode: 'full' }
     });
   }
+
+  // Show once the page is ready — avoids blank flash
+  fullWindow.webContents.once('did-finish-load', () => {
+    fullWindow?.show();
+    fullWindow?.focus();
+    // Ensure dock icon is visible (panel-type floating window can suppress it)
+    if (process.platform === 'darwin' && app.dock) {
+      app.dock.show();
+    }
+  });
 
   // Hide overlay while dashboard is open, restore it when dashboard closes
   floatingWindow?.hide();
@@ -255,10 +270,10 @@ async function handleDeepLink(url) {
   }
 }
 
-// Set activation policy before ready — this is the correct timing per Electron docs.
-// Do NOT call app.dock.show() — it triggers macOS to unhide all hidden apps.
+// Stay as regular app from the start so the dock icon is always visible.
+// accessory→regular transition in dev causes the dock icon to disappear.
 if (process.platform === 'darwin') {
-  app.setActivationPolicy('accessory'); // start as background, promote to regular after ready
+  app.setActivationPolicy('regular');
 }
 
 debugLog('Setting up app.whenReady handler');
@@ -267,10 +282,8 @@ debugLog('Setting up app.whenReady handler');
 app.whenReady().then(async () => {
   debugLog('=== App is ready, starting initialization ===');
 
-  // Promote to regular app (shows in dock + Cmd+Tab) without triggering macOS "unhide all"
+  // Set dock icon — __dirname is .vite/build/ in dev, so go up to project root
   if (process.platform === 'darwin') {
-    app.setActivationPolicy('regular');
-    // Set dock icon — __dirname is .vite/build/ in dev, so go up to project root
     try {
       const iconPath = path.resolve(__dirname, '../../src/assets/icon.png');
       if (app.dock && fs.existsSync(iconPath)) {
@@ -316,7 +329,11 @@ app.whenReady().then(async () => {
   setupPresence(floatingWindow);
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
+    // Dock click — bring full window to front if it exists, otherwise open it
+    if (fullWindow) {
+      fullWindow.show();
+      fullWindow.focus();
+    } else if (BrowserWindow.getAllWindows().length === 0) {
       createFloatingWindow();
     }
   });
@@ -342,6 +359,15 @@ ipcMain.on('set-ignore-mouse-events-true', () => {
 
 ipcMain.on('set-ignore-mouse-events-false', () => {
   floatingWindow?.setIgnoreMouseEvents(false);
+});
+
+ipcMain.on('set-focusable-true', () => {
+  floatingWindow?.setFocusable(true);
+  floatingWindow?.focus();
+});
+
+ipcMain.on('set-focusable-false', () => {
+  floatingWindow?.setFocusable(false);
 });
 
 // IPC Handlers
@@ -862,17 +888,17 @@ Answer concisely.`;
       const delta = chunk.choices[0]?.delta?.content || '';
       if (delta) {
         fullContent += delta;
-        floatingWindow?.webContents.send('agent:chunk', { chatId, delta });
+        [floatingWindow, fullWindow].forEach(w => w?.webContents.send('agent:chunk', { chatId, delta }));
       }
     }
 
     // Persist assistant message
     const saved = addAgentMessage(chatId, 'assistant', fullContent);
-    floatingWindow?.webContents.send('agent:streamEnd', { chatId, message: saved });
+    [floatingWindow, fullWindow].forEach(w => w?.webContents.send('agent:streamEnd', { chatId, message: saved }));
 
     return { success: true };
   } catch (error) {
-    floatingWindow?.webContents.send('agent:streamError', { chatId, error: error.message });
+    [floatingWindow, fullWindow].forEach(w => w?.webContents.send('agent:streamError', { chatId, error: error.message }));
     return { success: false, error: error.message };
   }
 });
@@ -954,16 +980,16 @@ Answer concisely.`;
       const delta = chunk.choices[0]?.delta?.content || '';
       if (delta) {
         fullContent += delta;
-        floatingWindow?.webContents.send('agent:chunk', { chatId, delta });
+        [floatingWindow, fullWindow].forEach(w => w?.webContents.send('agent:chunk', { chatId, delta }));
       }
     }
 
     const saved = addAgentMessage(chatId, 'assistant', fullContent);
-    floatingWindow?.webContents.send('agent:streamEnd', { chatId, message: saved });
+    [floatingWindow, fullWindow].forEach(w => w?.webContents.send('agent:streamEnd', { chatId, message: saved }));
 
     return { success: true };
   } catch (error) {
-    floatingWindow?.webContents.send('agent:streamError', { chatId, error: error.message });
+    [floatingWindow, fullWindow].forEach(w => w?.webContents.send('agent:streamError', { chatId, error: error.message }));
     return { success: false, error: error.message };
   }
 });

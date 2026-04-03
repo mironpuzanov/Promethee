@@ -78,6 +78,8 @@ function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
   const [savingKey, setSavingKey] = useState(false);
   const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [allChats, setAllChats] = useState<Array<{ id: string; title: string; updatedAt: string }>>([]);
   const [bottomY, setBottomY] = useState<number>(loadBottomY);
   const [isDraggingState, setIsDraggingState] = useState(false);
 
@@ -141,7 +143,12 @@ function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
   }, [messages, streamingContent]);
 
   useEffect(() => {
-    if (open) setTimeout(() => inputRef.current?.focus(), 150);
+    if (open) {
+      window.promethee.window.setFocusable(true);
+      setTimeout(() => inputRef.current?.focus(), 50);
+    } else {
+      window.promethee.window.setFocusable(false);
+    }
   }, [open]);
 
   useEffect(() => {
@@ -213,6 +220,20 @@ function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
     setTimeout(() => setCopiedId(null), 1500);
   };
 
+  const handleOpenHistory = async () => {
+    const result = await window.promethee.agent.getChats();
+    if (result.success) setAllChats(result.chats || []);
+    setShowHistory(true);
+  };
+
+  const handleSelectChat = async (chatId: string) => {
+    const msgResult = await window.promethee.agent.getMessages(chatId);
+    const chatObj = allChats.find(c => c.id === chatId);
+    if (chatObj) setChat({ id: chatObj.id, title: chatObj.title, systemPrompt: '' });
+    setMessages(msgResult.success ? msgResult.messages : []);
+    setShowHistory(false);
+  };
+
   const handleBubblePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
     isDragging.current = true;
     didMove.current = false;
@@ -268,13 +289,43 @@ function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
           >
             <div className="agent-panel-header">
-              <span className="agent-panel-title">
-                {activeSession?.task ?? 'Promethee AI'}
-              </span>
-              <button className="agent-panel-close" onClick={() => setOpen(false)}>×</button>
+              <div className="agent-panel-title-group">
+                {activeSession?.task && (
+                  <span className="agent-panel-label">Session</span>
+                )}
+                <span className="agent-panel-title">
+                  {activeSession?.task ?? 'Promethee AI'}
+                </span>
+              </div>
+              <div className="agent-panel-header-actions">
+                <button className="agent-panel-history" onClick={showHistory ? () => setShowHistory(false) : handleOpenHistory} title="Chat history">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                    <path d="M3 3v5h5" />
+                  </svg>
+                </button>
+                <button className="agent-panel-close" onClick={() => setOpen(false)}>×</button>
+              </div>
             </div>
 
-            {needsApiKey ? (
+            {showHistory ? (
+              <div className="agent-history">
+                <div className="agent-history-header">
+                  <span className="agent-history-title">Previous chats</span>
+                </div>
+                {allChats.length === 0 ? (
+                  <div className="agent-empty">No previous chats.</div>
+                ) : (
+                  <div className="agent-history-list">
+                    {allChats.map(c => (
+                      <button key={c.id} className="agent-history-item" onClick={() => handleSelectChat(c.id)}>
+                        <span className="agent-history-item-title">{c.title || 'Untitled'}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : needsApiKey ? (
               <div className="agent-setup">
                 <p className="agent-setup-label">Add your OpenAI API key to get started.</p>
                 <input
@@ -319,8 +370,9 @@ function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
                   ))}
                   {streaming && streamingContent && (
                     <div className="agent-message agent-message--assistant agent-message--streaming">
-                      <span className="agent-message-content">{streamingContent}</span>
-                      <span className="agent-cursor" />
+                      <span className="agent-message-content">
+                        {streamingContent}<span className="agent-cursor" />
+                      </span>
                     </div>
                   )}
                   {error && (

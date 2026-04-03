@@ -18,7 +18,7 @@ interface ActiveSessionProps {
 function ActiveSession({ session, onEnd }: ActiveSessionProps) {
   const [elapsed, setElapsed] = useState(0);
   const [xpSoFar, setXpSoFar] = useState(0);
-  const [minimized, setMinimized] = useState(false);
+  const [minimized, setMinimized] = useState(true);
 
   useEffect(() => {
     const interval = setInterval(() => {

@@ -11,9 +11,7 @@ interface TimerCardProps {
   onToggleMinimize: () => void;
 }
 
-// Circle circumference = 2 * π * 32 ≈ 201
 const CIRCUMFERENCE = 201;
-// Progress resets every 10 minutes (600s) — gives satisfying visual ticks
 const CYCLE = 600;
 
 function TimerCard({ elapsed, elapsedSeconds, task, xpSoFar, onStop, minimized, onToggleMinimize }: TimerCardProps) {
@@ -26,20 +24,19 @@ function TimerCard({ elapsed, elapsedSeconds, task, xpSoFar, onStop, minimized, 
   if (minimized) {
     return (
       <div
-        className="timer-card timer-card--minimized"
+        className="timer-card timer-card--pill"
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onClick={onToggleMinimize}
-        style={{ cursor: 'pointer' }}
       >
-        <div className="timer-ring">
-          <svg width="48" height="48" viewBox="0 0 72 72">
-            <circle cx="36" cy="36" r="32" fill="none" stroke="rgba(232, 146, 42, 0.15)" strokeWidth="3" />
+        <div className="timer-pill-ring">
+          <svg width="20" height="20" viewBox="0 0 72 72">
+            <circle cx="36" cy="36" r="32" fill="none" stroke="rgba(232,146,42,0.2)" strokeWidth="6" />
             <circle
               cx="36" cy="36" r="32"
               fill="none"
               stroke="var(--accent-fire)"
-              strokeWidth="3"
+              strokeWidth="6"
               strokeDasharray={CIRCUMFERENCE}
               strokeDashoffset={dashOffset}
               strokeLinecap="round"
@@ -47,8 +44,9 @@ function TimerCard({ elapsed, elapsedSeconds, task, xpSoFar, onStop, minimized, 
               style={{ transition: 'stroke-dashoffset 1s linear' }}
             />
           </svg>
-          <span className="timer-ring-label">{elapsed.slice(3)}</span>
         </div>
+        <span className="timer-pill-time">{elapsed}</span>
+        <button className="stop-button" onClick={e => { e.stopPropagation(); onStop(); }} title="End session">■</button>
       </div>
     );
   }
@@ -59,9 +57,9 @@ function TimerCard({ elapsed, elapsedSeconds, task, xpSoFar, onStop, minimized, 
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      <div className="timer-ring" onClick={onToggleMinimize} title="Minimize" style={{ cursor: 'pointer' }}>
+      <div className="timer-ring">
         <svg width="72" height="72" viewBox="0 0 72 72">
-          <circle cx="36" cy="36" r="32" fill="none" stroke="rgba(232, 146, 42, 0.15)" strokeWidth="3" />
+          <circle cx="36" cy="36" r="32" fill="none" stroke="rgba(232,146,42,0.15)" strokeWidth="3" />
           <circle
             cx="36" cy="36" r="32"
             fill="none"
@@ -80,7 +78,14 @@ function TimerCard({ elapsed, elapsedSeconds, task, xpSoFar, onStop, minimized, 
         <div className="task-name">{task}</div>
         <div className="xp-so-far">+{xpSoFar} XP so far</div>
       </div>
-      <button className="stop-button" onClick={onStop} title="End session">■</button>
+      <div className="timer-actions">
+        <button className="timer-minimize" onClick={onToggleMinimize} title="Collapse">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3" />
+          </svg>
+        </button>
+        <button className="stop-button" onClick={onStop} title="End session">■</button>
+      </div>
     </div>
   );
 }

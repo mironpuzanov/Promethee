@@ -119,6 +119,11 @@ body {
   animation: testimonialIn 0.5s ease forwards;
 }
 
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 @keyframes fadeSlideIn {
   to { opacity: 1; filter: blur(0px); transform: translateY(0px); }
 }

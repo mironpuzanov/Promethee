@@ -35,6 +35,20 @@ interface Session {
   xp_earned?: number;
 }
 
+function dayLabel(ts: number): string {
+  return new Date(ts).toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+}
+
+function groupByDay<T>(items: T[], getTs: (item: T) => number): { label: string; items: T[] }[] {
+  const map = new Map<string, { label: string; items: T[] }>();
+  for (const item of items) {
+    const label = dayLabel(getTs(item));
+    if (!map.has(label)) map.set(label, { label, items: [] });
+    map.get(label)!.items.push(item);
+  }
+  return Array.from(map.values());
+}
+
 function SessionLog() {
   const [sessions, setSessions] = useState<Session[]>([]);
 
@@ -51,10 +65,12 @@ function SessionLog() {
     return h > 0 ? `${h}h ${m % 60}m` : `${m}m`;
   };
 
-  const formatDate = (ts?: number) => {
+  const formatTime = (ts?: number) => {
     if (!ts) return '—';
-    return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   };
+
+  const groups = groupByDay(sessions, s => s.started_at);
 
   return (
     <div className="flex flex-col bg-background px-10 py-10 overflow-y-auto gap-6">
@@ -63,27 +79,34 @@ function SessionLog() {
         <p className="text-sm text-muted-foreground">No sessions yet. Start your first session from the overlay.</p>
       ) : (
         <motion.div
-          className="flex flex-col gap-1"
+          className="flex flex-col gap-6"
           initial="hidden"
           animate="visible"
           variants={listVariants}
         >
-          {sessions.map(s => (
-            <motion.div
-              key={s.id}
-              variants={rowVariants}
-              className="flex justify-between items-center px-4 py-3 rounded-lg bg-card hover:bg-accent transition-colors gap-4"
-            >
-              <span className="text-sm text-foreground flex-1 truncate">{s.task || 'Untitled session'}</span>
-              <div className="flex items-center gap-4 flex-shrink-0 text-xs text-muted-foreground">
-                <span>{formatDate(s.started_at)}</span>
-                <span>{formatDuration(s.duration_seconds)}</span>
-                <span className="flex items-center gap-1 text-accent-orange font-medium">
-                  <Zap size={11} />
-                  {s.xp_earned || 0} XP
-                </span>
-              </div>
-            </motion.div>
+          {groups.map(group => (
+            <div key={group.label} className="flex flex-col gap-1">
+              <motion.div variants={rowVariants} className="text-xs text-muted-foreground font-medium tracking-wide uppercase px-1 pb-1">
+                {group.label}
+              </motion.div>
+              {group.items.map(s => (
+                <motion.div
+                  key={s.id}
+                  variants={rowVariants}
+                  className="flex justify-between items-center px-4 py-3 rounded-lg bg-card hover:bg-accent transition-colors gap-4"
+                >
+                  <span className="text-sm text-foreground flex-1 truncate">{s.task || 'Untitled session'}</span>
+                  <div className="flex items-center gap-4 flex-shrink-0 text-xs text-muted-foreground">
+                    <span>{formatTime(s.started_at)}</span>
+                    <span>{formatDuration(s.duration_seconds)}</span>
+                    <span className="flex items-center gap-1 text-accent-orange font-medium">
+                      <Zap size={11} />
+                      {s.xp_earned || 0} XP
+                    </span>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
           ))}
         </motion.div>
       )}

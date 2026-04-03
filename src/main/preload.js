@@ -70,6 +70,9 @@ contextBridge.exposeInMainWorld('promethee', {
     setIgnoreMouseEvents: (ignore) => {
       ipcRenderer.send(ignore ? 'set-ignore-mouse-events-true' : 'set-ignore-mouse-events-false');
     },
+    setFocusable: (focusable) => {
+      ipcRenderer.send(focusable ? 'set-focusable-true' : 'set-focusable-false');
+    },
     onSessionComplete: (callback) => {
       const listener = (_event, data) => callback(data);
       ipcRenderer.on('window:sessionComplete', listener);

@@ -24,20 +24,28 @@ function IdleBar({ user, onStartSession, onOpenRooms, autoFocusInput, onAutoFocu
   useEffect(() => {
     if (autoFocusInput) {
       setShowTaskInput(true);
+      window.promethee.window.setFocusable(true);
       onAutoFocusConsumed?.();
     }
   }, [autoFocusInput]);
 
-  const handleStartClick = () => setShowTaskInput(true);
+  const handleStartClick = () => {
+    setShowTaskInput(true);
+    window.promethee.window.setFocusable(true);
+  };
+
+  const dismissInput = () => {
+    setShowTaskInput(false);
+    setTask('');
+    window.promethee.window.setFocusable(false);
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && task.trim()) {
       onStartSession(task, null);
-      setTask('');
-      setShowTaskInput(false);
+      dismissInput();
     } else if (e.key === 'Escape') {
-      setShowTaskInput(false);
-      setTask('');
+      dismissInput();
     }
   };
 
@@ -78,7 +86,7 @@ function IdleBar({ user, onStartSession, onOpenRooms, autoFocusInput, onAutoFocu
           value={task}
           onChange={(e) => setTask(e.target.value)}
           onKeyDown={handleKeyDown}
-          onBlur={() => { if (!task.trim()) setShowTaskInput(false); }}
+          onBlur={() => { if (!task.trim()) dismissInput(); }}
           autoFocus
         />
       ) : (

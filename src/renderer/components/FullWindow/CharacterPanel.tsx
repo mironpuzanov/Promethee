@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { getLevelInfo } from '../../../lib/xp';
+import homeBg from '../../../assets/home-bg.png';
 
 interface User {
   id: string;
@@ -53,44 +54,67 @@ function CharacterPanel({ user }: CharacterPanelProps) {
 
   return (
     <motion.main
-      className="flex flex-col bg-background px-10 py-10 overflow-y-auto gap-8"
+      className="flex flex-col bg-background overflow-y-auto gap-8"
       initial="hidden"
       animate="visible"
       variants={containerVariants}
     >
-      {/* Header */}
-      <motion.div variants={itemVariants} className="flex flex-col gap-2">
-        <h1 className="text-2xl font-light text-foreground">{userName}</h1>
-        <p className="text-xs uppercase tracking-widest text-muted-foreground">Level {level} · {tier}</p>
-        <div className="flex items-center gap-2 mt-3">
-          {xpDots.map((filled, i) => (
-            <span
-              key={i}
-              className={`text-xs leading-none ${filled ? 'text-accent-orange' : 'text-muted'}`}
-            >█</span>
-          ))}
-          <span className="text-sm font-medium text-secondary-foreground ml-2">{totalXP} XP total</span>
-        </div>
-      </motion.div>
+      {/* Hero header — image with stats overlaid */}
+      <motion.div
+        variants={itemVariants}
+        style={{
+          position: 'relative',
+          height: 220,
+          flexShrink: 0,
+          overflow: 'hidden',
+          backgroundImage: `url(${homeBg})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center 60%',
+        }}
+      >
+        {/* Gradient: transparent top, dark bottom */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.75) 100%)',
+        }} />
 
-      {/* XP Progress bar */}
-      <motion.div variants={itemVariants} className="flex flex-col gap-1.5">
-        <div className="flex justify-between text-xs text-muted-foreground">
-          <span>Progress to Level {level + 1}</span>
-          <span>{xpIntoLevel} / {xpForCurrentLevel}</span>
-        </div>
-        <div className="h-1 bg-muted rounded-full overflow-hidden">
-          <motion.div
-            className="h-full bg-accent-orange rounded-full"
-            initial={{ width: 0 }}
-            animate={{ width: `${xpProgress * 100}%` }}
-            transition={{ duration: 0.8, ease: 'easeOut' }}
-          />
+        {/* Stats overlaid at bottom-left */}
+        <div style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0,
+          padding: '0 40px 20px',
+          color: '#fff',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+        }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 400, letterSpacing: '-0.02em' }}>{userName}</h1>
+            <p style={{ margin: 0, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'rgba(255,255,255,0.5)' }}>
+              Level {level} · {tier}
+            </p>
+          </div>
+
+          {/* XP progress bar */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>
+              <span>Progress to Level {level + 1}</span>
+              <span>{xpIntoLevel} / {xpForCurrentLevel} XP</span>
+            </div>
+            <div style={{ height: 3, background: 'rgba(255,255,255,0.15)', borderRadius: 2, overflow: 'hidden' }}>
+              <motion.div
+                style={{ height: '100%', background: '#E8922A', borderRadius: 2 }}
+                initial={{ width: 0 }}
+                animate={{ width: `${xpProgress * 100}%` }}
+                transition={{ duration: 0.8, ease: 'easeOut' }}
+              />
+            </div>
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>{totalXP} XP total</span>
+          </div>
         </div>
       </motion.div>
 
       {/* Skills */}
-      <motion.div variants={itemVariants} className="flex flex-col gap-3">
+      <motion.div variants={itemVariants} className="flex flex-col gap-3 px-10">
         <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Skills</p>
         <div className="flex flex-col gap-2">
           {skills.map(skill => (
@@ -103,7 +127,7 @@ function CharacterPanel({ user }: CharacterPanelProps) {
       </motion.div>
 
       {/* Habits chart */}
-      <motion.div variants={itemVariants} className="flex flex-col gap-3">
+      <motion.div variants={itemVariants} className="flex flex-col gap-3 px-10 pb-10">
         <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Habits</p>
         <div className="w-full h-24 bg-card rounded-lg p-2">
           <svg width="100%" height="100%" viewBox="0 0 300 80" preserveAspectRatio="none">
