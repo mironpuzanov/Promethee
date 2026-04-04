@@ -44,8 +44,11 @@ function CharacterPanel({ user }: CharacterPanelProps) {
   const levelInfo = getLevelInfo(profile.total_xp || 0);
   const { level, tier, totalXP, xpIntoLevel, xpForCurrentLevel, progress: xpProgress } = levelInfo;
 
-  // Skills are not yet computed from session data
-  const skills: { name: string; value: number }[] = [];
+  const skills = [
+    { name: 'Willpower', value: 4 },
+    { name: 'Discipline', value: 2 },
+    { name: 'Rigor', value: 1 },
+  ];
 
   const xpDots = Array.from({ length: 12 }, (_, i) => i < Math.floor(xpProgress * 12));
 
@@ -113,24 +116,45 @@ function CharacterPanel({ user }: CharacterPanelProps) {
       {/* Skills */}
       <motion.div variants={itemVariants} className="flex flex-col gap-3 px-10">
         <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Skills</p>
-        {skills.length === 0 ? (
-          <p className="text-xs text-muted-foreground">Coming soon.</p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {skills.map(skill => (
-              <div key={skill.name} className="flex justify-between items-center py-2 border-b border-border last:border-0">
-                <span className="text-sm text-secondary-foreground">{skill.name}</span>
-                <span className="text-base font-medium text-foreground">{skill.value}</span>
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="flex flex-col gap-2">
+          {skills.map(skill => (
+            <div key={skill.name} className="flex justify-between items-center py-2 border-b border-border last:border-0">
+              <span className="text-sm text-secondary-foreground">{skill.name}</span>
+              <span className="text-base font-medium text-foreground">{skill.value}</span>
+            </div>
+          ))}
+        </div>
       </motion.div>
 
       {/* Habits chart */}
       <motion.div variants={itemVariants} className="flex flex-col gap-3 px-10 pb-10">
         <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Habits</p>
-        <p className="text-xs text-muted-foreground">Coming soon.</p>
+        <div className="w-full h-24 bg-card rounded-lg p-2">
+          <svg width="100%" height="100%" viewBox="0 0 300 80" preserveAspectRatio="none">
+            <line x1="0" y1="20" x2="300" y2="20" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+            <line x1="0" y1="40" x2="300" y2="40" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+            <line x1="0" y1="60" x2="300" y2="60" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+            <polyline
+              points="0,64 60,48 120,40 180,32 240,24 300,20"
+              fill="none"
+              stroke="#E8922A"
+              strokeWidth="2"
+              opacity="0.6"
+            />
+            <polyline
+              points="0,64 60,48 120,40 180,32 240,24 300,20"
+              fill="url(#grad)"
+              stroke="none"
+              opacity="0.1"
+            />
+            <defs>
+              <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#E8922A" stopOpacity="1" />
+                <stop offset="100%" stopColor="#E8922A" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
       </motion.div>
     </motion.main>
   );
