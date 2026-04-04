@@ -73,6 +73,10 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
         task: result.session.task || 'Session',
         durationSeconds: result.session.durationSeconds || 0,
         xpEarned: result.session.xpEarned || 0,
+        multiplier: result.session.multiplier,
+        streakBonus: result.session.streakBonus,
+        depthBonus: result.session.depthBonus,
+        currentStreak: result.session.currentStreak,
       });
     } else if (!result.success) {
       console.error('Failed to end session:', result.error);

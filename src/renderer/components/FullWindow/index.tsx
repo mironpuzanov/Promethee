@@ -9,6 +9,9 @@ import RoomsTab from './RoomsTab';
 import SessionCompleteScreen from './SessionCompleteScreen';
 import SettingsTab from './SettingsTab';
 import MentorTab from './MentorTab';
+import QuestsTab from './QuestsTab';
+import HabitsTab from './HabitsTab';
+import MemoryTab from './MemoryTab';
 import './FullWindow.css';
 
 const listVariants = {
@@ -130,7 +133,7 @@ interface FullWindowProps {
 
 function FullWindow({ user, setUser }: FullWindowProps) {
   const [activeTab, setActiveTab] = useState('home');
-  const [completedSession, setCompletedSession] = useState<{ task: string; durationSeconds: number; xpEarned: number } | null>(null);
+  const [completedSession, setCompletedSession] = useState<{ task: string; durationSeconds: number; xpEarned: number; multiplier?: number; streakBonus?: number; depthBonus?: number; currentStreak?: number } | null>(null);
 
   useEffect(() => {
     // Check if main process has a pending session complete from before this window mounted
@@ -151,10 +154,11 @@ function FullWindow({ user, setUser }: FullWindowProps) {
       case 'log':         return <SessionLog />;
       case 'leaderboard': return <LeaderboardTab />;
       case 'rooms':       return <RoomsTab />;
-      case 'quests':      return <PlaceholderTab title="Quests" />;
-      case 'habits':      return <PlaceholderTab title="Habits" />;
+      case 'quests':      return <QuestsTab />;
+      case 'habits':      return <HabitsTab />;
       case 'skills':      return <PlaceholderTab title="Skills" />;
       case 'journal':     return <PlaceholderTab title="Journal" />;
+      case 'memory':      return <MemoryTab />;
       case 'mentor':      return <MentorTab />;
       case 'settings':    return <SettingsTab user={user} setUser={setUser} />;
       default:        return <CharacterPanel user={user} />;
@@ -171,6 +175,10 @@ function FullWindow({ user, setUser }: FullWindowProps) {
         task={completedSession.task}
         durationSeconds={completedSession.durationSeconds}
         xpEarned={completedSession.xpEarned}
+        multiplier={completedSession.multiplier}
+        streakBonus={completedSession.streakBonus}
+        depthBonus={completedSession.depthBonus}
+        currentStreak={completedSession.currentStreak}
         onClose={() => setCompletedSession(null)}
       />
     );

@@ -8,6 +8,10 @@ interface Props {
   task: string;
   durationSeconds: number;
   xpEarned: number;
+  multiplier?: number;
+  streakBonus?: number;
+  depthBonus?: number;
+  currentStreak?: number;
   onClose: () => void;
 }
 
@@ -20,7 +24,7 @@ function formatDuration(seconds: number): string {
   return `${s}s`;
 }
 
-export default function SessionCompleteScreen({ task, durationSeconds, xpEarned, onClose }: Props) {
+export default function SessionCompleteScreen({ task, durationSeconds, xpEarned, multiplier, streakBonus, depthBonus, currentStreak, onClose }: Props) {
   const [rank, setRank] = useState<number | null>(null);
   const [userName, setUserName] = useState<string>('');
   const [avatarUrl, setAvatarUrl] = useState<string>('');
@@ -235,6 +239,33 @@ export default function SessionCompleteScreen({ task, durationSeconds, xpEarned,
           <Stat icon={<Zap size={11} color="#E8922A" />} label="XP" value={xpEarned > 0 ? `+${xpEarned}` : '0'} valueColor="#E8922A" />
           {rank && <Stat icon={<Trophy size={11} color="rgba(255,255,255,0.4)" />} label="Rank" value={`#${rank}`} />}
         </div>
+        {/* Multiplier badges — only shown when a bonus was applied */}
+        {multiplier && multiplier > 1 && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {(streakBonus || 0) > 0 && (
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                background: 'rgba(232,146,42,0.15)',
+                border: '1px solid rgba(232,146,42,0.3)',
+                borderRadius: 20, padding: '3px 9px',
+                fontSize: 11, color: 'rgba(255,255,255,0.8)',
+              }}>
+                🔥 {currentStreak}-day streak · +{Math.round((streakBonus || 0) * 100)}%
+              </div>
+            )}
+            {(depthBonus || 0) > 0 && (
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                background: 'rgba(99,102,241,0.15)',
+                border: '1px solid rgba(99,102,241,0.3)',
+                borderRadius: 20, padding: '3px 9px',
+                fontSize: 11, color: 'rgba(255,255,255,0.8)',
+              }}>
+                ⚡ Deep work · +25%
+              </div>
+            )}
+          </div>
+        )}
       </motion.div>
 
       {/* SHARE SHEET — slides up from bottom */}

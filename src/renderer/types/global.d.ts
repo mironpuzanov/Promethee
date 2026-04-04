@@ -45,11 +45,36 @@ declare global {
         minimize: () => Promise<void>;
         toggleFullWindow: () => Promise<void>;
         setIgnoreMouseEvents: (ignore: boolean) => void;
-        openSessionComplete: (data: { task: string; durationSeconds: number; xpEarned: number }) => Promise<{ success: boolean }>;
-        onSessionComplete: (callback: (data: { task: string; durationSeconds: number; xpEarned: number }) => void) => () => void;
-        getPendingSessionComplete: () => Promise<{ task: string; durationSeconds: number; xpEarned: number } | null>;
+        openSessionComplete: (data: { task: string; durationSeconds: number; xpEarned: number; multiplier?: number; streakBonus?: number; depthBonus?: number; currentStreak?: number }) => Promise<{ success: boolean }>;
+        onSessionComplete: (callback: (data: { task: string; durationSeconds: number; xpEarned: number; multiplier?: number; streakBonus?: number; depthBonus?: number; currentStreak?: number }) => void) => () => void;
+        getPendingSessionComplete: () => Promise<{ task: string; durationSeconds: number; xpEarned: number; multiplier?: number; streakBonus?: number; depthBonus?: number; currentStreak?: number } | null>;
         startFocusSession: (roomId?: string | null) => Promise<{ success: boolean }>;
         onFocusTaskInput: (callback: (data: { roomId: string | null }) => void) => () => void;
+      };
+      memory: {
+        get: () => Promise<{ success: boolean; snapshots?: any[]; current?: any; error?: string }>;
+      };
+      habits: {
+        list: () => Promise<{ success: boolean; habits?: any[]; error?: string }>;
+        create: (title: string, frequency: string) => Promise<{ success: boolean; habit?: any; error?: string }>;
+        complete: (habitId: string) => Promise<{ success: boolean; habit?: any; error?: string }>;
+        uncomplete: (habitId: string) => Promise<{ success: boolean; habit?: any; error?: string }>;
+        delete: (habitId: string) => Promise<{ success: boolean; error?: string }>;
+      };
+      skills: {
+        get: () => Promise<{ success: boolean; skills?: { rigueur: number; volonte: number; courage: number }; raw?: { totalMinutes: number; streak: number; deepSessions: number }; error?: string }>;
+      };
+      signal: {
+        getToday: () => Promise<{ success: boolean; signal?: { content: string; intensity: 'low' | 'med' | 'high'; date: string } | null; error?: string }>;
+        onNew: (callback: (data: { date: string; content: string; intensity: 'low' | 'med' | 'high' }) => void) => () => void;
+      };
+      quests: {
+        list: () => Promise<{ success: boolean; quests?: any[]; error?: string }>;
+        create: (title: string, type: string, xpReward: number) => Promise<{ success: boolean; quest?: any; error?: string }>;
+        complete: (questId: string) => Promise<{ success: boolean; quest?: any; xpEarned?: number; profile?: any; error?: string }>;
+        uncomplete: (questId: string) => Promise<{ success: boolean; quest?: any; error?: string }>;
+        delete: (questId: string) => Promise<{ success: boolean; error?: string }>;
+        onDailyReset: (callback: (data: { resetIds: string[] }) => void) => () => void;
       };
       agent: {
         getToken: () => Promise<{ success: boolean; token?: string; error?: string }>;

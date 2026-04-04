@@ -3,7 +3,9 @@ import {
   endSession as dbEndSession,
   markSessionSynced,
   getUnsyncedSessions,
-  updateUserXP
+  updateUserXP,
+  updateStreak,
+  getUserProfile
 } from './db.js';
 import { supabase } from '../lib/supabase.js';
 
@@ -23,6 +25,21 @@ export function getActiveSession() {
   return activeSession;
 }
 
+// Calculate XP multiplier based on streak and session depth.
+// Returns { multiplier, streakBonus, depthBonus }
+function calcXpMultiplier(streakDays, durationSeconds) {
+  // Streak: +10% per consecutive day, capped at +50% (5 days)
+  const streakBonus = Math.min(streakDays * 0.10, 0.50);
+
+  // Depth: +25% for sessions ≥ 2 hours
+  const depthBonus = durationSeconds >= 7200 ? 0.25 : 0;
+
+  // Multiplicative, combined cap of 2×
+  const multiplier = Math.min((1 + streakBonus) * (1 + depthBonus), 2.0);
+
+  return { multiplier, streakBonus, depthBonus };
+}
+
 export async function endSessionAndSync() {
   if (!activeSession) {
     throw new Error('No active session to end');
@@ -31,8 +48,14 @@ export async function endSessionAndSync() {
   const endedAt = Date.now();
   const durationSeconds = Math.floor((endedAt - activeSession.startedAt) / 1000);
 
-  // Calculate XP: 10 XP per minute, minimum 60s for any XP
-  const xpEarned = durationSeconds < 60 ? 0 : Math.floor(durationSeconds / 60) * 10;
+  // Update streak first — we need the current streak value for the multiplier
+  const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD local
+  const currentStreak = updateStreak(activeSession.userId, todayStr);
+
+  // Calculate XP: 10 XP per minute base, minimum 60s for any XP
+  const baseXp = durationSeconds < 60 ? 0 : Math.floor(durationSeconds / 60) * 10;
+  const { multiplier, streakBonus, depthBonus } = calcXpMultiplier(currentStreak, durationSeconds);
+  const xpEarned = Math.round(baseXp * multiplier);
 
   // Save to local database
   dbEndSession(activeSession.id, xpEarned, durationSeconds);
@@ -44,13 +67,29 @@ export async function endSessionAndSync() {
     ...activeSession,
     endedAt,
     durationSeconds,
-    xpEarned
+    xpEarned,
+    baseXp,
+    multiplier,
+    streakBonus,
+    depthBonus,
+    currentStreak
   };
 
-  // Try to sync to Supabase
+  // Try to sync to Supabase (session + streak mirror)
   try {
     await syncSessionToSupabase(sessionData);
     markSessionSynced(activeSession.id);
+
+    // Mirror streak to Supabase user_profile
+    const profile = getUserProfile(activeSession.userId);
+    if (profile) {
+      await supabase.from('user_profile').update({
+        total_xp: profile.total_xp,
+        level: profile.level,
+        current_streak: profile.current_streak,
+        last_session_date: profile.last_session_date
+      }).eq('id', activeSession.userId);
+    }
   } catch (error) {
     console.error('Failed to sync session to Supabase:', error);
     // Keep synced_at as NULL so it can be retried later

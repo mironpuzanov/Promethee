@@ -116,6 +116,49 @@ contextBridge.exposeInMainWorld('promethee', {
     }
   },
 
+  // Skills APIs
+  skills: {
+    get: () => ipcRenderer.invoke('skills:get'),
+  },
+
+  // Memory APIs
+  memory: {
+    get: () => ipcRenderer.invoke('memory:get'),
+  },
+
+  // Habits APIs
+  habits: {
+    list: () => ipcRenderer.invoke('habits:list'),
+    create: (title, frequency) => ipcRenderer.invoke('habits:create', title, frequency),
+    complete: (habitId) => ipcRenderer.invoke('habits:complete', habitId),
+    uncomplete: (habitId) => ipcRenderer.invoke('habits:uncomplete', habitId),
+    delete: (habitId) => ipcRenderer.invoke('habits:delete', habitId),
+  },
+
+  // Daily signal APIs
+  signal: {
+    getToday: () => ipcRenderer.invoke('signal:getToday'),
+    onNew: (callback) => {
+      const listener = (_event, data) => callback(data);
+      ipcRenderer.on('signal:new', listener);
+      return () => ipcRenderer.removeListener('signal:new', listener);
+    },
+  },
+
+  // Quests APIs
+  quests: {
+    list: () => ipcRenderer.invoke('quests:list'),
+    create: (title, type, xpReward) => ipcRenderer.invoke('quests:create', title, type, xpReward),
+    complete: (questId) => ipcRenderer.invoke('quests:complete', questId),
+    uncomplete: (questId) => ipcRenderer.invoke('quests:uncomplete', questId),
+    delete: (questId) => ipcRenderer.invoke('quests:delete', questId),
+    onDailyReset: (callback) => {
+      const listener = (_event, data) => callback(data);
+      ipcRenderer.on('quests:dailyReset', listener);
+      return () => ipcRenderer.removeListener('quests:dailyReset', listener);
+    }
+  },
+
   // Agent APIs
   agent: {
     getToken: () => ipcRenderer.invoke('agent:getToken'),

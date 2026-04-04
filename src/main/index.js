@@ -26,7 +26,7 @@ import { signIn, signUp, signOut, sendMagicLink, getUser, setSession, getCurrent
 import { setupPowerMonitoring } from './power.js';
 import { setupLeaderboardPolling, stopLeaderboardPolling, getLeaderboard } from './leaderboard.js';
 import { setupPresence, stopPresence, sendHeartbeat, removePresence, postToLiveFeed, getPresenceCount, getRooms, getRoomPresence } from './presence.js';
-import { getTodaysSessions, getSessions, getUserProfile, initializeDatabase, getAgentChats, getOrCreateAgentChat, createAgentChat, getAgentMessages, addAgentMessage } from './db.js';
+import { getTodaysSessions, getSessions, getUserProfile, initializeDatabase, getAgentChats, getOrCreateAgentChat, createAgentChat, getAgentMessages, addAgentMessage, getQuests, createQuest, completeQuest, uncompleteQuest, deleteQuest, resetDailyQuests, setLastDailyJobDate, getLastDailyJobDate, updateStreak, updateUserXP } from './db.js';
 import keytar from 'keytar';
 import OpenAI from 'openai';
 
@@ -254,14 +254,19 @@ async function handleDeepLink(url) {
         const user = await setSession(accessToken, refreshToken);
         if (user) {
           debugLog(`Auth callback: signed in as ${user.email}`);
-          // Close login window, open dashboard, keep overlay hidden until dashboard closes
+          // Close login/onboarding window
           if (fullWindow) {
             fullWindow.close();
           }
+          // Tell floating overlay the user is now authenticated
           floatingWindow?.webContents.send('auth:success', user);
-          // Open dashboard as the first thing user sees after login
-          createFullWindow();
-          floatingWindow?.hide();
+          // Show overlay and pre-focus task input so user can start their first session immediately
+          floatingWindow?.show();
+          setTimeout(() => {
+            floatingWindow?.webContents.send('focus:taskInput', { roomId: null });
+          }, 200);
+          // Run daily jobs for the newly authenticated user
+          runDailyJobs(user.id).catch(e => debugLog(`runDailyJobs error: ${e.message}`));
         }
       }
     }
@@ -317,6 +322,8 @@ app.whenReady().then(async () => {
       // Session restored — go straight to dashboard, floating hidden
       createFullWindow();
       await flushPendingSyncs();
+      // Run once-per-day jobs (quest resets, etc.)
+      runDailyJobs(user.id).catch(e => debugLog(`runDailyJobs error: ${e.message}`));
     }
   } catch (error) {
     debugLog(`Failed to restore user session: ${error.message}`);
@@ -993,6 +1000,686 @@ Answer concisely.`;
     return { success: true };
   } catch (error) {
     [floatingWindow, fullWindow].forEach(w => w?.webContents.send('agent:streamError', { chatId, error: error.message }));
+    return { success: false, error: error.message };
+  }
+});
+
+// ── Skills IPC Handler ────────────────────────────────────────────────────────
+// Rigueur  = total session minutes (last 30d), 0–100 on 3000-min ceiling
+// Volonté  = current_streak (from Supabase user_profile), 0–100 on 30-day ceiling
+// Courage  = count of sessions ≥ 2h (last 30d), 0–100 on 20-session ceiling
+// All data sourced from Supabase (not SQLite) to avoid cross-store joins.
+
+ipcMain.handle('skills:get', async () => {
+  try {
+    const user = getCurrentUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+
+    const { supabase } = await import('../lib/supabase.js');
+    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+
+    // Fetch last 30 days of sessions from Supabase
+    const { data: sessions, error: sessErr } = await supabase
+      .from('sessions')
+      .select('duration_seconds, started_at')
+      .eq('user_id', user.id)
+      .gte('started_at', thirtyDaysAgo)
+      .not('duration_seconds', 'is', null);
+
+    if (sessErr) throw sessErr;
+
+    // Fetch user_profile for streak
+    const { data: profileRow, error: profErr } = await supabase
+      .from('user_profile')
+      .select('current_streak')
+      .eq('id', user.id)
+      .single();
+
+    if (profErr && profErr.code !== 'PGRST116') throw profErr;
+
+    const streak = profileRow?.current_streak || 0;
+
+    // Rigueur: total session minutes
+    const totalMinutes = (sessions || []).reduce((sum, s) => {
+      return sum + Math.floor((s.duration_seconds || 0) / 60);
+    }, 0);
+    const rigueur = Math.min(Math.round((totalMinutes / 3000) * 100), 100);
+
+    // Volonté: streak days
+    const volonte = Math.min(Math.round((streak / 30) * 100), 100);
+
+    // Courage: sessions ≥ 2 hours (7200 seconds)
+    const deepSessions = (sessions || []).filter(s => (s.duration_seconds || 0) >= 7200).length;
+    const courage = Math.min(Math.round((deepSessions / 20) * 100), 100);
+
+    return {
+      success: true,
+      skills: { rigueur, volonte, courage },
+      raw: { totalMinutes, streak, deepSessions }
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// ── Habits IPC Handlers ───────────────────────────────────────────────────────
+// Habits live in Supabase only (no SQLite). Completion tracked by local date.
+
+ipcMain.handle('habits:list', async () => {
+  try {
+    const user = getCurrentUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+    const { supabase } = await import('../lib/supabase.js');
+    const { data, error } = await supabase
+      .from('habits')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    return { success: true, habits: data || [] };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('habits:create', async (_event, title, frequency) => {
+  try {
+    const user = getCurrentUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+    const { supabase } = await import('../lib/supabase.js');
+    const { data, error } = await supabase
+      .from('habits')
+      .insert({ user_id: user.id, title, frequency: frequency || 'daily', created_at: Date.now() })
+      .select()
+      .single();
+    if (error) throw error;
+    return { success: true, habit: data };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('habits:complete', async (_event, habitId) => {
+  try {
+    const user = getCurrentUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+    const { supabase } = await import('../lib/supabase.js');
+
+    // Fetch current habit
+    const { data: habit, error: fetchErr } = await supabase
+      .from('habits')
+      .select('*')
+      .eq('id', habitId)
+      .eq('user_id', user.id)
+      .single();
+    if (fetchErr) throw fetchErr;
+
+    const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD local
+
+    // Already completed today
+    if (habit.last_completed_date === todayStr) {
+      return { success: true, habit };
+    }
+
+    // Calculate streak
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toLocaleDateString('en-CA');
+
+    let newStreak = habit.last_completed_date === yesterdayStr
+      ? (habit.current_streak || 0) + 1
+      : 1;
+
+    const { data: updated, error: updateErr } = await supabase
+      .from('habits')
+      .update({ last_completed_date: todayStr, current_streak: newStreak })
+      .eq('id', habitId)
+      .select()
+      .single();
+    if (updateErr) throw updateErr;
+
+    return { success: true, habit: updated };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('habits:uncomplete', async (_event, habitId) => {
+  try {
+    const user = getCurrentUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+    const { supabase } = await import('../lib/supabase.js');
+
+    const todayStr = new Date().toLocaleDateString('en-CA');
+
+    const { data: habit } = await supabase
+      .from('habits')
+      .select('*')
+      .eq('id', habitId)
+      .eq('user_id', user.id)
+      .single();
+
+    // Only allow uncompleting if completed today
+    if (!habit || habit.last_completed_date !== todayStr) {
+      return { success: false, error: 'Not completed today' };
+    }
+
+    const newStreak = Math.max(0, (habit.current_streak || 1) - 1);
+    const { data: updated, error } = await supabase
+      .from('habits')
+      .update({ last_completed_date: null, current_streak: newStreak })
+      .eq('id', habitId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    return { success: true, habit: updated };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('habits:delete', async (_event, habitId) => {
+  try {
+    const user = getCurrentUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+    const { supabase } = await import('../lib/supabase.js');
+    const { error } = await supabase
+      .from('habits')
+      .delete()
+      .eq('id', habitId)
+      .eq('user_id', user.id);
+    if (error) throw error;
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// ── Quest IPC Handlers ────────────────────────────────────────────────────────
+
+ipcMain.handle('quests:list', async () => {
+  try {
+    const user = getCurrentUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+    const quests = getQuests(user.id);
+    return { success: true, quests };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('quests:create', async (_event, title, type, xpReward) => {
+  try {
+    const user = getCurrentUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+    const quest = createQuest(user.id, title, type, xpReward);
+    return { success: true, quest };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('quests:complete', async (_event, questId) => {
+  try {
+    const user = getCurrentUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+    const quest = completeQuest(questId, user.id);
+    if (!quest) return { success: false, error: 'Quest not found' };
+    // Add XP for quest completion
+    updateUserXP(user.id, quest.xp_reward);
+    // Sync XP to Supabase
+    try {
+      const { supabase } = await import('../lib/supabase.js');
+      const profile = getUserProfile(user.id);
+      await supabase.from('user_profile').update({
+        total_xp: profile.total_xp,
+        level: profile.level
+      }).eq('id', user.id);
+    } catch (e) {
+      debugLog(`quests:complete — Supabase XP sync failed: ${e.message}`);
+    }
+    const profile = getUserProfile(user.id);
+    return { success: true, quest, xpEarned: quest.xp_reward, profile };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('quests:uncomplete', async (_event, questId) => {
+  try {
+    const user = getCurrentUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+    const quest = uncompleteQuest(questId, user.id);
+    return { success: true, quest };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('quests:delete', async (_event, questId) => {
+  try {
+    const user = getCurrentUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+    deleteQuest(questId, user.id);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// ── Daily Jobs ────────────────────────────────────────────────────────────────
+// Called once per calendar day on app open.
+// Runs: quest resets → daily AI signal generation.
+
+async function runDailyJobs(userId) {
+  const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD local
+  const lastRun = getLastDailyJobDate(userId);
+  if (lastRun === todayStr) return; // already ran today
+
+  debugLog(`runDailyJobs: running for ${userId} on ${todayStr}`);
+
+  // 1. Reset daily quests
+  const resetIds = resetDailyQuests(userId, todayStr);
+  if (resetIds.length > 0) {
+    debugLog(`runDailyJobs: reset ${resetIds.length} daily quest(s)`);
+    [floatingWindow, fullWindow].forEach(w =>
+      w?.webContents.send('quests:dailyReset', { resetIds })
+    );
+  }
+
+  // 2. Generate daily AI signal
+  try {
+    await generateDailySignal(userId, todayStr);
+  } catch (e) {
+    debugLog(`runDailyJobs: daily signal failed: ${e.message}`);
+  }
+
+  // 3. Generate memory snapshot (runs after signal, sequential)
+  try {
+    await generateMemorySnapshot(userId, todayStr);
+  } catch (e) {
+    debugLog(`runDailyJobs: memory snapshot failed: ${e.message}`);
+  }
+
+  setLastDailyJobDate(userId, todayStr);
+}
+
+// Determine signal intensity based on yesterday's total session minutes vs 7-day avg.
+// Low  = yesterday < 50% of 7d avg (or no sessions)
+// Med  = 50–120% of 7d avg
+// High = > 120% of 7d avg
+async function computeSignalIntensity(supabase, userId) {
+  const now = Date.now();
+  const oneDayMs = 24 * 60 * 60 * 1000;
+
+  const yesterdayStart = now - 2 * oneDayMs;
+  const yesterdayEnd = now - oneDayMs;
+  const sevenDaysAgo = now - 7 * oneDayMs;
+
+  const { data: yesterdaySessions } = await supabase
+    .from('sessions')
+    .select('duration_seconds')
+    .eq('user_id', userId)
+    .gte('started_at', yesterdayStart)
+    .lt('started_at', yesterdayEnd)
+    .not('duration_seconds', 'is', null);
+
+  const { data: weekSessions } = await supabase
+    .from('sessions')
+    .select('duration_seconds')
+    .eq('user_id', userId)
+    .gte('started_at', sevenDaysAgo)
+    .not('duration_seconds', 'is', null);
+
+  const yesterdayMinutes = (yesterdaySessions || []).reduce(
+    (s, r) => s + Math.floor((r.duration_seconds || 0) / 60), 0
+  );
+
+  const weekMinutes = (weekSessions || []).reduce(
+    (s, r) => s + Math.floor((r.duration_seconds || 0) / 60), 0
+  );
+
+  const sevenDayAvg = weekMinutes / 7;
+
+  if (sevenDayAvg === 0 || yesterdayMinutes === 0) return 'low';
+  const ratio = yesterdayMinutes / sevenDayAvg;
+  if (ratio < 0.5) return 'low';
+  if (ratio <= 1.2) return 'med';
+  return 'high';
+}
+
+async function generateDailySignal(userId, todayStr) {
+  const apiKey = await keytar.getPassword(AGENT_KEYCHAIN_SERVICE, AGENT_KEYCHAIN_ACCOUNT);
+  if (!apiKey) {
+    debugLog('generateDailySignal: no OpenAI key — skipping');
+    return;
+  }
+
+  const { supabase } = await import('../lib/supabase.js');
+
+  // Check if signal already exists for today (race guard)
+  const { data: existing } = await supabase
+    .from('daily_signals')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('date', todayStr)
+    .single();
+
+  if (existing) {
+    debugLog('generateDailySignal: signal already exists for today');
+    return;
+  }
+
+  // Build context: yesterday's sessions + quests completed
+  const now = Date.now();
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  const yesterdayStart = now - 2 * oneDayMs;
+  const yesterdayEnd = now - oneDayMs;
+
+  const { data: yesterdaySessions } = await supabase
+    .from('sessions')
+    .select('task, duration_seconds')
+    .eq('user_id', userId)
+    .gte('started_at', yesterdayStart)
+    .lt('started_at', yesterdayEnd)
+    .not('duration_seconds', 'is', null);
+
+  const intensity = await computeSignalIntensity(supabase, userId);
+
+  const profile = getUserProfile(userId);
+  const userName = profile?.display_name || 'you';
+
+  let content;
+
+  // Cold start: no prior sessions at all → onboarding welcome
+  const { data: allSessions } = await supabase
+    .from('sessions')
+    .select('id')
+    .eq('user_id', userId)
+    .limit(1);
+
+  if (!allSessions || allSessions.length === 0) {
+    content = `Welcome to Promethee, ${userName}. Start your first session today — every minute you track becomes part of your story.`;
+  } else {
+    const sessionCount = yesterdaySessions?.length || 0;
+    const totalMinutes = (yesterdaySessions || []).reduce(
+      (s, r) => s + Math.floor((r.duration_seconds || 0) / 60), 0
+    );
+    const tasks = (yesterdaySessions || [])
+      .map(s => s.task)
+      .filter(Boolean)
+      .slice(0, 3)
+      .join(', ');
+
+    const intensityContext = {
+      low: 'Yesterday was light.',
+      med: 'Solid day yesterday.',
+      high: 'Strong output yesterday.',
+    }[intensity];
+
+    const contextText = sessionCount === 0
+      ? 'No sessions logged yesterday.'
+      : `${sessionCount} session${sessionCount !== 1 ? 's' : ''}, ${totalMinutes} minutes${tasks ? ` — ${tasks}` : ''}.`;
+
+    const prompt = `You are Prométhée, an AI mentor for ${userName}. Generate a single short signal (1–2 sentences, max 30 words) for today. ${intensityContext} ${contextText} Be direct, personal, and motivating. No filler phrases. No "I noticed" or "Remember".`;
+
+    const openai = new OpenAI({ apiKey });
+    const resp = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 60,
+      temperature: 0.8,
+    });
+    content = resp.choices[0]?.message?.content?.trim() || '';
+  }
+
+  if (!content) {
+    debugLog('generateDailySignal: empty content — skipping insert');
+    return;
+  }
+
+  const { error } = await supabase.from('daily_signals').insert({
+    user_id: userId,
+    date: todayStr,
+    content,
+    intensity,
+    created_at: Date.now(),
+  });
+
+  if (error) {
+    debugLog(`generateDailySignal: insert error: ${error.message}`);
+  } else {
+    debugLog(`generateDailySignal: inserted signal (${intensity}): ${content.slice(0, 60)}`);
+    // Notify renderer so the dashboard card updates without a reload
+    [floatingWindow, fullWindow].forEach(w =>
+      w?.webContents.send('signal:new', { date: todayStr, content, intensity })
+    );
+  }
+}
+
+// ── Memory Snapshot ───────────────────────────────────────────────────────────
+// Called from runDailyJobs() after the daily signal. Writes one row per day.
+
+async function generateMemorySnapshot(userId, todayStr) {
+  const { supabase } = await import('../lib/supabase.js');
+
+  // Idempotency guard
+  const { data: existing } = await supabase
+    .from('memory_snapshots')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('snapshot_date', todayStr)
+    .single();
+  if (existing) return;
+
+  const now = Date.now();
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  const todayStart = now - oneDayMs; // yesterday's data is the "day" we're snapshotting
+  const thirtyDaysAgo = now - 30 * oneDayMs;
+
+  // Yesterday's sessions (for today's snapshot we record what happened today so far;
+  // snapshot runs at first-open which may be early, so we use the rolling 24h window)
+  const { data: todaysSessions } = await supabase
+    .from('sessions')
+    .select('task, duration_seconds, started_at')
+    .eq('user_id', userId)
+    .gte('started_at', todayStart)
+    .lte('started_at', now)
+    .not('duration_seconds', 'is', null);
+
+  const sessionCount = todaysSessions?.length || 0;
+  const totalMinutes = (todaysSessions || []).reduce(
+    (s, r) => s + Math.floor((r.duration_seconds || 0) / 60), 0
+  );
+
+  // Peak hour: find the hour-of-day with most session starts in the last 30 days
+  const { data: allRecentSessions } = await supabase
+    .from('sessions')
+    .select('started_at, duration_seconds')
+    .eq('user_id', userId)
+    .gte('started_at', thirtyDaysAgo)
+    .not('duration_seconds', 'is', null);
+
+  let peakHours = null;
+  if (allRecentSessions && allRecentSessions.length > 0) {
+    const hourBuckets = new Array(24).fill(0);
+    for (const s of allRecentSessions) {
+      const h = new Date(s.started_at).getHours();
+      hourBuckets[h]++;
+    }
+    const peakHour = hourBuckets.indexOf(Math.max(...hourBuckets));
+    peakHours = `${String(peakHour).padStart(2,'0')}:00–${String(peakHour + 1).padStart(2,'0')}:00`;
+  }
+
+  // Average session duration (30d)
+  const allMinutes = (allRecentSessions || []).reduce(
+    (s, r) => s + Math.floor((r.duration_seconds || 0) / 60), 0
+  );
+  const avgDuration = allRecentSessions?.length
+    ? Math.round(allMinutes / allRecentSessions.length)
+    : 0;
+
+  // Skill scores snapshot
+  const thirtyDaysMinutes = allMinutes;
+  const rigueur = Math.min(Math.round((thirtyDaysMinutes / 3000) * 100), 100);
+
+  const { data: profileRow } = await supabase
+    .from('user_profile')
+    .select('current_streak')
+    .eq('id', userId)
+    .single();
+  const streak = profileRow?.current_streak || 0;
+  const volonte = Math.min(Math.round((streak / 30) * 100), 100);
+  const deepCount = (allRecentSessions || []).filter(s => (s.duration_seconds || 0) >= 7200).length;
+  const courage = Math.min(Math.round((deepCount / 20) * 100), 100);
+
+  // Quest completion rate (all time)
+  const { data: allQuests } = await supabase
+    .from('quests')
+    .select('completed_at')
+    .eq('user_id', userId);
+  const questTotal = allQuests?.length || 0;
+  const questDone = (allQuests || []).filter(q => q.completed_at).length;
+  const questRate = questTotal > 0 ? Math.round((questDone / questTotal) * 10000) / 100 : 0;
+
+  // Generate behavioral summary via GPT (only if API key available)
+  let behavioralSummary = null;
+  const apiKey = await keytar.getPassword(AGENT_KEYCHAIN_SERVICE, AGENT_KEYCHAIN_ACCOUNT);
+  if (apiKey && allRecentSessions && allRecentSessions.length >= 1) {
+    try {
+      const openai = new OpenAI({ apiKey });
+      const prompt = `You are Prométhée. Write a 1-sentence behavioral observation about this user based on their last 30 days of work data. Be precise and personal, not generic.
+
+Data:
+- Total sessions (30d): ${allRecentSessions.length}
+- Total focus minutes (30d): ${allMinutes}
+- Avg session duration: ${avgDuration} min
+- Peak work hour: ${peakHours || 'unknown'}
+- Current streak: ${streak} days
+- Deep sessions (≥2h, 30d): ${deepCount}
+- Quest completion rate: ${questRate}%
+
+Write one sentence only. No "I" pronoun. No filler.`;
+
+      const resp = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 80,
+        temperature: 0.7,
+      });
+      behavioralSummary = resp.choices[0]?.message?.content?.trim() || null;
+    } catch (e) {
+      debugLog(`generateMemorySnapshot: GPT summary failed: ${e.message}`);
+    }
+  }
+
+  // Emotional tags derived from data patterns
+  const emotionalTags = [];
+  if (streak >= 7) emotionalTags.push('consistent');
+  if (avgDuration >= 90) emotionalTags.push('deep-focused');
+  if (deepCount >= 3) emotionalTags.push('marathon-worker');
+  if (questRate >= 60) emotionalTags.push('goal-driven');
+  if (sessionCount === 0) emotionalTags.push('rest-day');
+
+  const { error } = await supabase.from('memory_snapshots').insert({
+    user_id: userId,
+    snapshot_date: todayStr,
+    behavioral_summary: behavioralSummary,
+    emotional_tags: emotionalTags,
+    peak_hours: peakHours,
+    avg_session_duration_minutes: avgDuration,
+    top_skills: { rigueur, volonte, courage },
+    quest_completion_rate: questRate,
+    streak_at_snapshot: streak,
+    session_count: sessionCount,
+    total_minutes: totalMinutes,
+    created_at: Date.now(),
+  });
+
+  if (error) {
+    debugLog(`generateMemorySnapshot: insert error: ${error.message}`);
+  } else {
+    debugLog(`generateMemorySnapshot: snapshot saved for ${todayStr}`);
+  }
+}
+
+// IPC: fetch memory data for the reveal screen
+ipcMain.handle('memory:get', async () => {
+  try {
+    const user = getCurrentUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+
+    const { supabase } = await import('../lib/supabase.js');
+
+    // All snapshots, newest first
+    const { data: snapshots, error } = await supabase
+      .from('memory_snapshots')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('snapshot_date', { ascending: false })
+      .limit(90);
+
+    if (error) throw error;
+
+    // Latest skills + streak for current state
+    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const { data: recentSessions } = await supabase
+      .from('sessions')
+      .select('duration_seconds, started_at')
+      .eq('user_id', user.id)
+      .gte('started_at', thirtyDaysAgo)
+      .not('duration_seconds', 'is', null);
+
+    const { data: profileRow } = await supabase
+      .from('user_profile')
+      .select('current_streak, total_xp, level, display_name')
+      .eq('id', user.id)
+      .single();
+
+    const totalMinutes30d = (recentSessions || []).reduce(
+      (s, r) => s + Math.floor((r.duration_seconds || 0) / 60), 0
+    );
+    const streak = profileRow?.current_streak || 0;
+    const deepCount = (recentSessions || []).filter(s => (s.duration_seconds || 0) >= 7200).length;
+
+    return {
+      success: true,
+      snapshots: snapshots || [],
+      current: {
+        streak,
+        totalMinutes30d,
+        deepSessions30d: deepCount,
+        totalXp: profileRow?.total_xp || 0,
+        level: profileRow?.level || 1,
+        snapshotCount: snapshots?.length || 0,
+      }
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// IPC: fetch today's daily signal
+ipcMain.handle('signal:getToday', async () => {
+  try {
+    const user = getCurrentUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+
+    const todayStr = new Date().toLocaleDateString('en-CA');
+    const { supabase } = await import('../lib/supabase.js');
+
+    const { data, error } = await supabase
+      .from('daily_signals')
+      .select('content, intensity, date')
+      .eq('user_id', user.id)
+      .eq('date', todayStr)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+
+    return { success: true, signal: data || null };
+  } catch (error) {
     return { success: false, error: error.message };
   }
 });

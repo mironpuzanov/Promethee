@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  Home, ScrollText, Sword, CheckSquare, Zap, BookOpen, MessageCircle, LogOut, Users, Trophy, ChevronDown, Settings
+  Home, ScrollText, Sword, CheckSquare, Zap, BookOpen, MessageCircle, LogOut, Users, Trophy, ChevronDown, Settings, Brain
 } from 'lucide-react';
 import { UserProfileSidebar } from '@/components/ui/menu';
 
@@ -26,8 +26,9 @@ const navItems = [
   { id: 'log',     label: 'Sessions', icon: <ScrollText size={18} /> },
   { id: 'mentor',  label: 'Mentor',  icon: <MessageCircle size={18} /> },
   { id: 'community', label: 'Community', icon: <Users size={18} />, children: COMMUNITY_CHILDREN },
-  { id: 'quests',  label: 'Quests',  icon: <Sword size={18} />, isSeparator: true, comingSoon: true },
-  { id: 'habits',  label: 'Habits',  icon: <CheckSquare size={18} />, comingSoon: true },
+  { id: 'quests',  label: 'Quests',  icon: <Sword size={18} />, isSeparator: true },
+  { id: 'habits',  label: 'Habits',  icon: <CheckSquare size={18} /> },
+  { id: 'memory',  label: 'Memory',  icon: <Brain size={18} /> },
   { id: 'skills',  label: 'Skills',  icon: <Zap size={18} />, comingSoon: true },
   { id: 'journal', label: 'Journal', icon: <BookOpen size={18} />, comingSoon: true },
   { id: 'settings', label: 'Settings', icon: <Settings size={18} />, isSeparator: true },

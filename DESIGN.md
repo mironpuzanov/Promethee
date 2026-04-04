@@ -107,6 +107,53 @@ Current tokens to update:
 - No fully opaque overlay — always glass
 - No cartoon/game UI patterns in the overlay or full window
 
+## The World Vision — Atmosphere Over Interface
+
+Promethee is not a smart Pomodoro. It's a world you enter.
+
+The graveyard of this category is full of products with correct mechanics and no soul. The
+difference between Duolingo and a flashcard app isn't the learning engine — it's the feeling
+of being inside the product. Promethee needs that feeling.
+
+### The HUD / Iron Man Principle
+
+The overlay is already translucent glass floating above the user's real desktop. That's the
+right primitive — it's halfway to a tactical HUD overlaid on reality. The design direction
+leans into this, not away from it.
+
+A focus session is a ritual. Starting one should feel like suiting up:
+- The overlay activates: a subtle system-boot feel, not a button click
+- Session running: the interface recedes, glows deepen, ambient pulse slows — the product
+  communicates "you're in the zone" through atmosphere, not a notification
+- Flow state (45+ min): UI becomes more minimal, glow intensifies, music deepens
+- Session end: a moment of release — XP ticks up, Prométhée speaks, screen breathes
+
+Never just a timer. Always a state change the user can feel.
+
+### Soundscape (planned feature, not yet built)
+
+Background music that responds to session state is a core product feature, not decoration:
+- **Idle/pre-session:** silence or near-silence
+- **Session start:** a subtle activation audio cue — system coming online
+- **Active session:** low ambient score, barely audible, builds imperceptibly
+- **Flow state (45+ min):** music deepens, more cinematic
+- **Session end:** a distinct resolution moment — not a notification, a reward
+
+Reference: Lofi Girl, Study With Me channels — users already build this manually with YouTube.
+Promethee should own it natively. "The music changes when you're in the zone" is a
+word-of-mouth trigger built into the UX.
+
+Sound should follow the same restrained principle as visuals: nothing decorative, everything
+communicates state. No game sound effects, no achievement jingles. Atmospheric, cinematic,
+purposeful.
+
+### Why This Must Be V1 Architecture, Not V3 Polish
+
+Visual identity cannot be retrofitted. The amber glow on active states, the glass overlay,
+the Instrument Serif for hero moments — these are the world. Components built without this
+in mind are technical debt against the feeling. Every new surface should ask: does this feel
+like a HUD, or does it feel like a dashboard?
+
 ## Decisions Log
 | Date | Decision | Rationale |
 |------|----------|-----------|

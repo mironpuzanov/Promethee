@@ -61,7 +61,34 @@ export function initializeDatabase() {
 
     CREATE INDEX IF NOT EXISTS idx_agent_chats_user ON agent_chats(user_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_agent_messages_chat ON agent_messages(chat_id, created_at ASC);
+
+    CREATE TABLE IF NOT EXISTS quests (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'mid' CHECK(type IN ('daily', 'mid', 'long')),
+      xp_reward INTEGER NOT NULL DEFAULT 50,
+      completed_at INTEGER,
+      reset_interval TEXT,
+      last_reset_date TEXT,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_quests_user ON quests(user_id, created_at DESC);
   `);
+
+  // Add streak/daily-job columns to user_profile if they don't exist yet (idempotent)
+  const colCheck = db.prepare(`PRAGMA table_info(user_profile)`).all();
+  const colNames = colCheck.map(c => c.name);
+  if (!colNames.includes('current_streak')) {
+    db.exec(`ALTER TABLE user_profile ADD COLUMN current_streak INTEGER DEFAULT 0`);
+  }
+  if (!colNames.includes('last_session_date')) {
+    db.exec(`ALTER TABLE user_profile ADD COLUMN last_session_date TEXT`);
+  }
+  if (!colNames.includes('last_daily_job_date')) {
+    db.exec(`ALTER TABLE user_profile ADD COLUMN last_daily_job_date TEXT`);
+  }
 
   return db;
 }
@@ -300,4 +327,112 @@ export function addAgentMessage(chatId, role, content) {
   database.prepare(`UPDATE agent_chats SET updated_at = ? WHERE id = ?`).run(now, chatId);
 
   return { id, chatId, role, content, createdAt: now };
+}
+
+// ── Quest functions ───────────────────────────────────────────────────────────
+
+export function getQuests(userId) {
+  const database = getDb();
+  return database.prepare(`
+    SELECT * FROM quests WHERE user_id = ? ORDER BY created_at ASC
+  `).all(userId);
+}
+
+export function createQuest(userId, title, type, xpReward) {
+  const database = getDb();
+  const id = crypto.randomUUID();
+  const now = Date.now();
+  // Default XP by type if not provided
+  const xp = xpReward != null ? xpReward : (type === 'daily' ? 15 : type === 'mid' ? 50 : 200);
+  const resetInterval = type === 'daily' ? 'daily' : null;
+  database.prepare(`
+    INSERT INTO quests (id, user_id, title, type, xp_reward, reset_interval, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(id, userId, title, type, xp, resetInterval, now);
+  return database.prepare(`SELECT * FROM quests WHERE id = ?`).get(id);
+}
+
+export function completeQuest(questId, userId) {
+  const database = getDb();
+  const quest = database.prepare(`SELECT * FROM quests WHERE id = ? AND user_id = ?`).get(questId, userId);
+  if (!quest) return null;
+  if (quest.completed_at) return quest; // already done
+  const now = Date.now();
+  database.prepare(`UPDATE quests SET completed_at = ? WHERE id = ?`).run(now, questId);
+  return database.prepare(`SELECT * FROM quests WHERE id = ?`).get(questId);
+}
+
+export function uncompleteQuest(questId, userId) {
+  const database = getDb();
+  database.prepare(`UPDATE quests SET completed_at = NULL WHERE id = ? AND user_id = ?`).run(questId, userId);
+  return database.prepare(`SELECT * FROM quests WHERE id = ?`).get(questId);
+}
+
+export function deleteQuest(questId, userId) {
+  const database = getDb();
+  database.prepare(`DELETE FROM quests WHERE id = ? AND user_id = ?`).run(questId, userId);
+}
+
+// Reset daily quests whose last_reset_date != today's local date
+// Returns array of quest IDs that were reset
+export function resetDailyQuests(userId, todayDateStr) {
+  const database = getDb();
+  const dailyQuests = database.prepare(`
+    SELECT * FROM quests WHERE user_id = ? AND type = 'daily' AND completed_at IS NOT NULL
+  `).all(userId);
+
+  const reset = [];
+  for (const q of dailyQuests) {
+    if (q.last_reset_date !== todayDateStr) {
+      database.prepare(`
+        UPDATE quests SET completed_at = NULL, last_reset_date = ? WHERE id = ?
+      `).run(todayDateStr, q.id);
+      reset.push(q.id);
+    }
+  }
+  return reset;
+}
+
+// Update the last_daily_job_date in user_profile
+export function setLastDailyJobDate(userId, dateStr) {
+  const database = getDb();
+  database.prepare(`UPDATE user_profile SET last_daily_job_date = ? WHERE id = ?`).run(dateStr, userId);
+}
+
+export function getLastDailyJobDate(userId) {
+  const database = getDb();
+  const profile = database.prepare(`SELECT last_daily_job_date FROM user_profile WHERE id = ?`).get(userId);
+  return profile?.last_daily_job_date || null;
+}
+
+// Streak helpers
+export function updateStreak(userId, todayDateStr) {
+  const database = getDb();
+  const profile = database.prepare(`SELECT current_streak, last_session_date FROM user_profile WHERE id = ?`).get(userId);
+  if (!profile) return 0;
+
+  const last = profile.last_session_date;
+  let streak = profile.current_streak || 0;
+
+  if (last === todayDateStr) {
+    // Already counted today
+    return streak;
+  }
+
+  // Check if yesterday
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toLocaleDateString('en-CA'); // YYYY-MM-DD
+
+  if (last === yesterdayStr) {
+    streak += 1;
+  } else {
+    streak = 1; // broke streak
+  }
+
+  database.prepare(`
+    UPDATE user_profile SET current_streak = ?, last_session_date = ? WHERE id = ?
+  `).run(streak, todayDateStr, userId);
+
+  return streak;
 }
