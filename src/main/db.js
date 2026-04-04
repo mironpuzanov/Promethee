@@ -197,14 +197,17 @@ export function updateUserXP(userId, xpToAdd) {
 
   stmt.run(xpToAdd, userId);
 
-  // Update level based on XP — threshold: level * 100 XP per level
-  // Total XP to reach level N: N*(N-1)/2 * 100
+  // Update level based on XP.
+  // Total XP to reach the START of level N: (N-1)*N/2 * 100
+  // (matches getLevelInfo in src/lib/xp.ts)
   const profile = getUserProfile(userId);
   if (profile) {
+    const totalXp = profile.total_xp;
     let newLevel = 1;
-    while (true) {
-      const xpNeeded = newLevel * (newLevel + 1) / 2 * 100;
-      if (xpNeeded > profile.total_xp) break;
+    const MAX_LEVEL = 1000;
+    while (newLevel < MAX_LEVEL) {
+      const xpToReachNext = newLevel * (newLevel + 1) / 2 * 100;
+      if (xpToReachNext > totalXp) break;
       newLevel++;
     }
     const levelStmt = database.prepare(`
