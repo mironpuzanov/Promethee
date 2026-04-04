@@ -1,11 +1,9 @@
 import { supabase } from '../lib/supabase.js';
+import { BrowserWindow } from 'electron';
 
-let mainWindow = null;
 let pollInterval = null;
 
-export function setupLeaderboardPolling(window) {
-  mainWindow = window;
-
+export function setupLeaderboardPolling() {
   // Initial fetch
   fetchLeaderboard();
 
@@ -24,7 +22,6 @@ export function stopLeaderboardPolling() {
 
 async function fetchLeaderboard() {
   try {
-    // Fetch top 50 from leaderboard view
     const { data: topUsers, error: topError } = await supabase
       .from('leaderboard_weekly')
       .select('*')
@@ -35,14 +32,10 @@ async function fetchLeaderboard() {
       throw topError;
     }
 
-    // TODO: Fetch current user's rank separately if not in top 50
-
-    if (mainWindow) {
-      mainWindow.webContents.send('leaderboard:update', {
-        topUsers: topUsers || [],
-        userRank: null // Will be implemented when we have user context
-      });
-    }
+    // Broadcast to all open windows so both overlay and dashboard stay current
+    BrowserWindow.getAllWindows().forEach(w => {
+      w.webContents.send('leaderboard:update', topUsers || []);
+    });
   } catch (error) {
     console.error('Failed to fetch leaderboard:', error);
   }

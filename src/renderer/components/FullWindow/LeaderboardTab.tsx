@@ -24,6 +24,10 @@ export default function LeaderboardTab() {
     window.promethee.auth.getUser().then((r: any) => {
       if (r.success && r.user) setCurrentUserId(r.user.id);
     });
+    const unsub = window.promethee.leaderboard.onUpdate((data: any[]) => {
+      setLeaderboard(data || []);
+    });
+    return unsub;
   }, []);
 
   const myEntry = leaderboard.find(e => e.id === currentUserId);

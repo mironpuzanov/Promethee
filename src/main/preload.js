@@ -41,17 +41,23 @@ contextBridge.exposeInMainWorld('promethee', {
   leaderboard: {
     get: () => ipcRenderer.invoke('leaderboard:get'),
     onUpdate: (callback) => {
-      ipcRenderer.on('leaderboard:update', (event, data) => callback(data));
+      const listener = (event, data) => callback(data);
+      ipcRenderer.on('leaderboard:update', listener);
+      return () => ipcRenderer.removeListener('leaderboard:update', listener);
     }
   },
 
   // Power management
   power: {
     onSuspend: (callback) => {
-      ipcRenderer.on('power:suspend', (event, data) => callback(data));
+      const listener = (event, data) => callback(data);
+      ipcRenderer.on('power:suspend', listener);
+      return () => ipcRenderer.removeListener('power:suspend', listener);
     },
     onResume: (callback) => {
-      ipcRenderer.on('power:resume', () => callback());
+      const listener = () => callback();
+      ipcRenderer.on('power:resume', listener);
+      return () => ipcRenderer.removeListener('power:resume', listener);
     }
   },
 

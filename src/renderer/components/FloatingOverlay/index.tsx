@@ -39,17 +39,17 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
       }
     });
 
-    window.promethee.power.onSuspend((endedSession: unknown) => {
+    const unsubSuspend = window.promethee.power.onSuspend((endedSession: unknown) => {
       // Session was ended+synced before sleep — clear active state
       if (endedSession) setActiveSession(null);
     });
-    window.promethee.power.onResume(() => setShowResumePrompt(true));
+    const unsubResume = window.promethee.power.onResume(() => setShowResumePrompt(true));
 
-    const unsub = window.promethee.window.onFocusTaskInput((data: { roomId: string | null }) => {
+    const unsubFocus = window.promethee.window.onFocusTaskInput((data: { roomId: string | null }) => {
       if (data.roomId) setSelectedRoomId(data.roomId);
       setFocusTaskInput(true);
     });
-    return unsub;
+    return () => { unsubSuspend(); unsubResume(); unsubFocus(); };
   }, []);
 
   const handleStartSession = async (task: string, roomId?: string | null) => {

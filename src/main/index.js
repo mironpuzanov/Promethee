@@ -325,7 +325,7 @@ app.whenReady().then(async () => {
   }
 
   setupPowerMonitoring(floatingWindow);
-  setupLeaderboardPolling(floatingWindow);
+  setupLeaderboardPolling();
   setupPresence(floatingWindow);
 
   app.on('activate', () => {
