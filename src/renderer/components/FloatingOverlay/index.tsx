@@ -39,7 +39,10 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
       }
     });
 
-    window.promethee.power.onSuspend(() => {});
+    window.promethee.power.onSuspend((endedSession: unknown) => {
+      // Session was ended+synced before sleep — clear active state
+      if (endedSession) setActiveSession(null);
+    });
     window.promethee.power.onResume(() => setShowResumePrompt(true));
 
     const unsub = window.promethee.window.onFocusTaskInput((data: { roomId: string | null }) => {
@@ -76,9 +79,8 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
     }
   };
 
-  const handleResumeSession = (resume: boolean) => {
+  const handleDismissResumePrompt = () => {
     setShowResumePrompt(false);
-    if (!resume) setActiveSession(null);
   };
 
   if (showResumePrompt) {
@@ -89,11 +91,10 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
         onMouseLeave={() => window.promethee.window.setIgnoreMouseEvents(true)}
       >
         <div className="resume-prompt">
-          <p>Resume session?</p>
-          <button onClick={() => handleResumeSession(true)}>Yes</button>
-          <button onClick={() => handleResumeSession(false)}>No</button>
+          <p>Welcome back. Ready to focus?</p>
+          <button onClick={handleDismissResumePrompt}>Got it</button>
         </div>
-        <AgentBubble activeSession={activeSession} />
+        <AgentBubble activeSession={null} />
       </div>
     );
   }

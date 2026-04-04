@@ -1,17 +1,28 @@
 import { powerMonitor } from 'electron';
-import { pauseSession } from './session.js';
+import { getActiveSession, endSessionAndSync } from './session.js';
 
 let mainWindow = null;
 
 export function setupPowerMonitoring(window) {
   mainWindow = window;
 
-  powerMonitor.on('suspend', () => {
+  powerMonitor.on('suspend', async () => {
     console.log('System is suspending');
-    const pausedSession = pauseSession();
+    const active = getActiveSession();
 
-    if (pausedSession && mainWindow) {
-      mainWindow.webContents.send('power:suspend', pausedSession);
+    if (active) {
+      // End and sync the session before sleep so data is never lost
+      try {
+        const ended = await endSessionAndSync();
+        if (mainWindow) {
+          mainWindow.webContents.send('power:suspend', ended);
+        }
+      } catch (err) {
+        console.error('Failed to end session on suspend:', err);
+        if (mainWindow) {
+          mainWindow.webContents.send('power:suspend', null);
+        }
+      }
     }
   });
 
