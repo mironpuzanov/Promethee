@@ -734,17 +734,12 @@ ipcMain.handle('window:copyText', async (_event, text) => {
 });
 
 ipcMain.handle('window:close', () => {
-  const window = BrowserWindow.getFocusedWindow();
-  if (window) {
-    window.close();
-  }
+  // Use direct ref — getFocusedWindow() returns null if focus was lost momentarily
+  if (fullWindow) fullWindow.close();
 });
 
 ipcMain.handle('window:minimize', () => {
-  const window = BrowserWindow.getFocusedWindow();
-  if (window) {
-    window.minimize();
-  }
+  if (fullWindow) fullWindow.minimize();
 });
 
 ipcMain.handle('window:toggleFullWindow', () => {
