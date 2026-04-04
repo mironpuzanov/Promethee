@@ -714,6 +714,13 @@ ipcMain.handle('window:copyImageAndText', async (_event, text) => {
 });
 
 ipcMain.handle('window:openExternal', async (_event, url) => {
+  let parsed;
+  try { parsed = new URL(url); } catch { return { success: false, error: 'Invalid URL' }; }
+  const allowed = ['https:', 'http:', 'discord:'];
+  if (!allowed.includes(parsed.protocol)) {
+    debugLog(`openExternal blocked unsafe protocol: ${parsed.protocol}`);
+    return { success: false, error: 'Blocked: unsafe URL scheme' };
+  }
   const { shell } = await import('electron');
   await shell.openExternal(url);
   return { success: true };
