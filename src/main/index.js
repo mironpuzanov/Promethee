@@ -1224,10 +1224,13 @@ ipcMain.handle('quests:complete', async (_event, questId) => {
   try {
     const user = getCurrentUser();
     if (!user) return { success: false, error: 'Not authenticated' };
+    // Check if already completed before we mark it done (to avoid double XP)
+    const existing = getQuests(user.id).find(q => q.id === questId);
+    const wasAlreadyDone = existing?.completed_at != null;
     const quest = completeQuest(questId, user.id);
     if (!quest) return { success: false, error: 'Quest not found' };
-    // Add XP for quest completion
-    updateUserXP(user.id, quest.xp_reward);
+    // Add XP only on first completion
+    if (!wasAlreadyDone) updateUserXP(user.id, quest.xp_reward);
     // Sync XP to Supabase
     try {
       const { supabase } = await import('../lib/supabase.js');
