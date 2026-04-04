@@ -373,7 +373,8 @@ ipcMain.on('set-focusable-false', () => {
 // IPC Handlers
 ipcMain.handle('session:start', async (event, task, roomId = null) => {
   try {
-    const user = await getUser();
+    // Use in-memory user — avoids an async Supabase round-trip on every session start
+    const user = getCurrentUser();
     if (!user) {
       throw new Error('User not authenticated');
     }
