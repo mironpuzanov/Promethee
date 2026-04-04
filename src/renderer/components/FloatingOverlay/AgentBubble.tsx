@@ -151,15 +151,18 @@ function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
     }
   }, [open]);
 
+  const chatIdRef = useRef<string | null>(null);
+  useEffect(() => { chatIdRef.current = chat?.id ?? null; }, [chat]);
+
   useEffect(() => {
     const removeChunk = window.promethee.agent.onChunk(({ chatId, delta }: { chatId: string; delta: string }) => {
-      if (chat && chatId === chat.id) {
+      if (chatId === chatIdRef.current) {
         streamingContentRef.current += delta;
         setStreamingContent(streamingContentRef.current);
       }
     });
     const removeEnd = window.promethee.agent.onStreamEnd(({ chatId, message }: { chatId: string; message: Message }) => {
-      if (chat && chatId === chat.id) {
+      if (chatId === chatIdRef.current) {
         setMessages(prev => [...prev, message]);
         setStreamingContent('');
         streamingContentRef.current = '';
@@ -167,7 +170,7 @@ function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
       }
     });
     const removeError = window.promethee.agent.onStreamError(({ chatId, error: err }: { chatId: string; error: string }) => {
-      if (chat && chatId === chat.id) {
+      if (chatId === chatIdRef.current) {
         setError(err);
         setStreamingContent('');
         streamingContentRef.current = '';
@@ -175,7 +178,7 @@ function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
       }
     });
     return () => { removeChunk(); removeEnd(); removeError(); };
-  }, [chat]);
+  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
