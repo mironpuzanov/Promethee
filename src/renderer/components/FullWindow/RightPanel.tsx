@@ -8,6 +8,13 @@ interface TodayStats {
   rank: number | null;
 }
 
+interface Quest {
+  id: string;
+  title: string;
+  completed_at: number | null;
+  type: string;
+}
+
 interface FeedEntry {
   id: string;
   display_name: string;
@@ -44,6 +51,7 @@ function RightPanel() {
   const [todayStats, setTodayStats] = useState<TodayStats>({ hours: '0.0', xp: 0, rank: null });
   const [presenceCount, setPresenceCount] = useState<number>(0);
   const [liveFeed, setLiveFeed] = useState<FeedEntry[]>([]);
+  const [activeQuests, setActiveQuests] = useState<Quest[]>([]);
 
   useEffect(() => {
     window.promethee.session.getToday().then((result: { success: boolean; sessions?: Array<{ duration_seconds?: number; xp_earned?: number }> }) => {
@@ -52,6 +60,13 @@ function RightPanel() {
         const totalXP = result.sessions.reduce((sum, s) => sum + (s.xp_earned || 0), 0);
         const hours = (totalSeconds / 3600).toFixed(1);
         setTodayStats({ hours, xp: totalXP, rank: null });
+      }
+    });
+
+    window.promethee.quests.list().then((result: { success: boolean; quests?: Quest[] }) => {
+      if (result.success && result.quests) {
+        const incomplete = result.quests.filter(q => !q.completed_at).slice(0, 3);
+        setActiveQuests(incomplete);
       }
     });
 
@@ -64,16 +79,6 @@ function RightPanel() {
 
     return () => { unsubCount(); unsubFeed(); };
   }, []);
-
-  const quests = [
-    { id: 1, title: 'Build prototype', completed: false },
-    { id: 2, title: 'Ship before Paris', completed: false },
-  ];
-
-  const titles = [
-    { name: 'Builder', progress: 75 },
-    { name: 'Focused', progress: 25 },
-  ];
 
   return (
     <motion.aside
@@ -93,45 +98,22 @@ function RightPanel() {
       </motion.div>
 
       {/* Active Quests */}
-      <motion.div variants={itemVariants} className="flex flex-col gap-3">
-        <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Active Quest</p>
-        <div className="flex flex-col gap-2">
-          {quests.map(quest => (
-            <div key={quest.id} className="flex items-center gap-2.5 text-sm text-secondary-foreground">
-              {quest.completed
-                ? <CheckSquare size={15} className="text-accent-orange flex-shrink-0" />
-                : <Square size={15} className="text-muted-foreground flex-shrink-0" />
-              }
-              <span>{quest.title}</span>
+      {activeQuests.length > 0 && (
+        <>
+          <motion.div variants={itemVariants} className="flex flex-col gap-3">
+            <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Active Quest</p>
+            <div className="flex flex-col gap-2">
+              {activeQuests.map(quest => (
+                <div key={quest.id} className="flex items-center gap-2.5 text-sm text-secondary-foreground">
+                  <Square size={15} className="text-muted-foreground flex-shrink-0" />
+                  <span className="truncate">{quest.title}</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </motion.div>
-
-      <motion.div variants={itemVariants} className="border-t border-border" />
-
-      {/* Titles */}
-      <motion.div variants={itemVariants} className="flex flex-col gap-3">
-        <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Titles</p>
-        <div className="flex flex-col gap-3">
-          {titles.map(title => (
-            <div key={title.name} className="flex flex-col gap-1.5">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-secondary-foreground">{title.name}</span>
-                <span className="text-xs text-muted-foreground">{title.progress}%</span>
-              </div>
-              <div className="h-0.5 bg-muted rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-accent-orange rounded-full transition-all duration-500"
-                  style={{ width: `${title.progress}%` }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </motion.div>
-
-      <motion.div variants={itemVariants} className="border-t border-border" />
+          </motion.div>
+          <motion.div variants={itemVariants} className="border-t border-border" />
+        </>
+      )}
 
       {/* Live presence count */}
       {presenceCount > 0 && (
