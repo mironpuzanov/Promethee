@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Search, CheckSquare, Square, Trophy, Clock, Zap, Users } from 'lucide-react';
+import { Trophy, Clock, Zap, Users } from 'lucide-react';
 
 interface TodayStats {
   hours: string;
@@ -65,15 +65,8 @@ function RightPanel() {
     return () => { unsubCount(); unsubFeed(); };
   }, []);
 
-  const quests = [
-    { id: 1, title: 'Build prototype', completed: false },
-    { id: 2, title: 'Ship before Paris', completed: false },
-  ];
-
-  const titles = [
-    { name: 'Builder', progress: 75 },
-    { name: 'Focused', progress: 25 },
-  ];
+  const quests: { id: number; title: string; completed: boolean }[] = [];
+  const titles: { name: string; progress: number }[] = [];
 
   return (
     <motion.aside
@@ -82,56 +75,50 @@ function RightPanel() {
       animate="visible"
       variants={containerVariants}
     >
-      {/* Search */}
-      <motion.div variants={itemVariants} className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
-        <input
-          type="text"
-          placeholder="Search..."
-          className="w-full bg-input border border-border rounded-xl pl-9 pr-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-ring transition-colors"
-        />
-      </motion.div>
-
       {/* Active Quests */}
-      <motion.div variants={itemVariants} className="flex flex-col gap-3">
-        <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Active Quest</p>
-        <div className="flex flex-col gap-2">
-          {quests.map(quest => (
-            <div key={quest.id} className="flex items-center gap-2.5 text-sm text-secondary-foreground">
-              {quest.completed
-                ? <CheckSquare size={15} className="text-accent-orange flex-shrink-0" />
-                : <Square size={15} className="text-muted-foreground flex-shrink-0" />
-              }
-              <span>{quest.title}</span>
-            </div>
-          ))}
-        </div>
-      </motion.div>
-
-      <motion.div variants={itemVariants} className="border-t border-border" />
+      {quests.length > 0 && (
+        <motion.div variants={itemVariants} className="flex flex-col gap-3">
+          <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Active Quest</p>
+          <div className="flex flex-col gap-2">
+            {quests.map(quest => (
+              <div key={quest.id} className="flex items-center gap-2.5 text-sm text-secondary-foreground">
+                {quest.completed
+                  ? <CheckSquare size={15} className="text-accent-orange flex-shrink-0" />
+                  : <Square size={15} className="text-muted-foreground flex-shrink-0" />
+                }
+                <span>{quest.title}</span>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
 
       {/* Titles */}
-      <motion.div variants={itemVariants} className="flex flex-col gap-3">
-        <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Titles</p>
-        <div className="flex flex-col gap-3">
-          {titles.map(title => (
-            <div key={title.name} className="flex flex-col gap-1.5">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-secondary-foreground">{title.name}</span>
-                <span className="text-xs text-muted-foreground">{title.progress}%</span>
+      {titles.length > 0 && (
+        <motion.div variants={itemVariants} className="flex flex-col gap-3">
+          <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Titles</p>
+          <div className="flex flex-col gap-3">
+            {titles.map(title => (
+              <div key={title.name} className="flex flex-col gap-1.5">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-secondary-foreground">{title.name}</span>
+                  <span className="text-xs text-muted-foreground">{title.progress}%</span>
+                </div>
+                <div className="h-0.5 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-accent-orange rounded-full transition-all duration-500"
+                    style={{ width: `${title.progress}%` }}
+                  />
+                </div>
               </div>
-              <div className="h-0.5 bg-muted rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-accent-orange rounded-full transition-all duration-500"
-                  style={{ width: `${title.progress}%` }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </motion.div>
+            ))}
+          </div>
+        </motion.div>
+      )}
 
-      <motion.div variants={itemVariants} className="border-t border-border" />
+      {(quests.length > 0 || titles.length > 0) && (
+        <motion.div variants={itemVariants} className="border-t border-border" />
+      )}
 
       {/* Live presence count */}
       {presenceCount > 0 && (
