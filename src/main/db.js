@@ -201,22 +201,25 @@ export function updateUserXP(userId, xpToAdd) {
   // Total XP to reach the START of level N: (N-1)*N/2 * 100
   // (matches getLevelInfo in src/lib/xp.ts)
   const profile = getUserProfile(userId);
-  if (profile) {
-    const totalXp = profile.total_xp;
-    let newLevel = 1;
-    const MAX_LEVEL = 1000;
-    while (newLevel < MAX_LEVEL) {
-      const xpToReachNext = newLevel * (newLevel + 1) / 2 * 100;
-      if (xpToReachNext > totalXp) break;
-      newLevel++;
-    }
-    const levelStmt = database.prepare(`
-      UPDATE user_profile
-      SET level = ?
-      WHERE id = ?
-    `);
-    levelStmt.run(newLevel, userId);
+  if (!profile) {
+    console.warn(`updateUserXP: no profile found for user ${userId} — level not updated`);
+    return;
   }
+
+  const totalXp = profile.total_xp;
+  let newLevel = 1;
+  const MAX_LEVEL = 1000;
+  while (newLevel < MAX_LEVEL) {
+    const xpToReachNext = newLevel * (newLevel + 1) / 2 * 100;
+    if (xpToReachNext > totalXp) break;
+    newLevel++;
+  }
+  const levelStmt = database.prepare(`
+    UPDATE user_profile
+    SET level = ?
+    WHERE id = ?
+  `);
+  levelStmt.run(newLevel, userId);
 }
 
 // Agent chat functions
