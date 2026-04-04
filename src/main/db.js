@@ -279,6 +279,16 @@ export function getAgentMessages(chatId) {
 
 export function addAgentMessage(chatId, role, content) {
   const database = getDb();
+
+  // Deduplicate: if the most recent message in this chat is the same role+content,
+  // a retry is happening — return the existing row rather than inserting a duplicate.
+  const last = database.prepare(`
+    SELECT * FROM agent_messages WHERE chat_id = ? ORDER BY created_at DESC LIMIT 1
+  `).get(chatId);
+  if (last && last.role === role && last.content === content) {
+    return { id: last.id, chatId, role, content, createdAt: last.created_at };
+  }
+
   const id = crypto.randomUUID();
   const now = Date.now();
   database.prepare(`
