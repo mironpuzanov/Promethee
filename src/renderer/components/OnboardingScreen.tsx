@@ -16,7 +16,7 @@ const base: React.CSSProperties = {
   background: '#0a0a0a',
   color: '#fff',
   colorScheme: 'dark' as any,
-  fontFamily: 'Inter, -apple-system, sans-serif',
+  fontFamily: 'Geist, -apple-system, sans-serif',
 };
 
 const inputStyle: React.CSSProperties = {
@@ -48,7 +48,7 @@ const btnPrimary: React.CSSProperties = {
 const btnLink: React.CSSProperties = {
   background: 'none',
   border: 'none',
-  color: 'rgba(139,92,246,0.9)',
+  color: 'rgba(232,146,42,0.9)',
   cursor: 'pointer',
   fontSize: 13,
   padding: 0,
