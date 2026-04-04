@@ -120,7 +120,7 @@ export default function SessionCompleteScreen({ task, durationSeconds, xpEarned,
       id: 'save',
       label: 'Save to Downloads',
       icon: <Download size={18} />,
-      color: '#fff',
+      color: 'var(--foreground)',
       bg: 'rgba(255,255,255,0.12)',
       action: async () => {
         await captureClean();
@@ -132,7 +132,7 @@ export default function SessionCompleteScreen({ task, durationSeconds, xpEarned,
       id: 'copy',
       label: 'Copy Image',
       icon: <Share2 size={18} />,
-      color: '#fff',
+      color: 'var(--foreground)',
       bg: 'rgba(255,255,255,0.12)',
       action: async () => {
         await captureClean();
@@ -205,7 +205,7 @@ export default function SessionCompleteScreen({ task, durationSeconds, xpEarned,
                 width: 28, height: 28, borderRadius: '50%',
                 background: 'rgba(255,255,255,0.18)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 11, fontWeight: 600, color: '#fff',
+                fontSize: 11, fontWeight: 600, color: 'var(--foreground)',
               }}>
                 {userName[0]?.toUpperCase()}
               </div>
@@ -236,7 +236,7 @@ export default function SessionCompleteScreen({ task, durationSeconds, xpEarned,
         </div>
         <div style={{ display: 'flex', gap: 24 }}>
           <Stat icon={<Clock size={11} color="rgba(255,255,255,0.4)" />} label="Time" value={formatDuration(durationSeconds)} />
-          <Stat icon={<Zap size={11} color="#E8922A" />} label="XP" value={xpEarned > 0 ? `+${xpEarned}` : '0'} valueColor="#E8922A" />
+          <Stat icon={<Zap size={11} color="var(--accent-fire)" />} label="XP" value={xpEarned > 0 ? `+${xpEarned}` : '0'} valueColor="var(--accent-fire)" />
           {rank && <Stat icon={<Trophy size={11} color="rgba(255,255,255,0.4)" />} label="Rank" value={`#${rank}`} />}
         </div>
         {/* Multiplier badges — only shown when a bonus was applied */}
@@ -245,10 +245,10 @@ export default function SessionCompleteScreen({ task, durationSeconds, xpEarned,
             {(streakBonus || 0) > 0 && (
               <div style={{
                 display: 'inline-flex', alignItems: 'center', gap: 5,
-                background: 'rgba(232,146,42,0.15)',
-                border: '1px solid rgba(232,146,42,0.3)',
+                background: 'var(--accent-glow)',
+                border: '1px solid var(--border-accent)',
                 borderRadius: 20, padding: '3px 9px',
-                fontSize: 11, color: 'rgba(255,255,255,0.8)',
+                fontSize: 11, color: 'var(--foreground)',
               }}>
                 🔥 {currentStreak}-day streak · +{Math.round((streakBonus || 0) * 100)}%
               </div>
@@ -259,7 +259,7 @@ export default function SessionCompleteScreen({ task, durationSeconds, xpEarned,
                 background: 'rgba(99,102,241,0.15)',
                 border: '1px solid rgba(99,102,241,0.3)',
                 borderRadius: 20, padding: '3px 9px',
-                fontSize: 11, color: 'rgba(255,255,255,0.8)',
+                fontSize: 11, color: 'var(--foreground)',
               }}>
                 ⚡ Deep work · +25%
               </div>
@@ -287,13 +287,13 @@ export default function SessionCompleteScreen({ task, durationSeconds, xpEarned,
               backdropFilter: 'blur(20px)',
               WebkitBackdropFilter: 'blur(20px)',
               borderRadius: 20,
-              border: '1px solid rgba(255,255,255,0.1)',
+              border: '1px solid var(--border)',
               padding: '16px 12px',
               display: 'flex',
               flexDirection: 'column',
               gap: 8,
             }}>
-              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.14em', paddingLeft: 4, paddingBottom: 4 }}>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.14em', paddingLeft: 4, paddingBottom: 4 }}>
                 Share session
               </span>
               {shareActions.map((action) => (
@@ -382,9 +382,9 @@ export default function SessionCompleteScreen({ task, durationSeconds, xpEarned,
           onClick={onClose}
           style={{
             flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-            background: 'rgba(255,255,255,0.92)',
+            background: 'var(--primary)',
             border: 'none', borderRadius: 12, padding: '14px 0',
-            color: '#000', fontSize: 13, fontWeight: 600,
+            color: 'var(--primary-foreground)', fontSize: 13, fontWeight: 600,
             cursor: 'pointer', fontFamily: 'inherit',
           }}
         >
@@ -396,7 +396,7 @@ export default function SessionCompleteScreen({ task, durationSeconds, xpEarned,
   );
 }
 
-function Stat({ icon, label, value, valueColor = '#fff' }: {
+function Stat({ icon, label, value, valueColor = 'var(--foreground)' }: {
   icon: React.ReactNode; label: string; value: string; valueColor?: string;
 }) {
   return (

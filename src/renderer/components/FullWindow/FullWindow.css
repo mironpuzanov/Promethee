@@ -83,5 +83,5 @@
 }
 
 .session-xp {
-  color: #E8922A;
+  color: var(--accent-fire);
 }

@@ -13,18 +13,18 @@ const dragBar = (
 const base: React.CSSProperties = {
   height: '100dvh' as any,
   display: 'flex',
-  background: '#0a0a0a',
-  color: '#fff',
+  background: 'var(--background)',
+  color: 'var(--foreground)',
   colorScheme: 'dark' as any,
   fontFamily: 'Geist, -apple-system, sans-serif',
 };
 
 const inputStyle: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.05)',
-  border: '1px solid rgba(255,255,255,0.1)',
+  background: 'var(--input)',
+  border: '1px solid var(--border)',
   borderRadius: 10,
   padding: '11px 14px',
-  color: '#fff',
+  color: 'var(--foreground)',
   fontSize: 14,
   outline: 'none',
   width: '100%',
@@ -33,8 +33,8 @@ const inputStyle: React.CSSProperties = {
 };
 
 const btnPrimary: React.CSSProperties = {
-  background: '#fff',
-  color: '#000',
+  background: 'var(--primary)',
+  color: 'var(--primary-foreground)',
   border: 'none',
   borderRadius: 10,
   padding: '12px 14px',
@@ -48,7 +48,7 @@ const btnPrimary: React.CSSProperties = {
 const btnLink: React.CSSProperties = {
   background: 'none',
   border: 'none',
-  color: 'rgba(232,146,42,0.9)',
+  color: 'var(--accent-fire)',
   cursor: 'pointer',
   fontSize: 13,
   padding: 0,
@@ -59,7 +59,7 @@ const btnLink: React.CSSProperties = {
 
 function Err({ msg }: { msg: string }) {
   return (
-    <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', fontSize: 13, padding: '10px 14px', borderRadius: 10 }}>
+    <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: 'var(--destructive)', fontSize: 13, padding: '10px 14px', borderRadius: 10 }}>
       {msg}
     </div>
   );
@@ -74,21 +74,21 @@ function Shell({ children }: { children: React.ReactNode }) {
           {children}
         </div>
       </div>
-      <div style={{ width: 380, background: 'rgba(255,255,255,0.02)', borderLeft: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '64px 40px', gap: 16 }}>
-        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', letterSpacing: '0.08em', textTransform: 'uppercase', margin: 0 }}>What builders say</p>
+      <div style={{ width: 380, background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '64px 40px', gap: 16 }}>
+        <p style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', margin: 0 }}>What builders say</p>
         {[
           { name: 'Thomas R.', handle: '@thomasbuilds', text: 'I went from 2h of deep work a day to 6h. The accountability layer is everything.' },
           { name: 'Clara M.', handle: '@claradesigns', text: "Three months in and I've shipped more than the previous year. The XP system keeps me honest." },
           { name: 'Lucas B.', handle: '@lucasdev', text: "La Guilde changed my relationship with work. I'm finally consistent." },
         ].map(t => (
-          <div key={t.handle} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', margin: 0, lineHeight: 1.5 }}>"{t.text}"</p>
+          <div key={t.handle} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>"{t.text}"</p>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>
+              <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600 }}>
                 {t.name.charAt(0)}
               </div>
-              <span style={{ fontSize: 12, color: '#fff', fontWeight: 500 }}>{t.name}</span>
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{t.handle}</span>
+              <span style={{ fontSize: 12, color: 'var(--foreground)', fontWeight: 500 }}>{t.name}</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t.handle}</span>
             </div>
           </div>
         ))}
@@ -139,9 +139,9 @@ export default function OnboardingScreen({ onAuthenticated }: OnboardingScreenPr
     return (
       <Shell>
         <div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Promethee</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Promethee</div>
           <h1 style={{ fontSize: 30, fontWeight: 300, margin: 0, letterSpacing: '-0.03em' }}>Welcome back</h1>
-          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: '8px 0 0' }}>Sign in to your account.</p>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: '8px 0 0' }}>Sign in to your account.</p>
         </div>
 
         {error && <Err msg={error} />}
@@ -155,11 +155,11 @@ export default function OnboardingScreen({ onAuthenticated }: OnboardingScreenPr
         </form>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
-          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', margin: 0 }}>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
             Forgot password or signed up with magic link?{' '}
             <button onClick={() => go('magic-link')} style={btnLink}>Send magic link</button>
           </p>
-          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', margin: 0 }}>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
             No account?{' '}
             <button onClick={() => go('signup')} style={btnLink}>Create one</button>
           </p>
@@ -186,7 +186,7 @@ export default function OnboardingScreen({ onAuthenticated }: OnboardingScreenPr
       <Shell>
         <div>
           <h1 style={{ fontSize: 30, fontWeight: 300, margin: 0, letterSpacing: '-0.03em' }}>Magic link</h1>
-          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: '8px 0 0' }}>We'll email you a one-click sign-in link.</p>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: '8px 0 0' }}>We'll email you a one-click sign-in link.</p>
         </div>
 
         {error && <Err msg={error} />}
@@ -198,7 +198,7 @@ export default function OnboardingScreen({ onAuthenticated }: OnboardingScreenPr
           </button>
         </form>
 
-        <p style={{ textAlign: 'center', fontSize: 13, color: 'rgba(255,255,255,0.35)', margin: 0 }}>
+        <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
           <button onClick={() => go('signin')} style={btnLink}>Back to sign in</button>
         </p>
       </Shell>
@@ -228,7 +228,7 @@ export default function OnboardingScreen({ onAuthenticated }: OnboardingScreenPr
       <Shell>
         <div>
           <h1 style={{ fontSize: 30, fontWeight: 300, margin: 0, letterSpacing: '-0.03em' }}>Create account</h1>
-          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: '8px 0 0' }}>Join Promethee and start building seriously.</p>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: '8px 0 0' }}>Join Promethee and start building seriously.</p>
         </div>
 
         {error && <Err msg={error} />}
@@ -242,7 +242,7 @@ export default function OnboardingScreen({ onAuthenticated }: OnboardingScreenPr
           </button>
         </form>
 
-        <p style={{ textAlign: 'center', fontSize: 13, color: 'rgba(255,255,255,0.35)', margin: 0 }}>
+        <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
           Already have an account?{' '}
           <button onClick={() => go('signin')} style={btnLink}>Sign in</button>
         </p>
@@ -261,10 +261,10 @@ export default function OnboardingScreen({ onAuthenticated }: OnboardingScreenPr
           <h2 style={{ fontSize: 24, fontWeight: 300, margin: 0, letterSpacing: '-0.02em' }}>
             {isConfirm ? 'Confirm your email' : 'Check your email'}
           </h2>
-          <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 14, lineHeight: 1.6, margin: 0 }}>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.6, margin: 0 }}>
             {isConfirm
-              ? <>Confirmation link sent to <strong style={{ color: '#fff' }}>{email}</strong>. Click it, then come back and sign in.</>
-              : <>Magic link sent to <strong style={{ color: '#fff' }}>{email}</strong>. Click it to sign in — you can close this window.</>
+              ? <>Confirmation link sent to <strong style={{ color: 'var(--foreground)' }}>{email}</strong>. Click it, then come back and sign in.</>
+              : <>Magic link sent to <strong style={{ color: 'var(--foreground)' }}>{email}</strong>. Click it to sign in — you can close this window.</>
             }
           </p>
           <button onClick={() => go('signin')} style={{ ...btnLink, fontSize: 14 }}>Back to sign in</button>

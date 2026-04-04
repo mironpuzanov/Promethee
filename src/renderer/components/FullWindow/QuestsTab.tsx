@@ -53,7 +53,7 @@ function XPFlash({ xp }: { xp: number }) {
         right: 8,
         top: -4,
         pointerEvents: 'none',
-        color: 'rgba(251,191,36,0.95)',
+        color: 'var(--accent-fire)',
         fontWeight: 700,
         fontSize: 13,
         whiteSpace: 'nowrap',
@@ -169,8 +169,8 @@ export default function QuestsTab() {
           >
             <div
               style={{
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.08)',
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
                 borderRadius: 12,
                 padding: '16px',
                 display: 'flex',
@@ -184,11 +184,11 @@ export default function QuestsTab() {
                 onChange={e => setFormTitle(e.target.value)}
                 placeholder="Quest title…"
                 style={{
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.1)',
+                  background: 'var(--input)',
+                  border: '1px solid var(--border)',
                   borderRadius: 8,
                   padding: '9px 12px',
-                  color: '#fff',
+                  color: 'var(--foreground)',
                   fontSize: 14,
                   outline: 'none',
                   fontFamily: 'inherit',
@@ -204,11 +204,11 @@ export default function QuestsTab() {
                     onChange={e => setFormType(e.target.value as QuestType)}
                     style={{
                       appearance: 'none',
-                      background: 'rgba(255,255,255,0.05)',
-                      border: '1px solid rgba(255,255,255,0.1)',
+                      background: 'var(--input)',
+                      border: '1px solid var(--border)',
                       borderRadius: 8,
                       padding: '9px 32px 9px 12px',
-                      color: '#fff',
+                      color: 'var(--foreground)',
                       fontSize: 13,
                       outline: 'none',
                       fontFamily: 'inherit',
@@ -216,15 +216,15 @@ export default function QuestsTab() {
                       cursor: 'pointer',
                     }}
                   >
-                    <option value="daily" style={{ background: '#1a1a1a' }}>Daily</option>
-                    <option value="mid" style={{ background: '#1a1a1a' }}>Mid-term</option>
-                    <option value="long" style={{ background: '#1a1a1a' }}>Long-term</option>
+                    <option value="daily" style={{ background: 'var(--background)' }}>Daily</option>
+                    <option value="mid" style={{ background: 'var(--background)' }}>Mid-term</option>
+                    <option value="long" style={{ background: 'var(--background)' }}>Long-term</option>
                   </select>
-                  <ChevronDown size={13} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'rgba(255,255,255,0.4)' }} />
+                  <ChevronDown size={13} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
                 </div>
                 {/* XP reward */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '9px 12px' }}>
-                  <Zap size={13} style={{ color: 'rgba(251,191,36,0.8)' }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--input)', border: '1px solid var(--border)', borderRadius: 8, padding: '9px 12px' }}>
+                  <Zap size={13} style={{ color: 'var(--accent-fire)' }} />
                   <input
                     type="number"
                     min={1}
@@ -234,22 +234,22 @@ export default function QuestsTab() {
                     style={{
                       background: 'none',
                       border: 'none',
-                      color: '#fff',
+                      color: 'var(--foreground)',
                       fontSize: 13,
                       outline: 'none',
                       fontFamily: 'inherit',
                       width: 48,
                     }}
                   />
-                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>XP</span>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>XP</span>
                 </div>
                 {/* Submit */}
                 <button
                   type="submit"
                   disabled={!formTitle.trim() || submitting}
                   style={{
-                    background: '#fff',
-                    color: '#000',
+                    background: 'var(--primary)',
+                    color: 'var(--primary-foreground)',
                     border: 'none',
                     borderRadius: 8,
                     padding: '9px 16px',
@@ -266,7 +266,7 @@ export default function QuestsTab() {
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
-                  style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', padding: '4px 8px' }}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', padding: '4px 8px' }}
                 >
                   Cancel
                 </button>
@@ -318,8 +318,8 @@ export default function QuestsTab() {
                         gap: 12,
                         padding: '12px 14px',
                         borderRadius: 10,
-                        background: isDone ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.04)',
-                        border: `1px solid ${isDone ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.07)'}`,
+                        background: isDone ? 'transparent' : 'var(--surface)',
+                        border: `1px solid ${isDone ? 'transparent' : 'var(--border)'}`,
                         position: 'relative',
                         transition: 'background 0.2s, border-color 0.2s',
                       }}
@@ -332,7 +332,7 @@ export default function QuestsTab() {
                         {isDone ? (
                           <CheckCircle2 size={18} style={{ color: TYPE_COLOR[quest.type] }} />
                         ) : (
-                          <Circle size={18} style={{ color: 'rgba(255,255,255,0.25)' }} />
+                          <Circle size={18} style={{ color: 'var(--text-muted)' }} />
                         )}
                       </button>
 
@@ -340,7 +340,7 @@ export default function QuestsTab() {
                       <span style={{
                         flex: 1,
                         fontSize: 14,
-                        color: isDone ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.85)',
+                        color: isDone ? 'var(--text-muted)' : 'var(--text-primary)',
                         textDecoration: isDone ? 'line-through' : 'none',
                         transition: 'color 0.2s',
                       }}>
@@ -349,14 +349,14 @@ export default function QuestsTab() {
 
                       {/* XP badge */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                        <Zap size={11} style={{ color: 'rgba(251,191,36,0.6)' }} />
-                        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>{quest.xp_reward} XP</span>
+                        <Zap size={11} style={{ color: 'var(--accent-fire)', opacity: 0.6 }} />
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{quest.xp_reward} XP</span>
                       </div>
 
                       {/* Delete */}
                       <button
                         onClick={() => handleDelete(quest.id)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', color: 'rgba(255,255,255,0.15)', flexShrink: 0 }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', color: 'var(--text-muted)', opacity: 0.5, flexShrink: 0 }}
                         title="Delete quest"
                       >
                         <Trash2 size={13} />

@@ -42,25 +42,26 @@ const itemVariants = {
   visible: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 100, damping: 15 } },
 };
 
-const INTENSITY_STYLE: Record<DailySignal['intensity'], { dot: string; border: string; label: string }> = {
-  low:  { dot: 'rgba(99,102,241,0.9)',  border: 'rgba(99,102,241,0.2)',  label: 'Signal' },
-  med:  { dot: 'rgba(251,191,36,0.9)',  border: 'rgba(251,191,36,0.2)',  label: 'Signal' },
-  high: { dot: 'rgba(239,68,68,0.9)',   border: 'rgba(239,68,68,0.25)',  label: 'Signal' },
+// Intensity uses semantic colors: low=indigo(calm), med=fire(active), high=destructive(surge)
+const INTENSITY_STYLE: Record<DailySignal['intensity'], { dot: string; border: string }> = {
+  low:  { dot: 'rgba(99,102,241,0.9)',        border: 'rgba(99,102,241,0.2)' },
+  med:  { dot: 'var(--accent-fire)',           border: 'var(--border-accent)' },
+  high: { dot: 'var(--destructive)',           border: 'rgba(239,68,68,0.25)' },
 };
 
 function SkillBar({ label, value }: { label: string; value: number }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingTop: 8, paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-      <span style={{ flex: 1, fontSize: 13, color: 'rgba(255,255,255,0.65)' }}>{label}</span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingTop: 8, paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>
+      <span style={{ flex: 1, fontSize: 13, color: 'var(--text-secondary)' }}>{label}</span>
       <div style={{ width: 80, height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
         <motion.div
-          style={{ height: '100%', background: '#E8922A', borderRadius: 2 }}
+          style={{ height: '100%', background: 'var(--accent-fire)', borderRadius: 2 }}
           initial={{ width: 0 }}
           animate={{ width: `${value}%` }}
           transition={{ duration: 0.7, ease: 'easeOut', delay: 0.1 }}
         />
       </div>
-      <span style={{ fontSize: 13, fontWeight: 500, color: 'rgba(255,255,255,0.85)', width: 28, textAlign: 'right' }}>{value}</span>
+      <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', width: 28, textAlign: 'right' }}>{value}</span>
     </div>
   );
 }
@@ -129,14 +130,14 @@ function CharacterPanel({ user }: CharacterPanelProps) {
         <div style={{
           position: 'absolute', bottom: 0, left: 0, right: 0,
           padding: '0 40px 20px',
-          color: '#fff',
+          color: 'var(--foreground)',
           display: 'flex',
           flexDirection: 'column',
           gap: 8,
         }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <h1 style={{ margin: 0, fontSize: 22, fontWeight: 400, letterSpacing: '-0.02em' }}>{userName}</h1>
-            <p style={{ margin: 0, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'rgba(255,255,255,0.5)' }}>
+            <p style={{ margin: 0, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'var(--text-secondary)' }}>
               Level {level} · {tier}
               {(profile.current_streak || 0) > 0 && (
                 <span style={{ marginLeft: 8 }}>· {profile.current_streak}d streak</span>
@@ -146,19 +147,19 @@ function CharacterPanel({ user }: CharacterPanelProps) {
 
           {/* XP progress bar */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
               <span>Progress to Level {level + 1}</span>
               <span>{xpIntoLevel} / {xpForCurrentLevel} XP</span>
             </div>
             <div style={{ height: 3, background: 'rgba(255,255,255,0.15)', borderRadius: 2, overflow: 'hidden' }}>
               <motion.div
-                style={{ height: '100%', background: '#E8922A', borderRadius: 2 }}
+                style={{ height: '100%', background: 'var(--accent-fire)', borderRadius: 2 }}
                 initial={{ width: 0 }}
                 animate={{ width: `${xpProgress * 100}%` }}
                 transition={{ duration: 0.8, ease: 'easeOut' }}
               />
             </div>
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>{totalXP} XP total</span>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{totalXP} XP total</span>
           </div>
         </div>
       </motion.div>
@@ -174,7 +175,7 @@ function CharacterPanel({ user }: CharacterPanelProps) {
             style={{ paddingLeft: 40, paddingRight: 40 }}
           >
             <div style={{
-              background: 'rgba(255,255,255,0.025)',
+              background: 'var(--surface)',
               border: `1px solid ${INTENSITY_STYLE[signal.intensity].border}`,
               borderRadius: 12,
               padding: '14px 16px',
@@ -188,11 +189,11 @@ function CharacterPanel({ user }: CharacterPanelProps) {
                   background: INTENSITY_STYLE[signal.intensity].dot,
                   flexShrink: 0,
                 }} />
-                <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(255,255,255,0.35)', fontWeight: 500 }}>
+                <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-muted)', fontWeight: 500 }}>
                   Prométhée · Today
                 </span>
               </div>
-              <p style={{ margin: 0, fontSize: 13, color: 'rgba(255,255,255,0.75)', lineHeight: 1.55, fontStyle: 'italic' }}>
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55, fontStyle: 'italic' }}>
                 {signal.content}
               </p>
             </div>
@@ -203,19 +204,11 @@ function CharacterPanel({ user }: CharacterPanelProps) {
       {/* Skills */}
       <motion.div variants={itemVariants} className="flex flex-col gap-1 px-10">
         <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground pb-1">Skills</p>
-        {skills ? (
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <SkillBar label="Rigueur" value={skills.rigueur} />
-            <SkillBar label="Volonté" value={skills.volonte} />
-            <SkillBar label="Courage" value={skills.courage} />
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <SkillBar label="Rigueur" value={0} />
-            <SkillBar label="Volonté" value={0} />
-            <SkillBar label="Courage" value={0} />
-          </div>
-        )}
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <SkillBar label="Rigueur" value={skills?.rigueur ?? 0} />
+          <SkillBar label="Volonté" value={skills?.volonte ?? 0} />
+          <SkillBar label="Courage" value={skills?.courage ?? 0} />
+        </div>
       </motion.div>
 
       {/* Streak info */}
@@ -224,17 +217,17 @@ function CharacterPanel({ user }: CharacterPanelProps) {
           <div style={{
             display: 'flex', alignItems: 'center', gap: 10,
             padding: '12px 16px',
-            background: 'rgba(232,146,42,0.06)',
-            border: '1px solid rgba(232,146,42,0.15)',
+            background: 'var(--accent-glow)',
+            border: '1px solid var(--border-accent)',
             borderRadius: 10,
           }}>
             <span style={{ fontSize: 18 }}>🔥</span>
             <div>
-              <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: 'rgba(255,255,255,0.85)' }}>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>
                 {profile.current_streak}-day streak
               </p>
-              <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
-                XP multiplier active · +{Math.min(profile.current_streak * 10, 50)}%
+              <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>
+                XP multiplier active · +{Math.min((profile.current_streak ?? 0) * 10, 50)}%
               </p>
             </div>
           </div>

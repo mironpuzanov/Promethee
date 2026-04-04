@@ -120,23 +120,23 @@ function ChatView({ chat, onBack }: { chat: Chat; onBack: () => void }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%', background: 'var(--background)' }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '20px 32px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '20px 32px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         <button
           onClick={onBack}
-          style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
           <ArrowLeft size={18} />
         </button>
-        <span style={{ fontSize: 15, fontWeight: 500, color: 'rgba(255,255,255,0.85)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {chat.title}
         </span>
-        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', flexShrink: 0 }}>{formatTime(chat.created_at)}</span>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>{formatTime(chat.created_at)}</span>
       </div>
 
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: 16 }}>
         {messages.length === 0 && !streaming && (
-          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', textAlign: 'center', marginTop: 40 }}>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', marginTop: 40 }}>
             Start the conversation — ask anything.
           </p>
         )}
@@ -147,14 +147,14 @@ function ChatView({ chat, onBack }: { chat: Chat; onBack: () => void }) {
               padding: '10px 14px',
               borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
               fontSize: 13, lineHeight: 1.6,
-              background: msg.role === 'user' ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.04)',
-              color: 'rgba(255,255,255,0.85)',
-              border: '1px solid rgba(255,255,255,0.07)',
+              background: msg.role === 'user' ? 'rgba(255,255,255,0.1)' : 'var(--surface)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--border)',
               whiteSpace: 'pre-wrap', wordBreak: 'break-word',
             }}>
               {msg.content}
             </div>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)' }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
               {msg.role === 'user' ? 'You' : 'Mentor'} · {formatTime(msgTs(msg))}
             </span>
           </div>
@@ -163,13 +163,13 @@ function ChatView({ chat, onBack }: { chat: Chat; onBack: () => void }) {
           <div style={{ display: 'flex', alignItems: 'flex-start' }}>
             <div style={{
               padding: '10px 14px', borderRadius: '14px 14px 14px 4px',
-              background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)',
+              background: 'var(--surface)', border: '1px solid var(--border)',
               display: 'flex', gap: 4, alignItems: 'center',
             }}>
               {[0, 1, 2].map(i => (
                 <span key={i} style={{
                   width: 6, height: 6, borderRadius: '50%',
-                  background: 'rgba(255,255,255,0.35)',
+                  background: 'var(--text-secondary)',
                   display: 'inline-block',
                   animation: `blink 1.2s ease-in-out ${i * 0.2}s infinite`,
                 }} />
@@ -183,13 +183,13 @@ function ChatView({ chat, onBack }: { chat: Chat; onBack: () => void }) {
               maxWidth: '72%', padding: '10px 14px',
               borderRadius: '14px 14px 14px 4px',
               fontSize: 13, lineHeight: 1.6,
-              background: 'rgba(255,255,255,0.04)',
-              color: 'rgba(255,255,255,0.85)',
-              border: '1px solid rgba(255,255,255,0.07)',
+              background: 'var(--surface)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--border)',
               whiteSpace: 'pre-wrap', wordBreak: 'break-word',
             }}>
               {streamingContent}
-              <span style={{ display: 'inline-block', width: 6, height: 12, background: 'rgba(255,255,255,0.4)', marginLeft: 2, verticalAlign: 'middle', borderRadius: 1, animation: 'blink 1s step-end infinite' }} />
+              <span style={{ display: 'inline-block', width: 6, height: 12, background: 'var(--text-secondary)', marginLeft: 2, verticalAlign: 'middle', borderRadius: 1, animation: 'blink 1s step-end infinite' }} />
             </div>
           </div>
         )}
@@ -197,7 +197,7 @@ function ChatView({ chat, onBack }: { chat: Chat; onBack: () => void }) {
       </div>
 
       {/* Input */}
-      <div style={{ padding: '12px 24px 20px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: 10, alignItems: 'center' }}>
+      <div style={{ padding: '12px 24px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center' }}>
         <textarea
           ref={inputRef}
           value={input}
@@ -208,11 +208,11 @@ function ChatView({ chat, onBack }: { chat: Chat; onBack: () => void }) {
           rows={1}
           style={{
             flex: 1,
-            background: 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,255,255,0.1)',
+            background: 'var(--input)',
+            border: '1px solid var(--border)',
             borderRadius: 10,
             padding: '10px 14px',
-            color: 'rgba(255,255,255,0.85)',
+            color: 'var(--text-primary)',
             fontSize: 13,
             fontFamily: 'inherit',
             resize: 'none',
@@ -225,10 +225,10 @@ function ChatView({ chat, onBack }: { chat: Chat; onBack: () => void }) {
           disabled={!input.trim() || streaming}
           style={{
             width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-            background: input.trim() && !streaming ? '#E8922A' : 'rgba(255,255,255,0.06)',
+            background: input.trim() && !streaming ? 'var(--accent-fire)' : 'var(--input)',
             border: 'none', cursor: input.trim() && !streaming ? 'pointer' : 'default',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: input.trim() && !streaming ? '#000' : 'rgba(255,255,255,0.2)',
+            color: input.trim() && !streaming ? 'var(--primary-foreground)' : 'var(--text-muted)',
             transition: 'background 0.15s',
           }}
         >
@@ -280,11 +280,11 @@ export default function MentorTab() {
           disabled={creating}
           style={{
             display: 'flex', alignItems: 'center', gap: 6,
-            background: 'rgba(255,255,255,0.06)',
-            border: '1px solid rgba(255,255,255,0.1)',
+            background: 'var(--input)',
+            border: '1px solid var(--border)',
             borderRadius: 10,
             padding: '8px 14px',
-            color: 'rgba(255,255,255,0.75)',
+            color: 'var(--text-secondary)',
             fontSize: 13, fontWeight: 500,
             cursor: 'pointer', fontFamily: 'inherit',
           }}
@@ -295,11 +295,11 @@ export default function MentorTab() {
       </div>
 
       {loading && (
-        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>Loading conversations…</p>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading conversations…</p>
       )}
 
       {!loading && chats.length === 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginTop: 48, color: 'rgba(255,255,255,0.25)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginTop: 48, color: 'var(--text-muted)' }}>
           <MessageCircle size={36} strokeWidth={1} />
           <p style={{ fontSize: 14, margin: 0 }}>No conversations yet.</p>
           <p style={{ fontSize: 13, margin: 0 }}>Hit "New chat" to start talking with your Mentor.</p>
@@ -317,7 +317,7 @@ export default function MentorTab() {
             <div key={group.label} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <motion.div
                 variants={rowVariants}
-                style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500, padding: '0 4px 4px' }}
+                style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500, padding: '0 4px 4px' }}
               >
                 {group.label}
               </motion.div>
@@ -329,19 +329,19 @@ export default function MentorTab() {
                   style={{
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                     padding: '12px 16px', borderRadius: 10,
-                    background: 'rgba(255,255,255,0.03)',
-                    border: '1px solid rgba(255,255,255,0.06)',
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
                     cursor: 'pointer', gap: 12, textAlign: 'left', width: '100%',
                   }}
-                  whileHover={{ background: 'rgba(255,255,255,0.06)' }}
+                  whileHover={{ background: 'var(--input)' }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
-                    <MessageCircle size={16} style={{ color: 'rgba(255,255,255,0.3)', flexShrink: 0 }} />
-                    <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.8)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <MessageCircle size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                    <span style={{ fontSize: 14, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {chat.title}
                     </span>
                   </div>
-                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', flexShrink: 0 }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>
                     {formatTime(chat.created_at)}
                   </span>
                 </motion.button>

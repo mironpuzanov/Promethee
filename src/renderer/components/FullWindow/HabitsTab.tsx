@@ -109,8 +109,8 @@ export default function HabitsTab() {
             style={{ overflow: 'hidden' }}
           >
             <div style={{
-              background: 'rgba(255,255,255,0.03)',
-              border: '1px solid rgba(255,255,255,0.08)',
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
               borderRadius: 12,
               padding: '16px',
               display: 'flex',
@@ -123,11 +123,11 @@ export default function HabitsTab() {
                 onChange={e => setFormTitle(e.target.value)}
                 placeholder="Habit title…"
                 style={{
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.1)',
+                  background: 'var(--input)',
+                  border: '1px solid var(--border)',
                   borderRadius: 8,
                   padding: '9px 12px',
-                  color: '#fff',
+                  color: 'var(--foreground)',
                   fontSize: 14,
                   outline: 'none',
                   fontFamily: 'inherit',
@@ -143,11 +143,11 @@ export default function HabitsTab() {
                     onChange={e => setFormFrequency(e.target.value as Frequency)}
                     style={{
                       appearance: 'none',
-                      background: 'rgba(255,255,255,0.05)',
-                      border: '1px solid rgba(255,255,255,0.1)',
+                      background: 'var(--input)',
+                      border: '1px solid var(--border)',
                       borderRadius: 8,
                       padding: '9px 32px 9px 12px',
-                      color: '#fff',
+                      color: 'var(--foreground)',
                       fontSize: 13,
                       outline: 'none',
                       fontFamily: 'inherit',
@@ -155,17 +155,17 @@ export default function HabitsTab() {
                       cursor: 'pointer',
                     }}
                   >
-                    <option value="daily" style={{ background: '#1a1a1a' }}>Daily</option>
-                    <option value="weekly" style={{ background: '#1a1a1a' }}>Weekly</option>
+                    <option value="daily" style={{ background: 'var(--background)' }}>Daily</option>
+                    <option value="weekly" style={{ background: 'var(--background)' }}>Weekly</option>
                   </select>
-                  <ChevronDown size={13} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'rgba(255,255,255,0.4)' }} />
+                  <ChevronDown size={13} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
                 </div>
                 <button
                   type="submit"
                   disabled={!formTitle.trim() || submitting}
                   style={{
-                    background: '#fff',
-                    color: '#000',
+                    background: 'var(--primary)',
+                    color: 'var(--primary-foreground)',
                     border: 'none',
                     borderRadius: 8,
                     padding: '9px 16px',
@@ -182,7 +182,7 @@ export default function HabitsTab() {
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
-                  style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', padding: '4px 8px' }}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', padding: '4px 8px' }}
                 >
                   Cancel
                 </button>
@@ -225,8 +225,8 @@ export default function HabitsTab() {
                     gap: 12,
                     padding: '12px 14px',
                     borderRadius: 10,
-                    background: isDone ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.04)',
-                    border: `1px solid ${isDone ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.07)'}`,
+                    background: isDone ? 'transparent' : 'var(--surface)',
+                    border: `1px solid ${isDone ? 'transparent' : 'var(--border)'}`,
                     transition: 'background 0.2s, border-color 0.2s',
                   }}
                 >
@@ -236,9 +236,9 @@ export default function HabitsTab() {
                     style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0, display: 'flex', alignItems: 'center' }}
                   >
                     {isDone ? (
-                      <CheckCircle2 size={18} style={{ color: 'rgba(232,146,42,0.9)' }} />
+                      <CheckCircle2 size={18} style={{ color: 'var(--accent-fire)' }} />
                     ) : (
-                      <Circle size={18} style={{ color: 'rgba(255,255,255,0.25)' }} />
+                      <Circle size={18} style={{ color: 'var(--text-muted)' }} />
                     )}
                   </button>
 
@@ -246,7 +246,7 @@ export default function HabitsTab() {
                   <span style={{
                     flex: 1,
                     fontSize: 14,
-                    color: isDone ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.85)',
+                    color: isDone ? 'var(--text-muted)' : 'var(--text-primary)',
                     textDecoration: isDone ? 'line-through' : 'none',
                     transition: 'color 0.2s',
                   }}>
@@ -258,7 +258,7 @@ export default function HabitsTab() {
                     fontSize: 10,
                     textTransform: 'uppercase',
                     letterSpacing: '0.1em',
-                    color: 'rgba(255,255,255,0.25)',
+                    color: 'var(--text-muted)',
                     flexShrink: 0,
                   }}>
                     {habit.frequency}
@@ -267,8 +267,8 @@ export default function HabitsTab() {
                   {/* Streak */}
                   {streak > 0 && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-                      <Flame size={12} style={{ color: streak >= 7 ? '#E8922A' : 'rgba(255,255,255,0.3)' }} />
-                      <span style={{ fontSize: 12, color: streak >= 7 ? 'rgba(232,146,42,0.85)' : 'rgba(255,255,255,0.35)', fontWeight: streak >= 7 ? 600 : 400 }}>
+                      <Flame size={12} style={{ color: streak >= 7 ? 'var(--accent-fire)' : 'var(--text-muted)' }} />
+                      <span style={{ fontSize: 12, color: streak >= 7 ? 'var(--accent-fire)' : 'var(--text-muted)', fontWeight: streak >= 7 ? 600 : 400 }}>
                         {streak}
                       </span>
                     </div>
@@ -277,7 +277,7 @@ export default function HabitsTab() {
                   {/* Delete */}
                   <button
                     onClick={() => handleDelete(habit.id)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', color: 'rgba(255,255,255,0.15)', flexShrink: 0 }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', color: 'var(--text-muted)', opacity: 0.5, flexShrink: 0 }}
                     title="Delete habit"
                   >
                     <Trash2 size={13} />

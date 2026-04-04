@@ -59,7 +59,7 @@ function TimerCard({ elapsed, elapsedSeconds, task, xpSoFar, onStop, minimized, 
     >
       <div className="timer-ring">
         <svg width="72" height="72" viewBox="0 0 72 72">
-          <circle cx="36" cy="36" r="32" fill="none" stroke="rgba(232,146,42,0.15)" strokeWidth="3" />
+          <circle cx="36" cy="36" r="32" fill="none" stroke="var(--accent-glow)" strokeWidth="3" />
           <circle
             cx="36" cy="36" r="32"
             fill="none"

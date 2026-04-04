@@ -1,6 +1,6 @@
 .right-panel {
   background: var(--bg);
-  border-left: 1px solid #1a1a1a;
+  border-left: 1px solid var(--border);
   padding: 20px;
   overflow-y: auto;
   display: flex;
@@ -89,7 +89,7 @@
 
 .progress-bar {
   height: 2px;
-  background: #333;
+  background: var(--border);
   border-radius: 1px;
   overflow: hidden;
 }

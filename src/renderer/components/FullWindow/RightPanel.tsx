@@ -137,7 +137,7 @@ function RightPanel() {
               <div key={entry.id} className="flex items-start gap-2 py-1">
                 <div
                   className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 mt-0.5"
-                  style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.6)' }}
+                  style={{ background: 'rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }}
                 >
                   {(entry.display_name || '?').charAt(0).toUpperCase()}
                 </div>
@@ -153,7 +153,7 @@ function RightPanel() {
                     )}
                   </div>
                   <span className="text-xs text-muted-foreground truncate">{entry.task || 'working'}</span>
-                  <span className="text-xs" style={{ color: 'rgba(255,255,255,0.2)', fontSize: 10 }}>{timeAgo(entry.started_at)}</span>
+                  <span className="text-xs" style={{ color: 'var(--text-muted)', fontSize: 10 }}>{timeAgo(entry.started_at)}</span>
                 </div>
               </div>
             ))}
