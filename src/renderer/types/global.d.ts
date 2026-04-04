@@ -21,6 +21,7 @@ declare global {
         onSignedOut: (callback: () => void) => () => void;
         updateProfile: (updates: { displayName?: string; avatarUrl?: string }) => Promise<{ success: boolean; user?: any; error?: string }>;
         updatePassword: (newPassword: string) => Promise<{ success: boolean; error?: string }>;
+        uploadAvatar: (fileBuffer: ArrayBuffer, mimeType: string) => Promise<{ success: boolean; url?: string; error?: string }>;
       };
       leaderboard: {
         get: () => Promise<{ success: boolean; leaderboard?: any[]; error?: string }>;
@@ -45,9 +46,17 @@ declare global {
         minimize: () => Promise<void>;
         toggleFullWindow: () => Promise<void>;
         setIgnoreMouseEvents: (ignore: boolean) => void;
+        setFocusable: (focusable: boolean) => void;
         openSessionComplete: (data: { task: string; durationSeconds: number; xpEarned: number; multiplier?: number; streakBonus?: number; depthBonus?: number; currentStreak?: number }) => Promise<{ success: boolean }>;
         onSessionComplete: (callback: (data: { task: string; durationSeconds: number; xpEarned: number; multiplier?: number; streakBonus?: number; depthBonus?: number; currentStreak?: number }) => void) => () => void;
         getPendingSessionComplete: () => Promise<{ task: string; durationSeconds: number; xpEarned: number; multiplier?: number; streakBonus?: number; depthBonus?: number; currentStreak?: number } | null>;
+        resizeForSessionComplete: () => Promise<{ success: boolean }>;
+        restoreFromSessionComplete: () => Promise<{ success: boolean }>;
+        captureSessionCard: () => Promise<{ success: boolean; dataUrl?: string }>;
+        copyImageToClipboard: () => Promise<{ success: boolean }>;
+        copyImageAndText: (text: string) => Promise<{ success: boolean }>;
+        openExternal: (url: string) => Promise<{ success: boolean }>;
+        copyText: (text: string) => Promise<{ success: boolean }>;
         startFocusSession: (roomId?: string | null) => Promise<{ success: boolean }>;
         onFocusTaskInput: (callback: (data: { roomId: string | null }) => void) => () => void;
       };
