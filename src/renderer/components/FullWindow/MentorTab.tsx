@@ -105,8 +105,12 @@ function ChatView({ chat, onBack }: { chat: Chat; onBack: () => void }) {
     const content = input.trim();
     setInput('');
     setStreaming(true);
+    // Capture history before adding the optimistic message so previousMessages
+    // passed to the backend matches what the AI should see as prior context.
+    // The new user message is sent as the `content` argument separately.
+    const history = messages;
     setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'user', content, createdAt: Date.now() }]);
-    await window.promethee.agent.sendMessage(chat.id, content, messages);
+    await window.promethee.agent.sendMessage(chat.id, content, history);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
