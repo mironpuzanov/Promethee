@@ -47,12 +47,13 @@ declare global {
         toggleFullWindow: () => Promise<void>;
         setIgnoreMouseEvents: (ignore: boolean) => void;
         setFocusable: (focusable: boolean) => void;
-        openSessionComplete: (data: { task: string; durationSeconds: number; xpEarned: number; multiplier?: number; streakBonus?: number; depthBonus?: number; currentStreak?: number }) => Promise<{ success: boolean }>;
-        onSessionComplete: (callback: (data: { task: string; durationSeconds: number; xpEarned: number; multiplier?: number; streakBonus?: number; depthBonus?: number; currentStreak?: number }) => void) => () => void;
-        getPendingSessionComplete: () => Promise<{ task: string; durationSeconds: number; xpEarned: number; multiplier?: number; streakBonus?: number; depthBonus?: number; currentStreak?: number } | null>;
+        openSessionComplete: (data: { task: string; durationSeconds: number; xpEarned: number; multiplier?: number; streakBonus?: number; depthBonus?: number; currentStreak?: number; sessionId?: string }) => Promise<{ success: boolean }>;
+        onSessionComplete: (callback: (data: { task: string; durationSeconds: number; xpEarned: number; multiplier?: number; streakBonus?: number; depthBonus?: number; currentStreak?: number; sessionId?: string }) => void) => () => void;
+        getPendingSessionComplete: () => Promise<{ task: string; durationSeconds: number; xpEarned: number; multiplier?: number; streakBonus?: number; depthBonus?: number; currentStreak?: number; sessionId?: string } | null>;
         resizeForSessionComplete: () => Promise<{ success: boolean }>;
         restoreFromSessionComplete: () => Promise<{ success: boolean }>;
         captureSessionCard: () => Promise<{ success: boolean; dataUrl?: string }>;
+        captureScreen: () => Promise<{ success: boolean; dataUrl?: string; error?: string }>;
         copyImageToClipboard: () => Promise<{ success: boolean }>;
         copyImageAndText: (text: string) => Promise<{ success: boolean }>;
         openExternal: (url: string) => Promise<{ success: boolean }>;
@@ -85,6 +86,13 @@ declare global {
         delete: (questId: string) => Promise<{ success: boolean; error?: string }>;
         onDailyReset: (callback: (data: { resetIds: string[] }) => void) => () => void;
       };
+      tasks: {
+        list: (sessionId: string) => Promise<{ success: boolean; tasks?: any[]; error?: string }>;
+        listAll: () => Promise<{ success: boolean; tasks?: any[]; error?: string }>;
+        add: (sessionId: string, text: string) => Promise<{ success: boolean; task?: any; error?: string }>;
+        toggle: (taskId: string) => Promise<{ success: boolean; task?: any; error?: string }>;
+        delete: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+      };
       agent: {
         getToken: () => Promise<{ success: boolean; token?: string; error?: string }>;
         setToken: (key: string) => Promise<{ success: boolean; error?: string }>;
@@ -96,6 +104,13 @@ declare global {
         onChunk: (callback: (data: { chatId: string; delta: string }) => void) => () => void;
         onStreamEnd: (callback: (data: { chatId: string; message: any }) => void) => () => void;
         onStreamError: (callback: (data: { chatId: string; error: string }) => void) => () => void;
+      };
+      tracking: {
+        getEvents: (opts?: { sinceMs?: number; sessionId?: string; limit?: number }) => Promise<{ success: boolean; events?: Array<{ id: number; app_name: string; window_title: string | null; session_id: string | null; recorded_at: number }>; error?: string }>;
+      };
+      audio?: {
+        sendMuteToggle: (isMuted: boolean) => void;
+        onMuteToggle: (callback: (isMuted: boolean) => void) => () => void;
       };
     };
   }

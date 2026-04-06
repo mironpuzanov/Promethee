@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import LevelPill from './LevelPill';
 import TimerCard from './TimerCard';
+import TaskChecklist from './TaskChecklist';
 import './ActiveSession.css';
 
 interface Session {
@@ -49,6 +50,7 @@ function ActiveSession({ session, onEnd }: ActiveSessionProps) {
 
   return (
     <div className="active-session">
+      <TaskChecklist session={session} />
       <LevelPill />
       <TimerCard
         elapsed={formatTime(elapsed)}

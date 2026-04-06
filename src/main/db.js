@@ -16,6 +16,7 @@ export function initializeDatabase() {
   fs.mkdirSync(userDataPath, { recursive: true });
 
   db = new Database(dbPath);
+  db.pragma('foreign_keys = ON');
 
   // Initialize schema
   db.exec(`
@@ -75,6 +76,31 @@ export function initializeDatabase() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_quests_user ON quests(user_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS window_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      session_id TEXT,
+      app_name TEXT NOT NULL,
+      window_title TEXT,
+      recorded_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_window_events_user ON window_events(user_id, recorded_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_window_events_session ON window_events(session_id, recorded_at DESC);
+
+    CREATE TABLE IF NOT EXISTS tasks (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL,
+      text TEXT NOT NULL,
+      completed INTEGER NOT NULL DEFAULT 0,
+      position INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_tasks_session ON tasks(session_id);
+    CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id, created_at DESC);
   `);
 
   // Add streak/daily-job columns to user_profile if they don't exist yet (idempotent)
@@ -168,6 +194,11 @@ export function getSessions(userId, limit = 100) {
   return stmt.all(userId, limit);
 }
 
+export function getSessionById(sessionId) {
+  const database = getDb();
+  return database.prepare(`SELECT * FROM sessions WHERE id = ?`).get(sessionId);
+}
+
 export function getTodaysSessions(userId) {
   const database = getDb();
   const todayStart = new Date();
@@ -247,6 +278,36 @@ export function updateUserXP(userId, xpToAdd) {
     WHERE id = ?
   `);
   levelStmt.run(newLevel, userId);
+}
+
+// Window tracking functions
+
+export function recordWindowEvent(userId, sessionId, appName, windowTitle) {
+  const database = getDb();
+  database.prepare(`
+    INSERT INTO window_events (user_id, session_id, app_name, window_title, recorded_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(userId, sessionId || null, appName, windowTitle || null, Date.now());
+}
+
+export function getWindowEvents(userId, { sinceMs, sessionId, limit = 200 } = {}) {
+  const database = getDb();
+  if (sessionId) {
+    return database.prepare(`
+      SELECT * FROM window_events WHERE user_id = ? AND session_id = ?
+      ORDER BY recorded_at DESC LIMIT ?
+    `).all(userId, sessionId, limit);
+  }
+  if (sinceMs) {
+    return database.prepare(`
+      SELECT * FROM window_events WHERE user_id = ? AND recorded_at >= ?
+      ORDER BY recorded_at DESC LIMIT ?
+    `).all(userId, sinceMs, limit);
+  }
+  return database.prepare(`
+    SELECT * FROM window_events WHERE user_id = ?
+    ORDER BY recorded_at DESC LIMIT ?
+  `).all(userId, limit);
 }
 
 // Agent chat functions
@@ -371,6 +432,54 @@ export function uncompleteQuest(questId, userId) {
 export function deleteQuest(questId, userId) {
   const database = getDb();
   database.prepare(`DELETE FROM quests WHERE id = ? AND user_id = ?`).run(questId, userId);
+}
+
+// ── Session task checklist (local SQLite only) ─────────────────────────────
+
+export function createTask(sessionId, userId, text) {
+  const database = getDb();
+  const trimmed = (text && String(text).trim()) || '';
+  if (!trimmed) return null;
+  const id = crypto.randomUUID();
+  const now = Date.now();
+  const row = database.prepare(`
+    SELECT COALESCE(MAX(position), -1) + 1 AS next FROM tasks WHERE session_id = ?
+  `).get(sessionId);
+  const position = row?.next ?? 0;
+  database.prepare(`
+    INSERT INTO tasks (id, session_id, user_id, text, completed, position, created_at)
+    VALUES (?, ?, ?, ?, 0, ?, ?)
+  `).run(id, sessionId, userId, trimmed, position, now);
+  return database.prepare(`SELECT * FROM tasks WHERE id = ?`).get(id);
+}
+
+export function getTasksBySession(sessionId) {
+  const database = getDb();
+  return database.prepare(`
+    SELECT * FROM tasks WHERE session_id = ? ORDER BY position ASC, created_at ASC
+  `).all(sessionId);
+}
+
+export function getTasksByUser(userId) {
+  const database = getDb();
+  return database.prepare(`
+    SELECT * FROM tasks WHERE user_id = ? ORDER BY created_at DESC
+  `).all(userId);
+}
+
+export function toggleTask(taskId, userId) {
+  const database = getDb();
+  const task = database.prepare(`SELECT * FROM tasks WHERE id = ? AND user_id = ?`).get(taskId, userId);
+  if (!task) return null;
+  const next = task.completed ? 0 : 1;
+  database.prepare(`UPDATE tasks SET completed = ? WHERE id = ?`).run(next, taskId);
+  return database.prepare(`SELECT * FROM tasks WHERE id = ?`).get(taskId);
+}
+
+export function deleteTask(taskId, userId) {
+  const database = getDb();
+  const result = database.prepare(`DELETE FROM tasks WHERE id = ? AND user_id = ?`).run(taskId, userId);
+  return result.changes > 0;
 }
 
 // Reset daily quests whose last_reset_date != today's local date

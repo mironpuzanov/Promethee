@@ -26,8 +26,30 @@ import { signIn, signUp, signOut, sendMagicLink, getUser, setSession, getCurrent
 import { setupPowerMonitoring } from './power.js';
 import { setupLeaderboardPolling, stopLeaderboardPolling, getLeaderboard } from './leaderboard.js';
 import { setupPresence, stopPresence, sendHeartbeat, removePresence, postToLiveFeed, getPresenceCount, getRooms, getRoomPresence } from './presence.js';
-import { getTodaysSessions, getSessions, getUserProfile, initializeDatabase, getAgentChats, getOrCreateAgentChat, createAgentChat, getAgentMessages, addAgentMessage, getQuests, createQuest, completeQuest, uncompleteQuest, deleteQuest, resetDailyQuests, setLastDailyJobDate, getLastDailyJobDate, updateStreak, updateUserXP } from './db.js';
+import { getTodaysSessions, getSessions, getUserProfile, initializeDatabase, getAgentChats, getOrCreateAgentChat, createAgentChat, getAgentMessages, addAgentMessage, getQuests, createQuest, completeQuest, uncompleteQuest, deleteQuest, resetDailyQuests, setLastDailyJobDate, getLastDailyJobDate, updateStreak, updateUserXP, getWindowEvents, recordWindowEvent, getSessionById, createTask, getTasksBySession, getTasksByUser, toggleTask, deleteTask } from './db.js';
+import { startWindowTracking, stopWindowTracking, setTrackingSession, clearTrackingSession, getCurrentApp, canSampleForegroundApp } from './windowTracker.js';
+import { maybePromptScreenRecordingAccess, resetScreenRecordingPromptGate } from './screenRecordingPrompt.js';
+import { shouldIncludeAppInUsageStats } from '../lib/appUsageFilter.js';
 import keytar from 'keytar';
+
+function startTrackingWithPermissionPrompt(userId) {
+  startWindowTracking(userId);
+  if (process.platform === 'darwin') {
+    console.log('[Promethee] Scheduling active-win / Screen Recording check (next microtask)…');
+  }
+  setImmediate(() => {
+    const parent =
+      fullWindow && !fullWindow.isDestroyed()
+        ? fullWindow
+        : floatingWindow && !floatingWindow.isDestroyed()
+          ? floatingWindow
+          : BrowserWindow.getFocusedWindow();
+    maybePromptScreenRecordingAccess(parent ?? undefined).catch((e) => {
+      console.error('[Promethee] screenRecording prompt failed:', e);
+      debugLog(`screenRecording prompt: ${e.message}`);
+    });
+  });
+}
 import OpenAI from 'openai';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling
@@ -61,7 +83,8 @@ const createFloatingWindow = () => {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
+      autoplayPolicy: 'no-user-gesture-required'
     }
   });
 
@@ -253,6 +276,7 @@ async function handleDeepLink(url) {
       if (accessToken && refreshToken) {
         const user = await setSession(accessToken, refreshToken);
         if (user) {
+          if (user.id) startTrackingWithPermissionPrompt(user.id);
           debugLog(`Auth callback: signed in as ${user.email}`);
           // Close login/onboarding window
           if (fullWindow) {
@@ -322,6 +346,7 @@ app.whenReady().then(async () => {
       // Session restored — go straight to dashboard, floating hidden
       createFullWindow();
       await flushPendingSyncs();
+      startTrackingWithPermissionPrompt(user.id);
       // Run once-per-day jobs (quest resets, etc.)
       runDailyJobs(user.id).catch(e => debugLog(`runDailyJobs error: ${e.message}`));
     }
@@ -387,6 +412,22 @@ ipcMain.handle('session:start', async (event, task, roomId = null) => {
     }
 
     const session = startSession(user.id, task, roomId);
+    setTrackingSession(session.id);
+
+    setImmediate(() => {
+      void (async () => {
+        if (process.platform !== 'darwin') return;
+        if (await canSampleForegroundApp()) return;
+        resetScreenRecordingPromptGate();
+        const parent =
+          fullWindow && !fullWindow.isDestroyed()
+            ? fullWindow
+            : floatingWindow && !floatingWindow.isDestroyed()
+              ? floatingWindow
+              : BrowserWindow.getFocusedWindow();
+        await maybePromptScreenRecordingAccess(parent ?? undefined);
+      })().catch((e) => debugLog(`session:start screen prompt: ${e.message}`));
+    });
 
     // Post to live feed + start heartbeat
     await postToLiveFeed(task, roomId);
@@ -402,6 +443,16 @@ ipcMain.handle('session:end', async () => {
   try {
     const user = getCurrentUser();
     const session = await endSessionAndSync();
+    // One last foreground sample so the session card always has ≥1 row if the OS allows active-win
+    if (user?.id && session?.id) {
+      try {
+        const live = await getCurrentApp();
+        if (live) recordWindowEvent(user.id, session.id, live.appName, live.windowTitle);
+      } catch (e) {
+        debugLog(`session:end final window sample: ${e?.message || e}`);
+      }
+    }
+    clearTrackingSession();
 
     // Remove presence when session ends
     if (user) await removePresence(user.id);
@@ -444,6 +495,7 @@ ipcMain.handle('auth:signIn', async (event, email, password) => {
       floatingWindow?.webContents.send('auth:success', result.user);
       createFullWindow();
       floatingWindow?.hide();
+      startTrackingWithPermissionPrompt(result.user.id);
     }
     return { success: true, ...result };
   } catch (error) {
@@ -467,6 +519,7 @@ ipcMain.handle('auth:signUp', async (event, email, password) => {
       // Auto-confirmed — set session and open dashboard
       const user = await setSession(result.session.access_token, result.session.refresh_token);
       if (user) {
+        if (user.id) startTrackingWithPermissionPrompt(user.id);
         if (fullWindow) fullWindow.close();
         createFullWindow();
         floatingWindow?.hide();
@@ -481,6 +534,7 @@ ipcMain.handle('auth:signUp', async (event, email, password) => {
 ipcMain.handle('auth:setSession', async (event, accessToken, refreshToken) => {
   try {
     const user = await setSession(accessToken, refreshToken);
+    if (user?.id) startTrackingWithPermissionPrompt(user.id);
     return { success: true, user };
   } catch (error) {
     return { success: false, error: error.message };
@@ -489,6 +543,7 @@ ipcMain.handle('auth:setSession', async (event, accessToken, refreshToken) => {
 
 ipcMain.handle('auth:signOut', async () => {
   try {
+    stopWindowTracking();
     const result = await signOut();
     // Close dashboard, open login screen, hide overlay
     if (fullWindow) fullWindow.close();
@@ -561,6 +616,17 @@ ipcMain.handle('presence:getRooms', async () => {
     const rooms = await getRooms();
     const roomPresence = await getRoomPresence();
     return { success: true, rooms, roomPresence };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('window:getEvents', async (_event, opts = {}) => {
+  try {
+    const user = await getUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+    const events = getWindowEvents(user.id, opts);
+    return { success: true, events };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -664,6 +730,22 @@ ipcMain.handle('window:restoreFromSessionComplete', () => {
       true
     );
     fullWindow.setResizable(true);
+  }
+});
+
+// Capture the user's full screen as a base64 PNG for agent vision context
+ipcMain.handle('window:captureScreen', async () => {
+  try {
+    const { desktopCapturer } = await import('electron');
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: 1280, height: 800 },
+    });
+    if (!sources.length) return { success: false, error: 'No screen source' };
+    const dataUrl = sources[0].thumbnail.toDataURL();
+    return { success: true, dataUrl };
+  } catch (error) {
+    return { success: false, error: error.message };
   }
 });
 
@@ -857,12 +939,32 @@ ipcMain.handle('agent:sendMessage', async (_event, chatId, content, previousMess
     const level = profile?.level || 1;
     const totalXp = profile?.total_xp || 0;
 
+    // Window context — live current app + top apps in session/last hour
+    let windowContext = '';
+    const liveApp = await getCurrentApp();
+    if (liveApp) {
+      windowContext = `\nActive app right now: ${liveApp.appName}${liveApp.windowTitle ? ` ("${liveApp.windowTitle}")` : ''}.`;
+    }
+    if (user) {
+      const sinceMs = activeSession ? activeSession.startedAt : Date.now() - 3600_000;
+      const events = getWindowEvents(user.id, { sinceMs, sessionId: activeSession?.id, limit: 200 });
+      if (events.length > 0) {
+        const appCounts = {};
+        for (const e of events) {
+          if (!shouldIncludeAppInUsageStats(e.app_name)) continue;
+          appCounts[e.app_name] = (appCounts[e.app_name] || 0) + 1;
+        }
+        const topApps = Object.entries(appCounts).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([name]) => name).join(', ');
+        windowContext += `\nApps this session: ${topApps}.`;
+      }
+    }
+
     let resolvedSystemPrompt;
     if (activeSession) {
       const elapsedMinutes = Math.floor((Date.now() - activeSession.startedAt) / 60000);
       resolvedSystemPrompt = `You are the Promethee AI agent. You help users stay focused and get unstuck without leaving their work.
 
-Current session: "${activeSession.task || 'Untitled'}" — ${elapsedMinutes} minute${elapsedMinutes !== 1 ? 's' : ''} in.
+Current session: "${activeSession.task || 'Untitled'}" — ${elapsedMinutes} minute${elapsedMinutes !== 1 ? 's' : ''} in.${windowContext}
 Today: ${xpToday} XP earned across ${sessionCountToday} session${sessionCountToday !== 1 ? 's' : ''}.
 User level: ${level} (${totalXp} XP total).
 Recent sessions: ${recentNames || 'none yet'}.
@@ -871,7 +973,7 @@ Answer concisely. You already know what they're working on — don't ask them to
     } else {
       resolvedSystemPrompt = `You are the Promethee AI agent. You help users stay focused and get unstuck.
 
-Today: ${xpToday} XP earned across ${sessionCountToday} session${sessionCountToday !== 1 ? 's' : ''}.
+Today: ${xpToday} XP earned across ${sessionCountToday} session${sessionCountToday !== 1 ? 's' : ''}.${windowContext}
 User level: ${level} (${totalXp} XP total).
 Recent sessions: ${recentNames || 'none yet'}.
 
@@ -940,12 +1042,31 @@ ipcMain.handle('agent:sendMessageWithImages', async (_event, chatId, content, im
     const level = profile?.level || 1;
     const totalXp = profile?.total_xp || 0;
 
+    let windowContext = '';
+    const liveApp = await getCurrentApp();
+    if (liveApp) {
+      windowContext = `\nActive app right now: ${liveApp.appName}${liveApp.windowTitle ? ` ("${liveApp.windowTitle}")` : ''}.`;
+    }
+    if (user) {
+      const sinceMs = activeSession ? activeSession.startedAt : Date.now() - 3600_000;
+      const events = getWindowEvents(user.id, { sinceMs, sessionId: activeSession?.id, limit: 100 });
+      if (events.length > 0) {
+        const appCounts = {};
+        for (const e of events) {
+          if (!shouldIncludeAppInUsageStats(e.app_name)) continue;
+          appCounts[e.app_name] = (appCounts[e.app_name] || 0) + 1;
+        }
+        const topApps = Object.entries(appCounts).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name]) => name).join(', ');
+        windowContext += `\nApps used: ${topApps}.`;
+      }
+    }
+
     let resolvedSystemPrompt;
     if (activeSession) {
       const elapsedMinutes = Math.floor((Date.now() - activeSession.startedAt) / 60000);
       resolvedSystemPrompt = `You are the Promethee AI agent. You help users stay focused and get unstuck without leaving their work.
 
-Current session: "${activeSession.task || 'Untitled'}" — ${elapsedMinutes} minute${elapsedMinutes !== 1 ? 's' : ''} in.
+Current session: "${activeSession.task || 'Untitled'}" — ${elapsedMinutes} minute${elapsedMinutes !== 1 ? 's' : ''} in.${windowContext}
 Today: ${xpToday} XP earned across ${sessionCountToday} session${sessionCountToday !== 1 ? 's' : ''}.
 User level: ${level} (${totalXp} XP total).
 Recent sessions: ${recentNames || 'none yet'}.
@@ -954,7 +1075,7 @@ Answer concisely. You already know what they're working on — don't ask them to
     } else {
       resolvedSystemPrompt = `You are the Promethee AI agent. You help users stay focused and get unstuck.
 
-Today: ${xpToday} XP earned across ${sessionCountToday} session${sessionCountToday !== 1 ? 's' : ''}.
+Today: ${xpToday} XP earned across ${sessionCountToday} session${sessionCountToday !== 1 ? 's' : ''}.${windowContext}
 User level: ${level} (${totalXp} XP total).
 Recent sessions: ${recentNames || 'none yet'}.
 
@@ -1265,6 +1386,78 @@ ipcMain.handle('quests:delete', async (_event, questId) => {
     const user = getCurrentUser();
     if (!user) return { success: false, error: 'Not authenticated' };
     deleteQuest(questId, user.id);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// ── Session tasks (checklist) IPC ─────────────────────────────────────────────
+
+ipcMain.handle('tasks:list', async (_event, sessionId) => {
+  try {
+    const user = getCurrentUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+    const sessionRow = getSessionById(sessionId);
+    if (!sessionRow || sessionRow.user_id !== user.id) {
+      return { success: false, error: 'Session not found' };
+    }
+    const tasks = getTasksBySession(sessionId);
+    return { success: true, tasks };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('tasks:listAll', async () => {
+  try {
+    const user = getCurrentUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+    const tasks = getTasksByUser(user.id);
+    return { success: true, tasks };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('tasks:add', async (_event, sessionId, text) => {
+  try {
+    const user = getCurrentUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+    const active = getActiveSession();
+    if (!active || active.id !== sessionId) {
+      return { success: false, error: 'no active session' };
+    }
+    const sessionRow = getSessionById(sessionId);
+    if (!sessionRow || sessionRow.user_id !== user.id || sessionRow.ended_at != null) {
+      return { success: false, error: 'no active session' };
+    }
+    const task = createTask(sessionId, user.id, text);
+    if (!task) return { success: false, error: 'empty text' };
+    return { success: true, task };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('tasks:toggle', async (_event, taskId) => {
+  try {
+    const user = getCurrentUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+    const task = toggleTask(taskId, user.id);
+    if (!task) return { success: false, error: 'Task not found' };
+    return { success: true, task };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('tasks:delete', async (_event, taskId) => {
+  try {
+    const user = getCurrentUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+    const ok = deleteTask(taskId, user.id);
+    if (!ok) return { success: false, error: 'Task not found' };
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
@@ -1664,6 +1857,13 @@ ipcMain.handle('memory:get', async () => {
 });
 
 // IPC: fetch today's daily signal
+// Audio mute toggle — dashboard sends this, main forwards to floating window
+ipcMain.on('audio:muteToggle', (_event, isMuted) => {
+  if (floatingWindow && !floatingWindow.isDestroyed()) {
+    floatingWindow.webContents.send('audio:muteToggle', isMuted);
+  }
+});
+
 ipcMain.handle('signal:getToday', async () => {
   try {
     const user = getCurrentUser();

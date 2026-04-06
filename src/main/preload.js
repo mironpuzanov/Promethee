@@ -88,6 +88,7 @@ contextBridge.exposeInMainWorld('promethee', {
     resizeForSessionComplete: () => ipcRenderer.invoke('window:resizeForSessionComplete'),
     restoreFromSessionComplete: () => ipcRenderer.invoke('window:restoreFromSessionComplete'),
     captureSessionCard: () => ipcRenderer.invoke('window:captureSessionCard'),
+    captureScreen: () => ipcRenderer.invoke('window:captureScreen'),
     copyImageToClipboard: () => ipcRenderer.invoke('window:copyImageToClipboard'),
     copyImageAndText: (text) => ipcRenderer.invoke('window:copyImageAndText', text),
     openExternal: (url) => ipcRenderer.invoke('window:openExternal', url),
@@ -159,6 +160,15 @@ contextBridge.exposeInMainWorld('promethee', {
     }
   },
 
+  // Session checklist tasks (local DB)
+  tasks: {
+    list: (sessionId) => ipcRenderer.invoke('tasks:list', sessionId),
+    listAll: () => ipcRenderer.invoke('tasks:listAll'),
+    add: (sessionId, text) => ipcRenderer.invoke('tasks:add', sessionId, text),
+    toggle: (taskId) => ipcRenderer.invoke('tasks:toggle', taskId),
+    delete: (taskId) => ipcRenderer.invoke('tasks:delete', taskId),
+  },
+
   // Agent APIs
   agent: {
     getToken: () => ipcRenderer.invoke('agent:getToken'),
@@ -187,6 +197,23 @@ contextBridge.exposeInMainWorld('promethee', {
       const listener = (_event, data) => callback(data);
       ipcRenderer.on('agent:streamError', listener);
       return () => ipcRenderer.removeListener('agent:streamError', listener);
+    }
+  },
+
+  // Window tracking
+  tracking: {
+    getEvents: (opts) => ipcRenderer.invoke('window:getEvents', opts)
+  },
+
+  // Audio control
+  audio: {
+    // Dashboard → main → floating window (mute toggle)
+    sendMuteToggle: (isMuted) => ipcRenderer.send('audio:muteToggle', isMuted),
+    // Floating window listens for mute state from main
+    onMuteToggle: (callback) => {
+      const listener = (_event, isMuted) => callback(isMuted);
+      ipcRenderer.on('audio:muteToggle', listener);
+      return () => ipcRenderer.removeListener('audio:muteToggle', listener);
     }
   }
 });

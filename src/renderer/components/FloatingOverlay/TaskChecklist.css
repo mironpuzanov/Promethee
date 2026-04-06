@@ -1,0 +1,195 @@
+/* Fixed to viewport top + right; `top` set inline (draggable Y, persisted like Agent bubble) */
+.task-checklist-root {
+  position: fixed;
+  z-index: 99;
+  -webkit-app-region: no-drag;
+  user-select: none;
+  pointer-events: auto;
+}
+
+/* Collapsed: match Agent bubble trigger + mentor idle tint (glass chip on the right) */
+.task-checklist-pill {
+  height: 32px;
+  min-width: 32px;
+  padding: 0 12px 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  cursor: grab;
+  font-family: 'Geist', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  touch-action: none;
+}
+
+.task-checklist-pill:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--text-primary);
+}
+
+.task-checklist-pill:active {
+  cursor: grabbing;
+}
+
+.task-checklist-pill__icon {
+  flex-shrink: 0;
+  color: currentColor;
+}
+
+.task-checklist-pill__count {
+  color: currentColor;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Expanded panel */
+.task-checklist-panel {
+  width: 280px;
+  background: var(--surface);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 14px 14px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.task-checklist__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  user-select: none;
+}
+
+.task-checklist__header--draggable {
+  cursor: grab;
+  padding: 4px 2px 8px;
+  margin: -4px -2px 6px;
+  border-radius: 8px;
+  touch-action: none;
+}
+
+.task-checklist__header--draggable:active {
+  cursor: grabbing;
+}
+
+.task-checklist__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+  letter-spacing: 0.02em;
+}
+
+.task-checklist__chevron {
+  color: rgba(255, 255, 255, 0.45);
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.task-checklist__chevron--open {
+  transform: rotate(180deg);
+}
+
+.task-checklist__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+
+.task-checklist__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  margin: 0 -8px;
+  border-radius: 8px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.task-checklist__row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.task-checklist__row:hover .task-checklist__delete {
+  opacity: 1;
+}
+
+.task-checklist__check {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: rgba(255, 255, 255, 0.5);
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+
+.task-checklist__row:hover .task-checklist__check {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.task-checklist__text {
+  flex: 1;
+  font-size: 13px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.9);
+  word-break: break-word;
+  user-select: none;
+}
+
+.task-checklist__text--done {
+  text-decoration: line-through;
+  opacity: 0.4;
+}
+
+.task-checklist__delete {
+  flex-shrink: 0;
+  opacity: 0;
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.4);
+  display: flex;
+  border-radius: 4px;
+  transition: opacity 0.12s ease, color 0.12s ease;
+  pointer-events: auto;
+}
+
+.task-checklist__delete:hover {
+  color: rgba(248, 113, 113, 0.95);
+}
+
+.task-checklist__input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.25);
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 13px;
+  outline: none;
+}
+
+.task-checklist__input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.task-checklist__input:focus {
+  border-color: rgba(232, 146, 42, 0.45);
+}

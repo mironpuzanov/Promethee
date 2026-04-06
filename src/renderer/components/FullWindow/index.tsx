@@ -10,6 +10,7 @@ import SessionCompleteScreen from './SessionCompleteScreen';
 import SettingsTab from './SettingsTab';
 import MentorTab from './MentorTab';
 import QuestsTab from './QuestsTab';
+import TasksTab from './TasksTab';
 import HabitsTab from './HabitsTab';
 import MemoryTab from './MemoryTab';
 import './FullWindow.css';
@@ -133,7 +134,16 @@ interface FullWindowProps {
 
 function FullWindow({ user, setUser }: FullWindowProps) {
   const [activeTab, setActiveTab] = useState('home');
-  const [completedSession, setCompletedSession] = useState<{ task: string; durationSeconds: number; xpEarned: number; multiplier?: number; streakBonus?: number; depthBonus?: number; currentStreak?: number } | null>(null);
+  const [completedSession, setCompletedSession] = useState<{
+    task: string;
+    durationSeconds: number;
+    xpEarned: number;
+    multiplier?: number;
+    streakBonus?: number;
+    depthBonus?: number;
+    currentStreak?: number;
+    sessionId?: string;
+  } | null>(null);
 
   useEffect(() => {
     // Check if main process has a pending session complete from before this window mounted
@@ -152,6 +162,7 @@ function FullWindow({ user, setUser }: FullWindowProps) {
     switch (activeTab) {
       case 'home':        return <CharacterPanel user={user} />;
       case 'log':         return <SessionLog />;
+      case 'tasks':       return <TasksTab />;
       case 'leaderboard': return <LeaderboardTab />;
       case 'rooms':       return <RoomsTab />;
       case 'quests':      return <QuestsTab />;
@@ -179,6 +190,7 @@ function FullWindow({ user, setUser }: FullWindowProps) {
         streakBonus={completedSession.streakBonus}
         depthBonus={completedSession.depthBonus}
         currentStreak={completedSession.currentStreak}
+        sessionId={completedSession.sessionId}
         onClose={() => setCompletedSession(null)}
       />
     );
