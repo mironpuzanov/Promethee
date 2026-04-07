@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>app.promethee.blocker-helper</string>
+
+    <key>CFBundleName</key>
+    <string>PrometheeBlockerHelper</string>
+
+    <key>CFBundleVersion</key>
+    <string>1</string>
+
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+
+    <!-- SMJobBless: which apps are allowed to install this helper.
+         Uses a permissive requirement for now (any ad-hoc signed binary with this identifier).
+         Tighten to team cert requirement before App Store submission. -->
+    <key>SMAuthorizedClients</key>
+    <array>
+        <string>identifier "app.promethee"</string>
+    </array>
+</dict>
+</plist>

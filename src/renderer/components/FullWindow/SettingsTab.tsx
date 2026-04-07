@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ShortcutField } from './ShortcutField';
 
 interface User {
@@ -70,12 +70,30 @@ function StatusMessage({ success, error }: { success?: string; error?: string })
   return null;
 }
 
+interface BlockedDomain {
+  id: string;
+  domain: string;
+  enabled: number;
+  preset: number;
+  position: number;
+}
+
 function SettingsTab({ user, setUser }: SettingsTabProps) {
   const [displayName, setDisplayName] = useState(user?.user_metadata?.display_name || '');
   const [avatarPreview, setAvatarPreview] = useState<string>(user?.user_metadata?.avatar_url || '');
   const [pendingFile, setPendingFile] = useState<{ buffer: ArrayBuffer; mimeType: string } | null>(null);
   const [profileStatus, setProfileStatus] = useState<{ success?: string; error?: string }>({});
   const [profileLoading, setProfileLoading] = useState(false);
+
+  // Website Blocker state
+  const [blockerDomains, setBlockerDomains] = useState<BlockedDomain[]>([]);
+  const [blockerStatus, setBlockerStatus] = useState<'active' | 'unavailable' | 'not-installed' | 'inactive'>('inactive');
+  const [helperInstalled, setHelperInstalled] = useState<boolean | null>(null); // null = checking
+  const [installerLoading, setInstallerLoading] = useState(false);
+  const [installerStatus, setInstallerStatus] = useState<{ success?: string; error?: string }>({});
+  const [newDomain, setNewDomain] = useState('');
+  const [addDomainError, setAddDomainError] = useState('');
+  const newDomainRef = useRef<HTMLInputElement>(null);
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -106,6 +124,81 @@ function SettingsTab({ user, setUser }: SettingsTabProps) {
     const unsub = window.promethee.update.onStatus(setUpdateState);
     return unsub;
   }, []);
+
+  useEffect(() => {
+    window.promethee.blocker.getDomains().then((r) => {
+      if (r.success && r.domains) setBlockerDomains(r.domains as BlockedDomain[]);
+    });
+    window.promethee.blocker.checkInstall().then((r) => {
+      setHelperInstalled(r.success ? r.installed : false);
+    });
+    const unsub = window.promethee.blocker.onStatus((data) => setBlockerStatus(data.state));
+    return unsub;
+  }, []);
+
+  const handleInstallHelper = async () => {
+    setInstallerLoading(true);
+    setInstallerStatus({});
+    const r = await window.promethee.blocker.install();
+    setInstallerLoading(false);
+    if (r.ok) {
+      setHelperInstalled(true);
+      setInstallerStatus({ success: 'Website blocker installed successfully.' });
+      // Re-check so running state is confirmed
+      window.promethee.blocker.checkInstall().then((cr) => {
+        setHelperInstalled(cr.success ? cr.installed : false);
+      });
+    } else if (r.error === 'Cancelled') {
+      setInstallerStatus({});
+    } else {
+      setInstallerStatus({ error: r.error || 'Installation failed.' });
+    }
+  };
+
+  const handleUninstallHelper = async () => {
+    setInstallerLoading(true);
+    setInstallerStatus({});
+    const r = await window.promethee.blocker.uninstall();
+    setInstallerLoading(false);
+    if (r.ok) {
+      setHelperInstalled(false);
+      setInstallerStatus({ success: 'Website blocker removed.' });
+    } else if (r.error === 'Cancelled') {
+      setInstallerStatus({});
+    } else {
+      setInstallerStatus({ error: r.error || 'Removal failed.' });
+    }
+  };
+
+  const handleToggleDomain = async (id: string, currentEnabled: number) => {
+    const next = currentEnabled ? false : true;
+    const r = await window.promethee.blocker.toggleDomain(id, next);
+    if (r.success && r.domain) {
+      setBlockerDomains((prev) => prev.map((d) => d.id === id ? { ...d, enabled: next ? 1 : 0 } : d));
+    }
+  };
+
+  const handleAddDomain = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAddDomainError('');
+    const trimmed = newDomain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    if (!trimmed) return;
+    const r = await window.promethee.blocker.addDomain(trimmed);
+    if (r.success && r.domain) {
+      setBlockerDomains((prev) => [...prev, r.domain as BlockedDomain]);
+      setNewDomain('');
+      newDomainRef.current?.focus();
+    } else {
+      setAddDomainError(r.error || 'Could not add domain.');
+    }
+  };
+
+  const handleRemoveDomain = async (id: string) => {
+    const r = await window.promethee.blocker.removeDomain(id);
+    if (r.success) {
+      setBlockerDomains((prev) => prev.filter((d) => d.id !== id));
+    }
+  };
 
   const handleAvatarPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -415,6 +508,157 @@ function SettingsTab({ user, setUser }: SettingsTabProps) {
           )}
           <StatusMessage {...updateActionStatus} />
         </div>
+      </Section>
+
+      <div className="border-t border-border" />
+
+      {/* Website Blocker */}
+      <Section title="Website blocker">
+        <p className="text-xs text-muted-foreground -mt-1 max-w-xl">
+          Blocks distracting websites system-wide during focus sessions — Safari, Chrome, Arc, Firefox, all covered.
+          Takes a few seconds to take effect after session starts (DNS cache).
+        </p>
+
+        {/* Install card — shown while checking or when not installed */}
+        {(helperInstalled === null || helperInstalled === false) && (
+          <div className="rounded-xl border border-border/60 bg-card px-4 py-4 flex flex-col gap-3">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex flex-col gap-1">
+                <p className="text-sm font-medium text-foreground">
+                  {helperInstalled === null ? 'Checking…' : 'One-time setup required'}
+                </p>
+                {helperInstalled === false && (
+                  <p className="text-xs text-muted-foreground max-w-sm">
+                    Promethee needs a small background helper that runs as a system service.
+                    You'll see a standard macOS password prompt — nothing else is installed.
+                  </p>
+                )}
+              </div>
+              {helperInstalled === false && (
+                <button
+                  type="button"
+                  onClick={handleInstallHelper}
+                  disabled={installerLoading}
+                  className="flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium bg-accent text-accent-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
+                >
+                  {installerLoading ? 'Installing…' : 'Install blocker'}
+                </button>
+              )}
+            </div>
+            {installerStatus.error && <p className="text-xs text-destructive">{installerStatus.error}</p>}
+            {installerStatus.success && <p className="text-xs text-green-500">{installerStatus.success}</p>}
+          </div>
+        )}
+
+        {/* Installed — show status + controls */}
+        {helperInstalled === true && (
+          <>
+            {/* Status row */}
+            <div className="flex items-center gap-2">
+              {blockerStatus === 'active' ? (
+                <><span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" /><span className="text-xs text-green-500">Blocking active</span></>
+              ) : blockerStatus === 'unavailable' ? (
+                <><span className="w-1.5 h-1.5 rounded-full bg-yellow-500 flex-shrink-0" /><span className="text-xs text-yellow-500">Helper not responding</span></>
+              ) : (
+                <><span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30 flex-shrink-0" /><span className="text-xs text-muted-foreground/60">Ready — activates when you start a session</span></>
+              )}
+            </div>
+            {installerStatus.error && <p className="text-xs text-destructive">{installerStatus.error}</p>}
+            {installerStatus.success && <p className="text-xs text-green-500">{installerStatus.success}</p>}
+
+            {/* Domain list */}
+            <div className="flex flex-col rounded-xl overflow-hidden border border-border/40">
+              {blockerDomains.map((d, i) => (
+                <div
+                  key={d.id}
+                  className={`flex items-center gap-4 px-4 py-3 ${i > 0 ? 'border-t border-border/30' : ''}`}
+                >
+                  {/* Toggle */}
+                  <button
+                    type="button"
+                    onClick={() => handleToggleDomain(d.id, d.enabled)}
+                    aria-label={d.enabled ? 'Disable' : 'Enable'}
+                    style={{
+                      width: 36,
+                      height: 20,
+                      borderRadius: 10,
+                      flexShrink: 0,
+                      position: 'relative',
+                      background: d.enabled ? 'hsl(var(--accent))' : 'hsl(var(--muted))',
+                      transition: 'background 0.15s',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    <span style={{
+                      position: 'absolute',
+                      top: 3,
+                      left: d.enabled ? 19 : 3,
+                      width: 14,
+                      height: 14,
+                      borderRadius: '50%',
+                      background: 'white',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                      transition: 'left 0.15s',
+                      display: 'block',
+                    }} />
+                  </button>
+
+                  {/* Domain name */}
+                  <span className={`text-sm flex-1 ${d.enabled ? 'text-foreground' : 'text-muted-foreground/50'}`}>
+                    {d.domain}
+                  </span>
+
+                  {/* Right side: preset label or remove button */}
+                  {d.preset ? (
+                    <span className="text-[10px] uppercase tracking-widest text-muted-foreground/30 font-medium">
+                      Default
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveDomain(d.id)}
+                      className="text-muted-foreground/40 hover:text-destructive transition-colors text-base leading-none"
+                      aria-label="Remove"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Add domain */}
+            <form onSubmit={handleAddDomain} className="flex gap-2 items-center">
+              <input
+                ref={newDomainRef}
+                type="text"
+                value={newDomain}
+                onChange={(e) => { setNewDomain(e.target.value); setAddDomainError(''); }}
+                placeholder="Add a domain, e.g. linkedin.com"
+                className="flex-1 bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-ring transition-colors"
+              />
+              <button
+                type="submit"
+                disabled={!newDomain.trim()}
+                className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30"
+              >
+                Add
+              </button>
+            </form>
+            {addDomainError && <p className="text-xs text-destructive">{addDomainError}</p>}
+
+            <button
+              type="button"
+              onClick={handleUninstallHelper}
+              disabled={installerLoading}
+              className="self-start text-xs text-muted-foreground/40 hover:text-destructive transition-colors disabled:opacity-50 pt-1"
+            >
+              {installerLoading ? 'Removing…' : 'Remove blocker helper'}
+            </button>
+          </>
+        )}
       </Section>
 
       <div className="border-t border-border" />

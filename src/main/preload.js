@@ -253,6 +253,22 @@ contextBridge.exposeInMainWorld('promethee', {
     }
   },
 
+  // Website blocker
+  blocker: {
+    getDomains: () => ipcRenderer.invoke('blocker:getDomains'),
+    toggleDomain: (id, enabled) => ipcRenderer.invoke('blocker:toggleDomain', id, enabled),
+    addDomain: (domain) => ipcRenderer.invoke('blocker:addDomain', domain),
+    removeDomain: (id) => ipcRenderer.invoke('blocker:removeDomain', id),
+    checkInstall: () => ipcRenderer.invoke('blocker:checkInstall'),
+    install: () => ipcRenderer.invoke('blocker:install'),
+    uninstall: () => ipcRenderer.invoke('blocker:uninstall'),
+    onStatus: (cb) => {
+      const listener = (_event, data) => cb(data);
+      ipcRenderer.on('blocker:status', listener);
+      return () => ipcRenderer.removeListener('blocker:status', listener);
+    },
+  },
+
   // App updates
   update: {
     getState: () => ipcRenderer.invoke('update:getState'),

@@ -26,7 +26,7 @@ import { signIn, signUp, signOut, sendMagicLink, getUser, setSession, getCurrent
 import { setupPowerMonitoring } from './power.js';
 import { setupLeaderboardPolling, stopLeaderboardPolling, getLeaderboard } from './leaderboard.js';
 import { setupPresence, stopPresence, sendHeartbeat, removePresence, postToLiveFeed, getPresenceCount, getRooms, getRoomPresence } from './presence.js';
-import { getTodaysSessions, getSessions, getUserProfile, getCompletedSessionsForSkills, getCompletedSessionsInRange, initializeDatabase, getAgentChats, getOrCreateAgentChat, createAgentChat, getAgentMessages, addAgentMessage, getQuests, createQuest, completeQuest, uncompleteQuest, deleteQuest, resetDailyQuests, setLastDailyJobDate, getLastDailyJobDate, updateStreak, updateUserXP, getWindowEvents, recordWindowEvent, getSessionById, createTask, getTasksBySession, getTasksByUser, toggleTask, deleteTask, createNote, getNotesBySession, getNotesByUser, deleteNote, getMemorySnapshotCache, getMemorySnapshotCacheByDate, upsertMemorySnapshotCache, listHabitCache, getHabitCacheById, upsertHabitCache, markHabitCacheDeleted, removeHabitCache, setHabitCacheSyncState, getPendingHabitCache } from './db.js';
+import { getTodaysSessions, getSessions, getUserProfile, getCompletedSessionsForSkills, getCompletedSessionsInRange, initializeDatabase, getAgentChats, getOrCreateAgentChat, createAgentChat, getAgentMessages, addAgentMessage, getQuests, createQuest, completeQuest, uncompleteQuest, deleteQuest, resetDailyQuests, setLastDailyJobDate, getLastDailyJobDate, updateStreak, updateUserXP, getWindowEvents, recordWindowEvent, getSessionById, createTask, getTasksBySession, getTasksByUser, toggleTask, deleteTask, createNote, getNotesBySession, getNotesByUser, deleteNote, getMemorySnapshotCache, getMemorySnapshotCacheByDate, upsertMemorySnapshotCache, listHabitCache, getHabitCacheById, upsertHabitCache, markHabitCacheDeleted, removeHabitCache, setHabitCacheSyncState, getPendingHabitCache, getBlockedDomains, addBlockedDomain, toggleBlockedDomain, removeBlockedDomain } from './db.js';
 import { startWindowTracking, stopWindowTracking, setTrackingSession, clearTrackingSession, getCurrentApp, canSampleForegroundApp } from './windowTracker.js';
 import { maybePromptScreenRecordingAccess, resetScreenRecordingPromptGate } from './screenRecordingPrompt.js';
 import { shouldIncludeAppInUsageStats } from '../lib/appUsageFilter.js';
@@ -47,6 +47,7 @@ import {
   skipUpdateVersion,
   clearSkippedUpdateVersion,
 } from './updateCheck.js';
+import { activate as blockerActivate, deactivate as blockerDeactivate, cleanupOnStartup as blockerCleanupOnStartup, installHelper as blockerInstall, uninstallHelper as blockerUninstall, checkInstallation as blockerCheckInstall } from './blocker.js';
 
 function scheduleDailyJobs(userId) {
   if (!userId) return;
@@ -382,6 +383,11 @@ app.whenReady().then(async () => {
     createFullWindow();
   }
 
+  // Blocker startup cleanup — remove stale /etc/hosts entries if no active session (crash recovery)
+  void blockerCleanupOnStartup(() => {
+    try { return getActiveSession(); } catch { return null; }
+  }).catch((e) => debugLog(`blockerCleanupOnStartup error: ${e?.message || e}`));
+
   setFocusShortcutBroadcast((action) => {
     if (!floatingWindow || floatingWindow.isDestroyed()) return;
     try {
@@ -552,6 +558,16 @@ ipcMain.handle('session:start', async (event, task, roomId = null) => {
     void postToLiveFeed(task, roomId);
     void sendHeartbeat(roomId);
 
+    // Blocker: fire-and-forget, never stall session start
+    void (async () => {
+      try {
+        const domains = getBlockedDomains().filter(d => d.enabled).map(d => d.domain);
+        await blockerActivate(session.id, domains);
+      } catch (e) {
+        debugLog(`blocker activate error: ${e?.message || e}`);
+      }
+    })();
+
     return { success: true, session };
   } catch (error) {
     return { success: false, error: error.message };
@@ -577,9 +593,76 @@ ipcMain.handle('session:end', async () => {
     }
     if (user) void removePresence(user.id).catch(() => {});
 
+    // Blocker: fire-and-forget, never stall session end
+    void blockerDeactivate().catch((e) => debugLog(`blocker deactivate error: ${e?.message || e}`));
+
     return { success: true, session };
   } catch (error) {
     return { success: false, error: error.message };
+  }
+});
+
+// ── Blocker IPC handlers ───────────────────────────────────────────────────────
+
+ipcMain.handle('blocker:getDomains', () => {
+  try {
+    return { success: true, domains: getBlockedDomains() };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('blocker:toggleDomain', (_event, id, enabled) => {
+  try {
+    const domain = toggleBlockedDomain(id, enabled);
+    return { success: true, domain };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('blocker:addDomain', (_event, domain) => {
+  try {
+    const result = addBlockedDomain(domain);
+    if (result?.error) return { success: false, error: result.error };
+    return { success: true, domain: result };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('blocker:removeDomain', (_event, id) => {
+  try {
+    const removed = removeBlockedDomain(id);
+    return { success: removed };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('blocker:checkInstall', async () => {
+  try {
+    return { success: true, ...(await blockerCheckInstall()) };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('blocker:install', async () => {
+  try {
+    const result = await blockerInstall();
+    return result;
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+ipcMain.handle('blocker:uninstall', async () => {
+  try {
+    const result = await blockerUninstall();
+    return result;
+  } catch (e) {
+    return { ok: false, error: e.message };
   }
 });
 
@@ -1100,6 +1183,20 @@ ipcMain.handle('window:toggleFullWindow', () => {
 const AGENT_KEYCHAIN_SERVICE = 'Promethee';
 const AGENT_KEYCHAIN_ACCOUNT = 'openai-key';
 
+// Cached OpenAI client — recreated only when the key changes
+let _openaiClient = null;
+let _openaiKey = null;
+
+async function getOpenAIClient() {
+  const key = await keytar.getPassword(AGENT_KEYCHAIN_SERVICE, AGENT_KEYCHAIN_ACCOUNT);
+  if (!key) return null;
+  if (key !== _openaiKey) {
+    _openaiKey = key;
+    _openaiClient = new OpenAI({ apiKey: key });
+  }
+  return _openaiClient;
+}
+
 ipcMain.handle('agent:getToken', async () => {
   try {
     const key = await keytar.getPassword(AGENT_KEYCHAIN_SERVICE, AGENT_KEYCHAIN_ACCOUNT);
@@ -1115,6 +1212,7 @@ ipcMain.handle('agent:getToken', async () => {
 ipcMain.handle('agent:setToken', async (_event, key) => {
   try {
     await keytar.setPassword(AGENT_KEYCHAIN_SERVICE, AGENT_KEYCHAIN_ACCOUNT, key);
+    _openaiKey = null; _openaiClient = null; // invalidate cache
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
@@ -1131,7 +1229,10 @@ function sanitizeForPrompt(str, maxLen = 120) {
 
 async function buildWindowContext(user, activeSession) {
   let ctx = '';
-  const liveApp = await getCurrentApp();
+  const liveApp = await Promise.race([
+    getCurrentApp(),
+    new Promise(resolve => setTimeout(() => resolve(null), 500)),
+  ]);
   if (liveApp) {
     const appName = sanitizeForPrompt(liveApp.appName, 60);
     const title = liveApp.windowTitle ? ` ("${sanitizeForPrompt(liveApp.windowTitle)}")` : '';
@@ -1201,15 +1302,13 @@ ipcMain.handle('agent:getMessages', async (_event, chatId) => {
 
 ipcMain.handle('agent:sendMessage', async (_event, chatId, content, previousMessages) => {
   try {
-    const keyResult = await keytar.getPassword(AGENT_KEYCHAIN_SERVICE, AGENT_KEYCHAIN_ACCOUNT);
-    if (!keyResult) {
+    const openai = await getOpenAIClient();
+    if (!openai) {
       return { success: false, error: 'No API key. Configure it first.' };
     }
 
     // Persist user message
     addAgentMessage(chatId, 'user', content);
-
-    const openai = new OpenAI({ apiKey: keyResult });
 
     // Build system prompt fresh from DB so the agent always has current stats
     const user = await getUser();
@@ -1287,8 +1386,8 @@ Answer concisely.`;
 
 ipcMain.handle('agent:sendMessageWithImages', async (_event, chatId, content, images, previousMessages) => {
   try {
-    const keyResult = await keytar.getPassword(AGENT_KEYCHAIN_SERVICE, AGENT_KEYCHAIN_ACCOUNT);
-    if (!keyResult) {
+    const openai = await getOpenAIClient();
+    if (!openai) {
       return { success: false, error: 'No API key. Configure it first.' };
     }
 
@@ -1310,8 +1409,6 @@ ipcMain.handle('agent:sendMessageWithImages', async (_event, chatId, content, im
 
     // Persist only text content to SQLite (images are ephemeral)
     addAgentMessage(chatId, 'user', content);
-
-    const openai = new OpenAI({ apiKey: keyResult });
 
     const user = await getUser();
     const activeSession = getActiveSession();

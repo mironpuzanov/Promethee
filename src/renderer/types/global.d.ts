@@ -133,6 +133,16 @@ declare global {
         sendMuteToggle: (isMuted: boolean) => void;
         onMuteToggle: (callback: (isMuted: boolean) => void) => () => void;
       };
+      blocker: {
+        getDomains: () => Promise<{ success: boolean; domains?: Array<{ id: string; domain: string; enabled: number; preset: number; position: number; created_at: number; updated_at: number }>; error?: string }>;
+        toggleDomain: (id: string, enabled: boolean) => Promise<{ success: boolean; domain?: any; error?: string }>;
+        addDomain: (domain: string) => Promise<{ success: boolean; domain?: any; error?: string }>;
+        removeDomain: (id: string) => Promise<{ success: boolean; error?: string }>;
+        checkInstall: () => Promise<{ success: boolean; installed: boolean; running: boolean; error?: string }>;
+        install: () => Promise<{ ok: boolean; error?: string }>;
+        uninstall: () => Promise<{ ok: boolean; error?: string }>;
+        onStatus: (cb: (data: { state: 'active' | 'unavailable' | 'not-installed' | 'inactive' }) => void) => () => void;
+      };
       update: {
         getState: () => Promise<{
           status: 'idle' | 'checking' | 'up-to-date' | 'available' | 'error' | 'development';

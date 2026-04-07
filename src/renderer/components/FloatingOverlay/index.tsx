@@ -36,6 +36,7 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
   const [agentToggleTrigger, setAgentToggleTrigger] = useState(0);
   const [taskShortcutTrigger] = useState(0);
   const [taskToggleTrigger, setTaskToggleTrigger] = useState(0);
+  const [blockerState, setBlockerState] = useState<'active' | 'unavailable' | 'not-installed' | 'inactive'>('inactive');
   const { transitionTo } = useAudio();
   const activeSessionRef = useRef<Session | null>(null);
   const handleEndSessionRef = useRef<() => Promise<void>>(async () => {});
@@ -66,7 +67,8 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
       if (data.roomId) setSelectedRoomId(data.roomId);
       setFocusTaskInput(true);
     });
-    return () => { unsubSuspend(); unsubResume(); unsubFocus(); };
+    const unsubBlocker = window.promethee.blocker.onStatus((data) => setBlockerState(data.state));
+    return () => { unsubSuspend(); unsubResume(); unsubFocus(); unsubBlocker(); };
   }, []);
 
   const handleStartSession = async (task: string, roomId?: string | null) => {
@@ -153,6 +155,15 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
           toggleTaskPanelTrigger={taskToggleTrigger}
         />
         <AgentBubble activeSession={activeSession} openTrigger={agentOpenTrigger} toggleTrigger={agentToggleTrigger} />
+        {blockerState === 'active' && (
+          <div
+            style={{ position: 'fixed', bottom: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, pointerEvents: 'none' }}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-sm border border-white/10 text-white/60 text-[11px] promethee-mouse-ignore"
+          >
+            <span>🛡</span>
+            <span>Sites blocked</span>
+          </div>
+        )}
       </>
     );
   }
