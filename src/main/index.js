@@ -1300,6 +1300,8 @@ ipcMain.handle('agent:getMessages', async (_event, chatId) => {
   }
 });
 
+const MENTOR_MODEL = 'gpt-4.1';
+
 ipcMain.handle('agent:sendMessage', async (_event, chatId, content, previousMessages) => {
   try {
     const openai = await getOpenAIClient();
@@ -1358,7 +1360,7 @@ Answer concisely.`;
     ];
 
     const stream = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: MENTOR_MODEL,
       messages: messagesForApi,
       stream: true
     });
@@ -1472,7 +1474,7 @@ Answer concisely.`;
     ];
 
     const stream = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: MENTOR_MODEL,
       messages: messagesForApi,
       stream: true
     });
