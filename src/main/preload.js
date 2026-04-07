@@ -3,7 +3,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 contextBridge.exposeInMainWorld('promethee', {
   // Session APIs
   session: {
-    start: (task) => ipcRenderer.invoke('session:start', task),
+    start: (task, roomId) => ipcRenderer.invoke('session:start', task, roomId),
     end: () => ipcRenderer.invoke('session:end'),
     getToday: () => ipcRenderer.invoke('session:getToday'),
     getActive: () => ipcRenderer.invoke('session:getActive')
@@ -168,6 +168,14 @@ contextBridge.exposeInMainWorld('promethee', {
     add: (sessionId, text) => ipcRenderer.invoke('tasks:add', sessionId, text),
     toggle: (taskId) => ipcRenderer.invoke('tasks:toggle', taskId),
     delete: (taskId) => ipcRenderer.invoke('tasks:delete', taskId),
+  },
+
+  // Session notes — quick capture during focus (local DB)
+  notes: {
+    list: (sessionId) => ipcRenderer.invoke('notes:list', sessionId),
+    listAll: () => ipcRenderer.invoke('notes:listAll'),
+    add: (sessionId, text) => ipcRenderer.invoke('notes:add', sessionId, text),
+    delete: (noteId) => ipcRenderer.invoke('notes:delete', noteId),
   },
 
   // Agent APIs

@@ -44,7 +44,6 @@ interface DailySignal {
 
 interface CharacterPanelProps {
   user: User | null;
-  onOpenMemory?: () => void;
 }
 
 function truncateText(s: string, max: number): string {
@@ -70,14 +69,21 @@ const INTENSITY_STYLE: Record<DailySignal['intensity'], { dot: string; border: s
   high: { dot: 'var(--destructive)',           border: 'rgba(239,68,68,0.25)' },
 };
 
-function TriangleChart({ rigueur, volonte, courage }: SkillScores) {
-  const cx = 95, cy = 95, R = 68;
+function formatSkillValue(label: 'Consistency' | 'Willpower' | 'Deep runs', raw?: SkillsRaw): string {
+  if (!raw) return '—';
+  if (label === 'Willpower') return `${raw.totalMinutes}m`;
+  if (label === 'Consistency') return `${raw.streak}d`;
+  return String(raw.deepSessions);
+}
 
-  // Courage top (270°), Willpower bottom-right (30°), Consistency bottom-left (150°)
+function TriangleChart({ rigueur, volonte, courage, raw }: SkillScores & { raw?: SkillsRaw | null }) {
+  const cx = 124, cy = 122, R = 64;
+
+  // Put Willpower on the dominant top axis so the shape reads around focus volume first.
   const vertices = [
-    { angle: 270, label: 'Deep runs',    value: courage },
-    { angle: 30,  label: 'Willpower',   value: volonte },
-    { angle: 150, label: 'Consistency', value: rigueur },
+    { angle: 270, label: 'Willpower',   value: rigueur },
+    { angle: 150, label: 'Consistency', value: volonte },
+    { angle: 30,  label: 'Deep runs',   value: courage },
   ];
 
   const toXY = (angleDeg: number, r: number) => {
@@ -85,19 +91,47 @@ function TriangleChart({ rigueur, volonte, courage }: SkillScores) {
     return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
   };
 
-  const bgPts = vertices.map(v => toXY(v.angle, R));
+  const toDisplayRadius = (score: number) => {
+    const t = Math.max(0, Math.min(score, 100)) / 100;
+    const minRadius = 16;
+    return minRadius + Math.pow(t, 0.62) * (R - minRadius);
+  };
 
-  // Scale relative to the highest value so the shape always fills the triangle.
-  // If all values are 0, show a tiny dot at center rather than nothing.
-  const maxVal = Math.max(...vertices.map(v => v.value), 1);
-  const innerPts = vertices.map(v => toXY(v.angle, Math.max(3, R * (v.value / maxVal))));
+  const getLabelLayout = (label: 'Consistency' | 'Willpower' | 'Deep runs') => {
+    if (label === 'Willpower') {
+      return {
+        point: toXY(270, R + 38),
+        textAnchor: 'middle' as const,
+        titleDy: -8,
+        valueDy: 8,
+      };
+    }
+    if (label === 'Consistency') {
+      return {
+        point: toXY(150, R + 42),
+        textAnchor: 'end' as const,
+        titleDy: -2,
+        valueDy: 14,
+      };
+    }
+    return {
+      point: toXY(30, R + 42),
+      textAnchor: 'start' as const,
+      titleDy: -2,
+      valueDy: 14,
+    };
+  };
+
+  const bgPts = vertices.map(v => toXY(v.angle, R));
+  const midPts = vertices.map(v => toXY(v.angle, R * 0.62));
+  const innerPts = vertices.map(v => toXY(v.angle, toDisplayRadius(v.value)));
 
   const toPath = (pts: { x: number; y: number }[]) =>
     pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ') + ' Z';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-      <svg width={190} height={190} viewBox="0 0 190 190" style={{ overflow: 'visible' }}>
+      <svg width={248} height={244} viewBox="0 0 248 244" style={{ overflow: 'visible' }}>
         {/* Background triangle */}
         <path
           d={toPath(bgPts)}
@@ -105,6 +139,27 @@ function TriangleChart({ rigueur, volonte, courage }: SkillScores) {
           stroke="rgba(255,255,255,0.1)"
           strokeWidth={1}
         />
+        <path
+          d={toPath(midPts)}
+          fill="none"
+          stroke="rgba(255,255,255,0.06)"
+          strokeWidth={1}
+          strokeDasharray="3 5"
+        />
+        {vertices.map((v) => {
+          const axisEnd = toXY(v.angle, R);
+          return (
+            <line
+              key={`${v.label}-axis`}
+              x1={cx}
+              y1={cy}
+              x2={axisEnd.x}
+              y2={axisEnd.y}
+              stroke="rgba(255,255,255,0.06)"
+              strokeWidth={1}
+            />
+          );
+        })}
 
         {/* Filled inner polygon */}
         <motion.path
@@ -121,15 +176,15 @@ function TriangleChart({ rigueur, volonte, courage }: SkillScores) {
 
         {/* Vertex dots + labels */}
         {vertices.map((v) => {
-          const dot = toXY(v.angle, Math.max(3, R * (v.value / maxVal)));
-          const labelPt = toXY(v.angle, R + 20);
+          const dot = toXY(v.angle, toDisplayRadius(v.value));
+          const labelLayout = getLabelLayout(v.label as 'Consistency' | 'Willpower' | 'Deep runs');
           return (
             <g key={v.label}>
               <circle cx={dot.x} cy={dot.y} r={3} fill="var(--accent-fire)" />
               <text
-                x={labelPt.x}
-                y={labelPt.y - 5}
-                textAnchor="middle"
+                x={labelLayout.point.x}
+                y={labelLayout.point.y + labelLayout.titleDy}
+                textAnchor={labelLayout.textAnchor}
                 fontSize={9}
                 fill="var(--text-muted)"
                 fontFamily="inherit"
@@ -138,15 +193,15 @@ function TriangleChart({ rigueur, volonte, courage }: SkillScores) {
                 {v.label}
               </text>
               <text
-                x={labelPt.x}
-                y={labelPt.y + 8}
-                textAnchor="middle"
+                x={labelLayout.point.x}
+                y={labelLayout.point.y + labelLayout.valueDy}
+                textAnchor={labelLayout.textAnchor}
                 fontSize={12}
                 fontWeight={500}
                 fill="var(--text-primary)"
                 fontFamily="inherit"
               >
-                {v.value}
+                {formatSkillValue(v.label as 'Consistency' | 'Willpower' | 'Deep runs', raw || undefined)}
               </text>
             </g>
           );
@@ -156,13 +211,14 @@ function TriangleChart({ rigueur, volonte, courage }: SkillScores) {
   );
 }
 
-function CharacterPanel({ user, onOpenMemory }: CharacterPanelProps) {
+function CharacterPanel({ user }: CharacterPanelProps) {
   const userName = user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'Guest';
   const [profile, setProfile] = useState<UserProfile>({ total_xp: 0, level: 1 });
   const [skills, setSkills] = useState<SkillScores | null>(null);
   const [skillsRaw, setSkillsRaw] = useState<SkillsRaw | null>(null);
   const [memoryTeaser, setMemoryTeaser] = useState<string | null>(null);
   const [memoryHasSnapshots, setMemoryHasSnapshots] = useState(false);
+  const [memoryLoaded, setMemoryLoaded] = useState(false);
   const [signal, setSignal] = useState<DailySignal | null>(null);
   const [signalDismissed, setSignalDismissed] = useState(false);
 
@@ -181,6 +237,7 @@ function CharacterPanel({ user, onOpenMemory }: CharacterPanelProps) {
     });
 
     window.promethee.memory.get().then((result: { success: boolean; snapshots?: MemorySnap[] }) => {
+      setMemoryLoaded(true);
       if (!result.success) return;
       const snaps = result.snapshots || [];
       setMemoryHasSnapshots(snaps.length > 0);
@@ -196,6 +253,8 @@ function CharacterPanel({ user, onOpenMemory }: CharacterPanelProps) {
         return;
       }
       setMemoryTeaser(null);
+    }).catch(() => {
+      setMemoryLoaded(true);
     });
 
     window.promethee.signal.getToday().then((result) => {
@@ -257,9 +316,6 @@ function CharacterPanel({ user, onOpenMemory }: CharacterPanelProps) {
             <h1 style={{ margin: 0, fontSize: 22, fontWeight: 400, letterSpacing: '-0.02em' }}>{userName}</h1>
             <p style={{ margin: 0, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'var(--text-secondary)' }}>
               Level {level} · {tier}
-              {(profile.current_streak || 0) > 0 && (
-                <span style={{ marginLeft: 8 }}>· {profile.current_streak}d streak</span>
-              )}
             </p>
           </div>
 
@@ -348,12 +404,13 @@ function CharacterPanel({ user, onOpenMemory }: CharacterPanelProps) {
       </AnimatePresence>
 
       {/* Memory preview (Supabase snapshots — same source as Memory tab) */}
-      <motion.div variants={itemVariants} className="px-10">
+      <motion.div variants={itemVariants} className="px-10" style={{ marginTop: -12 }}>
         <div style={{
           background: 'var(--surface)',
           border: '1px solid var(--border)',
           borderRadius: 12,
           padding: '14px 16px',
+          minHeight: 96,
           display: 'flex',
           flexDirection: 'column',
           gap: 8,
@@ -363,21 +420,14 @@ function CharacterPanel({ user, onOpenMemory }: CharacterPanelProps) {
             <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 500 }}>Memory</span>
           </div>
           <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55 }}>
-            {memoryTeaser
+            {!memoryLoaded
+              ? 'Loading memory insight…'
+              : memoryTeaser
               ? memoryTeaser
               : memoryHasSnapshots
-                ? 'Open Memory for your full behavioral profile and charts.'
+                ? 'Your behavioral profile and charts are available in the Memory tab.'
                 : 'Promethee saves a short behavioral snapshot when you use the app. After your first snapshot, a preview will show up here.'}
           </p>
-          {onOpenMemory && (
-            <button
-              type="button"
-              onClick={onOpenMemory}
-              className="character-panel-memory-btn"
-            >
-              Open Memory
-            </button>
-          )}
         </div>
       </motion.div>
 
@@ -390,35 +440,12 @@ function CharacterPanel({ user, onOpenMemory }: CharacterPanelProps) {
             : 'Loading…'}
         </p>
         <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 4, paddingBottom: 4 }}>
-          {skills ? <TriangleChart {...skills} /> : <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Loading…</p>}
+          {skills ? <TriangleChart {...skills} raw={skillsRaw} /> : <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Loading…</p>}
         </div>
         <p className="text-xs text-muted-foreground pt-1" style={{ margin: 0, opacity: 0.75 }}>
           Scores scale to caps: 3 000 min · 30-day streak · 20 deep sessions
         </p>
       </motion.div>
-
-      {/* Streak info */}
-      {(profile.current_streak || 0) > 1 && (
-        <motion.div variants={itemVariants} className="px-10 pb-10">
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 10,
-            padding: '12px 16px',
-            background: 'var(--accent-glow)',
-            border: '1px solid var(--border-accent)',
-            borderRadius: 10,
-          }}>
-            <span style={{ fontSize: 18 }}>🔥</span>
-            <div>
-              <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>
-                {profile.current_streak}-day streak
-              </p>
-              <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>
-                XP multiplier active · +{Math.min((profile.current_streak ?? 0) * 10, 50)}%
-              </p>
-            </div>
-          </div>
-        </motion.div>
-      )}
     </motion.main>
   );
 }

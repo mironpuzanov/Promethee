@@ -26,7 +26,7 @@ import { signIn, signUp, signOut, sendMagicLink, getUser, setSession, getCurrent
 import { setupPowerMonitoring } from './power.js';
 import { setupLeaderboardPolling, stopLeaderboardPolling, getLeaderboard } from './leaderboard.js';
 import { setupPresence, stopPresence, sendHeartbeat, removePresence, postToLiveFeed, getPresenceCount, getRooms, getRoomPresence } from './presence.js';
-import { getTodaysSessions, getSessions, getUserProfile, getCompletedSessionsForSkills, getCompletedSessionsInRange, initializeDatabase, getAgentChats, getOrCreateAgentChat, createAgentChat, getAgentMessages, addAgentMessage, getQuests, createQuest, completeQuest, uncompleteQuest, deleteQuest, resetDailyQuests, setLastDailyJobDate, getLastDailyJobDate, updateStreak, updateUserXP, getWindowEvents, recordWindowEvent, getSessionById, createTask, getTasksBySession, getTasksByUser, toggleTask, deleteTask } from './db.js';
+import { getTodaysSessions, getSessions, getUserProfile, getCompletedSessionsForSkills, getCompletedSessionsInRange, initializeDatabase, getAgentChats, getOrCreateAgentChat, createAgentChat, getAgentMessages, addAgentMessage, getQuests, createQuest, completeQuest, uncompleteQuest, deleteQuest, resetDailyQuests, setLastDailyJobDate, getLastDailyJobDate, updateStreak, updateUserXP, getWindowEvents, recordWindowEvent, getSessionById, createTask, getTasksBySession, getTasksByUser, toggleTask, deleteTask, createNote, getNotesBySession, getNotesByUser, deleteNote, getMemorySnapshotCache, getMemorySnapshotCacheByDate, upsertMemorySnapshotCache, listHabitCache, getHabitCacheById, upsertHabitCache, markHabitCacheDeleted, removeHabitCache, setHabitCacheSyncState, getPendingHabitCache } from './db.js';
 import { startWindowTracking, stopWindowTracking, setTrackingSession, clearTrackingSession, getCurrentApp, canSampleForegroundApp } from './windowTracker.js';
 import { maybePromptScreenRecordingAccess, resetScreenRecordingPromptGate } from './screenRecordingPrompt.js';
 import { shouldIncludeAppInUsageStats } from '../lib/appUsageFilter.js';
@@ -39,6 +39,11 @@ import {
   applyRegisteredFocusShortcuts,
   unregisterAllFocusShortcuts,
 } from './focusShortcuts.js';
+
+function scheduleDailyJobs(userId) {
+  if (!userId) return;
+  runDailyJobs(userId).catch((e) => debugLog(`runDailyJobs error: ${e.message}`));
+}
 
 function startTrackingWithPermissionPrompt(userId) {
   startWindowTracking(userId);
@@ -69,6 +74,7 @@ import OpenAI from 'openai';
 let floatingWindow = null;
 let fullWindow = null;
 let tray = null;
+let dailyJobsInterval = null;
 
 /** Mentor “attach screen”: store PNG data URL in main so we don’t ship multi‑MB strings renderer→main (IPC clone limits / perf). */
 let pendingAgentScreenDataUrl = null;
@@ -359,7 +365,7 @@ app.whenReady().then(async () => {
       await flushPendingSyncs();
       startTrackingWithPermissionPrompt(user.id);
       // Run once-per-day jobs (quest resets, etc.)
-      runDailyJobs(user.id).catch(e => debugLog(`runDailyJobs error: ${e.message}`));
+      scheduleDailyJobs(user.id);
     }
   } catch (error) {
     debugLog(`Failed to restore user session: ${error.message}`);
@@ -380,6 +386,10 @@ app.whenReady().then(async () => {
   setupPowerMonitoring(floatingWindow);
   setupLeaderboardPolling();
   setupPresence(floatingWindow);
+  dailyJobsInterval = setInterval(() => {
+    const user = getCurrentUser();
+    if (user?.id) scheduleDailyJobs(user.id);
+  }, 5 * 60 * 1000);
 
   app.on('activate', () => {
     // Dock click — bring full window to front if it exists, otherwise open it
@@ -402,6 +412,10 @@ app.on('before-quit', async () => {
   stopLeaderboardPolling();
   stopPresence();
   unregisterAllFocusShortcuts();
+  if (dailyJobsInterval) {
+    clearInterval(dailyJobsInterval);
+    dailyJobsInterval = null;
+  }
   const user = getCurrentUser();
   if (user) await removePresence(user.id);
 });
@@ -485,9 +499,9 @@ ipcMain.handle('session:start', async (event, task, roomId = null) => {
       })().catch((e) => debugLog(`session:start screen prompt: ${e.message}`));
     });
 
-    // Post to live feed + start heartbeat
-    await postToLiveFeed(task, roomId);
-    await sendHeartbeat(roomId);
+    // Presence is best-effort. Never block local session start on network health.
+    void postToLiveFeed(task, roomId);
+    void sendHeartbeat(roomId);
 
     return { success: true, session };
   } catch (error) {
@@ -519,6 +533,57 @@ ipcMain.handle('session:end', async () => {
     return { success: false, error: error.message };
   }
 });
+
+async function refreshHabitCacheFromSupabase(userId) {
+  const { supabase } = await import('../lib/supabase.js');
+  const { data, error } = await supabase
+    .from('habits')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  for (const habit of data || []) {
+    upsertHabitCache(userId, habit, 'synced');
+  }
+  return listHabitCache(userId);
+}
+
+async function syncPendingHabits(userId) {
+  const pending = getPendingHabitCache(userId);
+  if (pending.length === 0) return;
+  const { supabase } = await import('../lib/supabase.js');
+
+  for (const habit of pending) {
+    if (habit.sync_state === 'pending_delete') {
+      const { error } = await supabase
+        .from('habits')
+        .delete()
+        .eq('id', habit.id)
+        .eq('user_id', userId);
+      if (error) throw error;
+      removeHabitCache(userId, habit.id);
+      continue;
+    }
+
+    const payload = {
+      id: habit.id,
+      user_id: userId,
+      title: habit.title,
+      frequency: habit.frequency || 'daily',
+      last_completed_date: habit.last_completed_date ?? null,
+      current_streak: habit.current_streak || 0,
+      created_at: habit.created_at,
+    };
+
+    const { data, error } = await supabase
+      .from('habits')
+      .upsert(payload, { onConflict: 'id' })
+      .select()
+      .single();
+    if (error) throw error;
+    upsertHabitCache(userId, data || payload, 'synced');
+  }
+}
 
 ipcMain.handle('session:getToday', async () => {
   try {
@@ -553,6 +618,7 @@ ipcMain.handle('auth:signIn', async (event, email, password) => {
       createFullWindow();
       floatingWindow?.hide();
       startTrackingWithPermissionPrompt(result.user.id);
+      scheduleDailyJobs(result.user.id);
     }
     return { success: true, ...result };
   } catch (error) {
@@ -580,6 +646,7 @@ ipcMain.handle('auth:signUp', async (event, email, password) => {
         if (fullWindow) fullWindow.close();
         createFullWindow();
         floatingWindow?.hide();
+        scheduleDailyJobs(user.id);
       }
     }
     return { success: true, ...result };
@@ -591,7 +658,10 @@ ipcMain.handle('auth:signUp', async (event, email, password) => {
 ipcMain.handle('auth:setSession', async (event, accessToken, refreshToken) => {
   try {
     const user = await setSession(accessToken, refreshToken);
-    if (user?.id) startTrackingWithPermissionPrompt(user.id);
+    if (user?.id) {
+      startTrackingWithPermissionPrompt(user.id);
+      scheduleDailyJobs(user.id);
+    }
     return { success: true, user };
   } catch (error) {
     return { success: false, error: error.message };
@@ -1319,20 +1389,22 @@ ipcMain.handle('skills:get', async () => {
 });
 
 // ── Habits IPC Handlers ───────────────────────────────────────────────────────
-// Habits live in Supabase only (no SQLite). Completion tracked by local date.
+// Habits are local-first in SQLite, with best-effort Supabase sync.
 
 ipcMain.handle('habits:list', async () => {
   try {
     const user = getCurrentUser();
     if (!user) return { success: false, error: 'Not authenticated' };
-    const { supabase } = await import('../lib/supabase.js');
-    const { data, error } = await supabase
-      .from('habits')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: true });
-    if (error) throw error;
-    return { success: true, habits: data || [] };
+    const cached = listHabitCache(user.id);
+
+    try {
+      await syncPendingHabits(user.id);
+      const habits = await refreshHabitCacheFromSupabase(user.id);
+      return { success: true, habits };
+    } catch (error) {
+      debugLog(`habits:list offline fallback: ${error.message}`);
+      return { success: true, habits: cached };
+    }
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -1342,14 +1414,20 @@ ipcMain.handle('habits:create', async (_event, title, frequency) => {
   try {
     const user = getCurrentUser();
     if (!user) return { success: false, error: 'Not authenticated' };
-    const { supabase } = await import('../lib/supabase.js');
-    const { data, error } = await supabase
-      .from('habits')
-      .insert({ user_id: user.id, title, frequency: frequency || 'daily', created_at: Date.now() })
-      .select()
-      .single();
-    if (error) throw error;
-    return { success: true, habit: data };
+    const trimmed = String(title || '').trim();
+    if (!trimmed) return { success: false, error: 'Title is required' };
+
+    const localHabit = upsertHabitCache(user.id, {
+      id: crypto.randomUUID(),
+      title: trimmed,
+      frequency: frequency || 'daily',
+      last_completed_date: null,
+      current_streak: 0,
+      created_at: Date.now(),
+    }, 'pending_upsert');
+
+    void syncPendingHabits(user.id).catch((e) => debugLog(`habits:create sync failed: ${e.message}`));
+    return { success: true, habit: localHabit };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -1359,16 +1437,8 @@ ipcMain.handle('habits:complete', async (_event, habitId) => {
   try {
     const user = getCurrentUser();
     if (!user) return { success: false, error: 'Not authenticated' };
-    const { supabase } = await import('../lib/supabase.js');
-
-    // Fetch current habit
-    const { data: habit, error: fetchErr } = await supabase
-      .from('habits')
-      .select('*')
-      .eq('id', habitId)
-      .eq('user_id', user.id)
-      .single();
-    if (fetchErr) throw fetchErr;
+    const habit = getHabitCacheById(user.id, habitId);
+    if (!habit) return { success: false, error: 'Habit not found' };
 
     const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD local
 
@@ -1382,18 +1452,18 @@ ipcMain.handle('habits:complete', async (_event, habitId) => {
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = yesterday.toLocaleDateString('en-CA');
 
-    let newStreak = habit.last_completed_date === yesterdayStr
+    const newStreak = habit.last_completed_date === yesterdayStr
       ? (habit.current_streak || 0) + 1
       : 1;
 
-    const { data: updated, error: updateErr } = await supabase
-      .from('habits')
-      .update({ last_completed_date: todayStr, current_streak: newStreak })
-      .eq('id', habitId)
-      .select()
-      .single();
-    if (updateErr) throw updateErr;
+    const updated = upsertHabitCache(user.id, {
+      ...habit,
+      last_completed_date: todayStr,
+      current_streak: newStreak,
+      updated_at: Date.now(),
+    }, 'pending_upsert');
 
+    void syncPendingHabits(user.id).catch((e) => debugLog(`habits:complete sync failed: ${e.message}`));
     return { success: true, habit: updated };
   } catch (error) {
     return { success: false, error: error.message };
@@ -1404,16 +1474,8 @@ ipcMain.handle('habits:uncomplete', async (_event, habitId) => {
   try {
     const user = getCurrentUser();
     if (!user) return { success: false, error: 'Not authenticated' };
-    const { supabase } = await import('../lib/supabase.js');
-
     const todayStr = new Date().toLocaleDateString('en-CA');
-
-    const { data: habit } = await supabase
-      .from('habits')
-      .select('*')
-      .eq('id', habitId)
-      .eq('user_id', user.id)
-      .single();
+    const habit = getHabitCacheById(user.id, habitId);
 
     // Only allow uncompleting if completed today
     if (!habit || habit.last_completed_date !== todayStr) {
@@ -1421,14 +1483,14 @@ ipcMain.handle('habits:uncomplete', async (_event, habitId) => {
     }
 
     const newStreak = Math.max(0, (habit.current_streak || 1) - 1);
-    const { data: updated, error } = await supabase
-      .from('habits')
-      .update({ last_completed_date: null, current_streak: newStreak })
-      .eq('id', habitId)
-      .select()
-      .single();
-    if (error) throw error;
+    const updated = upsertHabitCache(user.id, {
+      ...habit,
+      last_completed_date: null,
+      current_streak: newStreak,
+      updated_at: Date.now(),
+    }, 'pending_upsert');
 
+    void syncPendingHabits(user.id).catch((e) => debugLog(`habits:uncomplete sync failed: ${e.message}`));
     return { success: true, habit: updated };
   } catch (error) {
     return { success: false, error: error.message };
@@ -1439,13 +1501,10 @@ ipcMain.handle('habits:delete', async (_event, habitId) => {
   try {
     const user = getCurrentUser();
     if (!user) return { success: false, error: 'Not authenticated' };
-    const { supabase } = await import('../lib/supabase.js');
-    const { error } = await supabase
-      .from('habits')
-      .delete()
-      .eq('id', habitId)
-      .eq('user_id', user.id);
-    if (error) throw error;
+    const habit = getHabitCacheById(user.id, habitId);
+    if (!habit) return { success: false, error: 'Habit not found' };
+    markHabitCacheDeleted(user.id, habitId);
+    void syncPendingHabits(user.id).catch((e) => debugLog(`habits:delete sync failed: ${e.message}`));
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
@@ -1599,12 +1658,70 @@ ipcMain.handle('tasks:delete', async (_event, taskId) => {
   }
 });
 
+// ── Session notes (quick capture during focus) ────────────────────────────────
+
+ipcMain.handle('notes:list', async (_event, sessionId) => {
+  try {
+    const user = getCurrentUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+    const sessionRow = getSessionById(sessionId);
+    if (!sessionRow || sessionRow.user_id !== user.id) {
+      return { success: false, error: 'Session not found' };
+    }
+    const notes = getNotesBySession(sessionId);
+    return { success: true, notes };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('notes:listAll', async () => {
+  try {
+    const user = getCurrentUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+    const notes = getNotesByUser(user.id);
+    return { success: true, notes };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('notes:add', async (_event, sessionId, text) => {
+  try {
+    const user = getCurrentUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+    const active = getActiveSession();
+    if (!active || active.id !== sessionId) {
+      return { success: false, error: 'no active session' };
+    }
+    const note = createNote(sessionId, user.id, text);
+    if (!note) return { success: false, error: 'empty text' };
+    return { success: true, note };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('notes:delete', async (_event, noteId) => {
+  try {
+    const user = getCurrentUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+    const ok = deleteNote(noteId, user.id);
+    if (!ok) return { success: false, error: 'Note not found' };
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
 // ── Daily Jobs ────────────────────────────────────────────────────────────────
 // Called once per calendar day on app open.
 // Runs: quest resets → daily AI signal generation.
 
 async function runDailyJobs(userId) {
-  const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD local
+  const today = getLocalDayWindow(0);
+  const yesterday = getLocalDayWindow(-1);
+  const todayStr = today.dateStr;
   const lastRun = getLastDailyJobDate(userId);
   if (lastRun === todayStr) return; // already ran today
 
@@ -1621,14 +1738,14 @@ async function runDailyJobs(userId) {
 
   // 2. Generate daily AI signal
   try {
-    await generateDailySignal(userId, todayStr);
+    await generateDailySignal(userId, todayStr, yesterday);
   } catch (e) {
     debugLog(`runDailyJobs: daily signal failed: ${e.message}`);
   }
 
-  // 3. Generate memory snapshot (runs after signal, sequential)
+  // 3. Generate yesterday's memory snapshot (runs after signal, sequential)
   try {
-    await generateMemorySnapshot(userId, todayStr);
+    await generateMemorySnapshot(userId, yesterday);
   } catch (e) {
     debugLog(`runDailyJobs: memory snapshot failed: ${e.message}`);
   }
@@ -1636,31 +1753,44 @@ async function runDailyJobs(userId) {
   setLastDailyJobDate(userId, todayStr);
 }
 
-// Determine signal intensity based on yesterday's total session minutes vs 7-day avg.
+function getLocalDayWindow(offsetDays = 0) {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() + offsetDays);
+
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+
+  return {
+    dateStr: start.toLocaleDateString('en-CA'),
+    startMs: start.getTime(),
+    endMs: end.getTime(),
+  };
+}
+
+// Determine signal intensity based on the previous full local day vs the last 7 full local days.
 // Low  = yesterday < 50% of 7d avg (or no sessions)
 // Med  = 50–120% of 7d avg
 // High = > 120% of 7d avg
 async function computeSignalIntensity(supabase, userId) {
-  const now = Date.now();
-  const oneDayMs = 24 * 60 * 60 * 1000;
-
-  const yesterdayStart = now - 2 * oneDayMs;
-  const yesterdayEnd = now - oneDayMs;
-  const sevenDaysAgo = now - 7 * oneDayMs;
+  const yesterday = getLocalDayWindow(-1);
+  const today = getLocalDayWindow(0);
+  const sevenDaysAgo = getLocalDayWindow(-7);
 
   const { data: yesterdaySessions } = await supabase
     .from('sessions')
     .select('duration_seconds')
     .eq('user_id', userId)
-    .gte('started_at', yesterdayStart)
-    .lt('started_at', yesterdayEnd)
+    .gte('started_at', yesterday.startMs)
+    .lt('started_at', yesterday.endMs)
     .not('duration_seconds', 'is', null);
 
   const { data: weekSessions } = await supabase
     .from('sessions')
     .select('duration_seconds')
     .eq('user_id', userId)
-    .gte('started_at', sevenDaysAgo)
+    .gte('started_at', sevenDaysAgo.startMs)
+    .lt('started_at', today.startMs)
     .not('duration_seconds', 'is', null);
 
   const yesterdayMinutes = (yesterdaySessions || []).reduce(
@@ -1680,7 +1810,7 @@ async function computeSignalIntensity(supabase, userId) {
   return 'high';
 }
 
-async function generateDailySignal(userId, todayStr) {
+async function generateDailySignal(userId, todayStr, yesterday = getLocalDayWindow(-1)) {
   const apiKey = await keytar.getPassword(AGENT_KEYCHAIN_SERVICE, AGENT_KEYCHAIN_ACCOUNT);
   if (!apiKey) {
     debugLog('generateDailySignal: no OpenAI key — skipping');
@@ -1702,18 +1832,12 @@ async function generateDailySignal(userId, todayStr) {
     return;
   }
 
-  // Build context: yesterday's sessions + quests completed
-  const now = Date.now();
-  const oneDayMs = 24 * 60 * 60 * 1000;
-  const yesterdayStart = now - 2 * oneDayMs;
-  const yesterdayEnd = now - oneDayMs;
-
   const { data: yesterdaySessions } = await supabase
     .from('sessions')
     .select('task, duration_seconds')
     .eq('user_id', userId)
-    .gte('started_at', yesterdayStart)
-    .lt('started_at', yesterdayEnd)
+    .gte('started_at', yesterday.startMs)
+    .lt('started_at', yesterday.endMs)
     .not('duration_seconds', 'is', null);
 
   const intensity = await computeSignalIntensity(supabase, userId);
@@ -1790,27 +1914,16 @@ async function generateDailySignal(userId, todayStr) {
 }
 
 // ── Memory Snapshot ───────────────────────────────────────────────────────────
-// Called from runDailyJobs() after the daily signal. Writes one row per day.
+// Called from runDailyJobs() after the daily signal. Writes one row for the previous full local day.
 
-async function generateMemorySnapshot(userId, todayStr) {
-  const { supabase } = await import('../lib/supabase.js');
+async function generateMemorySnapshot(userId, snapshotDay = getLocalDayWindow(-1), { allowAi = true } = {}) {
+  const existing = getMemorySnapshotCacheByDate(userId, snapshotDay.dateStr);
+  if (existing) return existing;
 
-  // Idempotency guard
-  const { data: existing } = await supabase
-    .from('memory_snapshots')
-    .select('id')
-    .eq('user_id', userId)
-    .eq('snapshot_date', todayStr)
-    .single();
-  if (existing) return;
+  const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
 
-  const now = Date.now();
-  const oneDayMs = 24 * 60 * 60 * 1000;
-  const todayStart = now - oneDayMs; // yesterday's data is the "day" we're snapshotting
-  const thirtyDaysAgo = now - 30 * oneDayMs;
-
-  // Rolling 24h window from local SQLite (same store as Session log)
-  const todaysSessions = getCompletedSessionsInRange(userId, todayStart, now);
+  // Snapshot one full local calendar day from local SQLite (same store as Session log)
+  const todaysSessions = getCompletedSessionsInRange(userId, snapshotDay.startMs, snapshotDay.endMs - 1);
 
   const sessionCount = todaysSessions?.length || 0;
   const totalMinutes = (todaysSessions || []).reduce(
@@ -1845,18 +1958,17 @@ async function generateMemorySnapshot(userId, todayStr) {
   const deepCount = (allRecentSessions || []).filter(s => (s.duration_seconds || 0) >= 7200).length;
   const courage = Math.min(Math.round((deepCount / 20) * 100), 100);
 
-  // Quest completion rate (all time)
-  const { data: allQuests } = await supabase
-    .from('quests')
-    .select('completed_at')
-    .eq('user_id', userId);
-  const questTotal = allQuests?.length || 0;
-  const questDone = (allQuests || []).filter(q => q.completed_at).length;
+  // Quest completion rate from local SQLite so memory generation stays local-first.
+  const allQuests = getQuests(userId);
+  const questTotal = allQuests.length || 0;
+  const questDone = allQuests.filter(q => q.completed_at).length;
   const questRate = questTotal > 0 ? Math.round((questDone / questTotal) * 10000) / 100 : 0;
 
   // Generate behavioral summary via GPT (only if API key available)
   let behavioralSummary = null;
-  const apiKey = await keytar.getPassword(AGENT_KEYCHAIN_SERVICE, AGENT_KEYCHAIN_ACCOUNT);
+  const apiKey = allowAi
+    ? await keytar.getPassword(AGENT_KEYCHAIN_SERVICE, AGENT_KEYCHAIN_ACCOUNT)
+    : null;
   if (apiKey && allRecentSessions && allRecentSessions.length >= 1) {
     try {
       const openai = new OpenAI({ apiKey });
@@ -1893,9 +2005,9 @@ Write one sentence only. No "I" pronoun. No filler.`;
   if (questRate >= 60) emotionalTags.push('goal-driven');
   if (sessionCount === 0) emotionalTags.push('rest-day');
 
-  const { error } = await supabase.from('memory_snapshots').insert({
+  const snapshotPayload = {
     user_id: userId,
-    snapshot_date: todayStr,
+    snapshot_date: snapshotDay.dateStr,
     behavioral_summary: behavioralSummary,
     emotional_tags: emotionalTags,
     peak_hours: peakHours,
@@ -1906,13 +2018,50 @@ Write one sentence only. No "I" pronoun. No filler.`;
     session_count: sessionCount,
     total_minutes: totalMinutes,
     created_at: Date.now(),
-  });
+  };
 
-  if (error) {
-    debugLog(`generateMemorySnapshot: insert error: ${error.message}`);
-  } else {
-    debugLog(`generateMemorySnapshot: snapshot saved for ${todayStr}`);
+  const localSnapshot = upsertMemorySnapshotCache(userId, snapshotPayload);
+
+  try {
+    const { supabase } = await import('../lib/supabase.js');
+    const { error } = await supabase
+      .from('memory_snapshots')
+      .upsert(snapshotPayload, { onConflict: 'user_id,snapshot_date' });
+
+    if (error) {
+      debugLog(`generateMemorySnapshot: remote upsert error: ${error.message}`);
+    } else {
+      debugLog(`generateMemorySnapshot: snapshot saved for ${snapshotDay.dateStr}`);
+    }
+  } catch (error) {
+    debugLog(`generateMemorySnapshot: remote sync skipped: ${error.message}`);
   }
+
+  return localSnapshot;
+}
+
+async function refreshMemorySnapshotCacheFromSupabase(userId) {
+  const { supabase } = await import('../lib/supabase.js');
+  const { data, error } = await supabase
+    .from('memory_snapshots')
+    .select('*')
+    .eq('user_id', userId)
+    .order('snapshot_date', { ascending: false })
+    .limit(90);
+  if (error) throw error;
+  for (const snapshot of data || []) {
+    upsertMemorySnapshotCache(userId, snapshot);
+  }
+  return getMemorySnapshotCache(userId, 90);
+}
+
+async function ensureYesterdaySnapshot(userId) {
+  const yesterday = getLocalDayWindow(-1);
+  const existing = getMemorySnapshotCacheByDate(userId, yesterday.dateStr);
+  if (existing) return;
+
+  debugLog(`ensureYesterdaySnapshot: backfilling ${yesterday.dateStr}`);
+  await generateMemorySnapshot(userId, yesterday, { allowAi: false });
 }
 
 // IPC: fetch memory data for the reveal screen
@@ -1920,18 +2069,11 @@ ipcMain.handle('memory:get', async () => {
   try {
     const user = getCurrentUser();
     if (!user) return { success: false, error: 'Not authenticated' };
-
-    const { supabase } = await import('../lib/supabase.js');
-
-    // All snapshots, newest first
-    const { data: snapshots, error } = await supabase
-      .from('memory_snapshots')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('snapshot_date', { ascending: false })
-      .limit(90);
-
-    if (error) throw error;
+    await ensureYesterdaySnapshot(user.id);
+    const snapshots = getMemorySnapshotCache(user.id, 90);
+    void refreshMemorySnapshotCacheFromSupabase(user.id).catch((e) => {
+      debugLog(`memory:get remote refresh skipped: ${e.message}`);
+    });
 
     const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
     const recentSessions = getCompletedSessionsForSkills(user.id, thirtyDaysAgo);

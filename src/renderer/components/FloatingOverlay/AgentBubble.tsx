@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Monitor, X } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { getMentorLiveScreenEveryMessage, setMentorLiveScreenEveryMessage } from '../../lib/mentorLiveScreenPref';
 import { overlaySuppressHitTest, overlayRestoreClickThrough } from '../../lib/overlayMouseBridge';
 import './AgentBubble.css';
@@ -21,6 +23,7 @@ interface Chat {
 interface AgentBubbleProps {
   activeSession: { id: string; task?: string; startedAt: number } | null;
   openTrigger?: number;
+  toggleTrigger?: number;
 }
 
 interface AttachedImage {
@@ -33,6 +36,19 @@ const RIGHT_MARGIN = 24;
 const TOP_MARGIN = 24;
 const BOTTOM_MARGIN = 24;
 const STORAGE_KEY = 'agentBubbleBottomY';
+const PANEL_SIZE_KEY = 'agentPanelSize';
+const MIN_W = 260;
+const MAX_W = 600;
+const MIN_H = 220;
+const MAX_H = 800;
+
+function loadPanelSize(): { w: number; h: number } {
+  try {
+    const s = localStorage.getItem(PANEL_SIZE_KEY);
+    if (s) return JSON.parse(s);
+  } catch {}
+  return { w: 320, h: Math.round(window.innerHeight * 0.5) };
+}
 
 function loadBottomY(): number {
   try {
@@ -68,7 +84,7 @@ async function fileToBase64(file: File): Promise<string> {
   });
 }
 
-function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
+function AgentBubble({ activeSession, openTrigger = 0, toggleTrigger = 0 }: AgentBubbleProps) {
   const [open, setOpen] = useState(false);
   const [chat, setChat] = useState<Chat | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -85,6 +101,7 @@ function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
   const [allChats, setAllChats] = useState<Array<{ id: string; title: string; updatedAt: string }>>([]);
   const [bottomY, setBottomY] = useState<number>(loadBottomY);
   const [isDraggingState, setIsDraggingState] = useState(false);
+  const [panelSize, setPanelSize] = useState(loadPanelSize);
   const [screenSnapQueued, setScreenSnapQueued] = useState(false);
   const [liveScreenEveryMessage, setLiveScreenEveryMessage] = useState(getMentorLiveScreenEveryMessage);
   const [screenCaptureError, setScreenCaptureError] = useState<string | null>(null);
@@ -95,16 +112,27 @@ function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
   const dragStartClientY = useRef(0);
   const dragStartBottomY = useRef(0);
   const bottomYRef = useRef(bottomY);
+  const panelSizeRef = useRef(panelSize);
+  const isResizing = useRef(false);
+  const resizeStartX = useRef(0);
+  const resizeStartY = useRef(0);
+  const resizeStartW = useRef(0);
+  const resizeStartH = useRef(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const streamingContentRef = useRef('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { bottomYRef.current = bottomY; }, [bottomY]);
+  useEffect(() => { panelSizeRef.current = panelSize; }, [panelSize]);
 
   useEffect(() => {
     if (openTrigger > 0) setOpen(true);
   }, [openTrigger]);
+
+  useEffect(() => {
+    if (toggleTrigger > 0) setOpen((prev) => !prev);
+  }, [toggleTrigger]);
 
   useEffect(() => {
     if (openTrigger <= 0 || !open) return;
@@ -160,9 +188,9 @@ function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
   const resizeInput = useCallback(() => {
     const el = inputRef.current;
     if (!el) return;
-    el.style.height = '0px';
+    el.style.height = '32px';
     const max = 120;
-    el.style.height = `${Math.min(el.scrollHeight, max)}px`;
+    el.style.height = `${Math.max(32, Math.min(el.scrollHeight, max))}px`;
   }, []);
 
   useLayoutEffect(() => {
@@ -305,6 +333,37 @@ function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
     setShowHistory(false);
   };
 
+  const handleResizePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    isResizing.current = true;
+    resizeStartX.current = e.clientX;
+    resizeStartY.current = e.clientY;
+    resizeStartW.current = panelSizeRef.current.w;
+    resizeStartH.current = panelSizeRef.current.h;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    overlaySuppressHitTest(1);
+  };
+
+  const handleResizePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isResizing.current) return;
+    // Panel is on the right side; dragging left = wider, up = taller
+    const dw = resizeStartX.current - e.clientX;
+    const dh = resizeStartY.current - e.clientY;
+    setPanelSize({
+      w: Math.max(MIN_W, Math.min(MAX_W, resizeStartW.current + dw)),
+      h: Math.max(MIN_H, Math.min(MAX_H, resizeStartH.current + dh)),
+    });
+  };
+
+  const handleResizePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isResizing.current) return;
+    (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    isResizing.current = false;
+    overlaySuppressHitTest(-1);
+    overlayRestoreClickThrough();
+    try { localStorage.setItem(PANEL_SIZE_KEY, JSON.stringify(panelSizeRef.current)); } catch {}
+  };
+
   const handleBubblePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
     isDragging.current = true;
     didMove.current = false;
@@ -351,6 +410,7 @@ function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
         {open && (
           <motion.div
             className={`agent-panel agent-panel--${openUpward ? 'up' : 'down'}`}
+            style={{ width: panelSize.w, height: panelSize.h }}
             initial={{ opacity: 0, y: openUpward ? 8 : -8, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: openUpward ? 8 : -8, scale: 0.96 }}
@@ -417,7 +477,13 @@ function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
                   )}
                   {messages.map(msg => (
                     <div key={msg.id} className={`agent-message agent-message--${msg.role}`}>
-                      <span className="agent-message-content">{msg.content}</span>
+                      {msg.role === 'assistant' ? (
+                        <div className="agent-message-content agent-message-content--md">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                        </div>
+                      ) : (
+                        <span className="agent-message-content">{msg.content}</span>
+                      )}
                       {msg.role === 'assistant' && (
                         <button
                           className={`agent-message-copy${copiedId === msg.id ? ' agent-message-copy--copied' : ''}`}
@@ -447,9 +513,10 @@ function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
                   )}
                   {streaming && streamingContent && (
                     <div className="agent-message agent-message--assistant agent-message--streaming">
-                      <span className="agent-message-content">
-                        {streamingContent}<span className="agent-cursor" />
-                      </span>
+                      <div className="agent-message-content agent-message-content--md">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingContent}</ReactMarkdown>
+                        <span className="agent-cursor" />
+                      </div>
                     </div>
                   )}
                   {error && (
@@ -554,6 +621,14 @@ function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
                 </div>
               </>
             )}
+            {/* Resize handle — top-left corner of panel (panel is right-anchored) */}
+            <div
+              className="agent-panel-resize-handle"
+              onPointerDown={handleResizePointerDown}
+              onPointerMove={handleResizePointerMove}
+              onPointerUp={handleResizePointerUp}
+              title="Drag to resize"
+            />
           </motion.div>
         )}
       </AnimatePresence>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Square, Trophy, Clock, Zap, Users, Music, VolumeX, Monitor } from 'lucide-react';
+import { Search, Square, Trophy, Clock, Zap, Users, Music, VolumeX, Monitor, Flame } from 'lucide-react';
 import { shouldIncludeAppInUsageStats } from '../../../lib/appUsageFilter.js';
 import './RightPanel.css';
 
@@ -8,6 +8,7 @@ interface TodayStats {
   hours: string;
   xp: number;
   rank: number | null;
+  streak: number;
 }
 
 interface Quest {
@@ -55,7 +56,7 @@ interface AppUsage {
 }
 
 function RightPanel() {
-  const [todayStats, setTodayStats] = useState<TodayStats>({ hours: '0.0', xp: 0, rank: null });
+  const [todayStats, setTodayStats] = useState<TodayStats>({ hours: '0.0', xp: 0, rank: null, streak: 0 });
   const [presenceCount, setPresenceCount] = useState<number>(0);
   const [liveFeed, setLiveFeed] = useState<FeedEntry[]>([]);
   const [activeQuests, setActiveQuests] = useState<Quest[]>([]);
@@ -98,7 +99,13 @@ function RightPanel() {
         const totalSeconds = result.sessions.reduce((sum, s) => sum + (s.duration_seconds || 0), 0);
         const totalXP = result.sessions.reduce((sum, s) => sum + (s.xp_earned || 0), 0);
         const hours = (totalSeconds / 3600).toFixed(1);
-        setTodayStats({ hours, xp: totalXP, rank: null });
+        setTodayStats((prev) => ({ ...prev, hours, xp: totalXP, rank: null }));
+      }
+    });
+
+    window.promethee.db.getUserProfile().then((result: { success: boolean; profile?: { current_streak?: number } }) => {
+      if (result.success && result.profile) {
+        setTodayStats((prev) => ({ ...prev, streak: result.profile?.current_streak || 0 }));
       }
     });
 
@@ -219,6 +226,20 @@ function RightPanel() {
       {/* Today Stats */}
         <motion.div variants={itemVariants} className="flex flex-col gap-3">
           <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Today</p>
+          {todayStats.streak > 0 && (
+            <div
+              className="right-panel-streak"
+              title={`${todayStats.streak}-day streak`}
+            >
+              <div className="right-panel-streak__icon">
+                <Flame size={12} />
+              </div>
+              <div className="right-panel-streak__body">
+                <span className="right-panel-streak__label">Streak</span>
+                <span className="right-panel-streak__value">{todayStats.streak} day{todayStats.streak === 1 ? '' : 's'}</span>
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1 bg-card rounded-lg p-3">
               <div className="flex items-center gap-1.5 text-muted-foreground">

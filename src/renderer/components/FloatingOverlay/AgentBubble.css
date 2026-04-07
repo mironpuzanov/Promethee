@@ -58,9 +58,9 @@
 
 /* ─── Chat panel — absolutely positioned from root ──────────────────────────── */
 .agent-panel {
-  width: 320px;
-  height: 50vh;
-  max-height: 50vh;
+  /* width + height driven by inline style (user-resizable) */
+  min-width: 260px;
+  min-height: 220px;
   background: rgba(12, 12, 12, 0.92);
   backdrop-filter: blur(28px);
   border: 1px solid var(--border);
@@ -74,6 +74,23 @@
   cursor: default;
   position: absolute;
   right: 0;
+}
+
+/* Resize handle — top-left corner */
+.agent-panel-resize-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 18px;
+  height: 18px;
+  cursor: nw-resize;
+  z-index: 10;
+  pointer-events: auto;
+  -webkit-app-region: no-drag;
+  touch-action: none;
+  /* Subtle visual cue */
+  background: radial-gradient(circle at 4px 4px, rgba(255,255,255,0.12) 2px, transparent 2px);
+  border-top-left-radius: 14px;
 }
 
 /* Button near bottom → panel opens upward */
@@ -258,6 +275,96 @@
   border-radius: 12px;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* Markdown-rendered assistant messages */
+.agent-message-content--md {
+  white-space: normal;
+}
+
+.agent-message-content--md p {
+  margin: 0 0 6px;
+}
+.agent-message-content--md p:last-child { margin-bottom: 0; }
+
+.agent-message-content--md h1,
+.agent-message-content--md h2,
+.agent-message-content--md h3 {
+  font-weight: 600;
+  margin: 8px 0 4px;
+  line-height: 1.3;
+}
+.agent-message-content--md h1 { font-size: 15px; }
+.agent-message-content--md h2 { font-size: 14px; }
+.agent-message-content--md h3 { font-size: 13px; }
+
+.agent-message-content--md ul,
+.agent-message-content--md ol {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+.agent-message-content--md li { margin-bottom: 2px; }
+
+.agent-message-content--md code {
+  font-family: 'Geist Mono', 'Menlo', monospace;
+  font-size: 11.5px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.agent-message-content--md pre {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  margin: 6px 0;
+}
+.agent-message-content--md pre code {
+  background: none;
+  padding: 0;
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.agent-message-content--md blockquote {
+  border-left: 2px solid rgba(232, 146, 42, 0.5);
+  margin: 4px 0;
+  padding: 2px 10px;
+  color: rgba(255,255,255,0.6);
+}
+
+.agent-message-content--md strong { font-weight: 600; }
+.agent-message-content--md em { font-style: italic; }
+
+.agent-message-content--md hr {
+  border: none;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  margin: 8px 0;
+}
+
+.agent-message-content--md a {
+  color: #e8922a;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.agent-message-content--md table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+  margin: 6px 0;
+}
+.agent-message-content--md th,
+.agent-message-content--md td {
+  border: 1px solid rgba(255,255,255,0.1);
+  padding: 4px 8px;
+  text-align: left;
+}
+.agent-message-content--md th {
+  background: rgba(255,255,255,0.06);
+  font-weight: 600;
 }
 
 .agent-message--user .agent-message-content {
@@ -669,6 +776,7 @@
 
 .agent-input {
   flex: 1;
+  height: 32px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -680,7 +788,7 @@
   resize: none;
   min-height: 32px;
   max-height: 120px;
-  overflow-y: auto;
+  overflow-y: hidden;
   transition: border-color 0.15s;
   -webkit-app-region: no-drag;
   pointer-events: auto;

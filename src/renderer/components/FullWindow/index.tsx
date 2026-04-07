@@ -151,7 +151,7 @@ function FullWindow({ user, setUser }: FullWindowProps) {
 
   const renderMain = () => {
     switch (activeTab) {
-      case 'home':        return <CharacterPanel user={user} onOpenMemory={() => setActiveTab('memory')} />;
+      case 'home':        return <CharacterPanel user={user} />;
       case 'log':         return <SessionLog />;
       case 'tasks':       return <TasksTab />;
       case 'leaderboard': return <LeaderboardTab />;
@@ -161,7 +161,7 @@ function FullWindow({ user, setUser }: FullWindowProps) {
       case 'memory':      return <MemoryTab />;
       case 'mentor':      return <MentorTab />;
       case 'settings':    return <SettingsTab user={user} setUser={setUser} />;
-      default:        return <CharacterPanel user={user} onOpenMemory={() => setActiveTab('memory')} />;
+      default:        return <CharacterPanel user={user} />;
     }
   };
 

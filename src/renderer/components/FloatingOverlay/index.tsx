@@ -32,8 +32,10 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
   const [showRooms, setShowRooms] = useState(false);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [focusTaskInput, setFocusTaskInput] = useState(false);
-  const [agentOpenTrigger, setAgentOpenTrigger] = useState(0);
-  const [taskShortcutTrigger, setTaskShortcutTrigger] = useState(0);
+  const [agentOpenTrigger] = useState(0);
+  const [agentToggleTrigger, setAgentToggleTrigger] = useState(0);
+  const [taskShortcutTrigger] = useState(0);
+  const [taskToggleTrigger, setTaskToggleTrigger] = useState(0);
   const { transitionTo } = useAudio();
   const activeSessionRef = useRef<Session | null>(null);
   const handleEndSessionRef = useRef<() => Promise<void>>(async () => {});
@@ -118,8 +120,8 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
 
   useEffect(() => {
     const unsub = window.promethee.shortcuts.onFocusShortcut((action) => {
-      if (action === 'openMentor') setAgentOpenTrigger((n) => n + 1);
-      if (action === 'focusAddTask' && activeSessionRef.current) setTaskShortcutTrigger((n) => n + 1);
+      if (action === 'openMentor') setAgentToggleTrigger((n) => n + 1);
+      if (action === 'focusAddTask' && activeSessionRef.current) setTaskToggleTrigger((n) => n + 1);
       if (action === 'endSession' && activeSessionRef.current) void handleEndSessionRef.current();
     });
     return unsub;
@@ -136,7 +138,7 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
           <p>Welcome back. Ready to focus?</p>
           <button onClick={handleDismissResumePrompt}>Got it</button>
         </div>
-        <AgentBubble activeSession={null} openTrigger={agentOpenTrigger} />
+        <AgentBubble activeSession={null} openTrigger={agentOpenTrigger} toggleTrigger={agentToggleTrigger} />
       </div>
     );
   }
@@ -148,8 +150,9 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
           session={activeSession}
           onEnd={handleEndSession}
           focusAddFieldTrigger={taskShortcutTrigger}
+          toggleTaskPanelTrigger={taskToggleTrigger}
         />
-        <AgentBubble activeSession={activeSession} openTrigger={agentOpenTrigger} />
+        <AgentBubble activeSession={activeSession} openTrigger={agentOpenTrigger} toggleTrigger={agentToggleTrigger} />
       </>
     );
   }
@@ -162,10 +165,10 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
         onOpenRooms={() => setShowRooms(r => !r)}
         autoFocusInput={focusTaskInput}
         onAutoFocusConsumed={() => setFocusTaskInput(false)}
-        onOpenMentor={() => setAgentOpenTrigger(n => n + 1)}
+        onOpenMentor={() => setAgentToggleTrigger(n => n + 1)}
         onSessionStartIntent={() => transitionTo('session-active')}
       />
-      <AgentBubble activeSession={null} openTrigger={agentOpenTrigger} />
+      <AgentBubble activeSession={null} openTrigger={agentOpenTrigger} toggleTrigger={agentToggleTrigger} />
       <AnimatePresence>
         {showRooms && (
           <RoomsPanel

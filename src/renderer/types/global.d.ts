@@ -107,6 +107,12 @@ declare global {
         toggle: (taskId: string) => Promise<{ success: boolean; task?: any; error?: string }>;
         delete: (taskId: string) => Promise<{ success: boolean; error?: string }>;
       };
+      notes: {
+        list: (sessionId: string) => Promise<{ success: boolean; notes?: any[]; error?: string }>;
+        listAll: () => Promise<{ success: boolean; notes?: any[]; error?: string }>;
+        add: (sessionId: string, text: string) => Promise<{ success: boolean; note?: any; error?: string }>;
+        delete: (noteId: string) => Promise<{ success: boolean; error?: string }>;
+      };
       agent: {
         getToken: () => Promise<{ success: boolean; token?: string; error?: string }>;
         setToken: (key: string) => Promise<{ success: boolean; error?: string }>;

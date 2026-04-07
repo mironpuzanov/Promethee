@@ -101,6 +101,53 @@ export function initializeDatabase() {
 
     CREATE INDEX IF NOT EXISTS idx_tasks_session ON tasks(session_id);
     CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS session_notes (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL,
+      text TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_notes_session ON session_notes(session_id);
+    CREATE INDEX IF NOT EXISTS idx_notes_user ON session_notes(user_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS memory_snapshot_cache (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      snapshot_date TEXT NOT NULL,
+      behavioral_summary TEXT,
+      emotional_tags TEXT,
+      peak_hours TEXT,
+      avg_session_duration_minutes INTEGER,
+      top_skills TEXT,
+      quest_completion_rate REAL,
+      streak_at_snapshot INTEGER,
+      session_count INTEGER,
+      total_minutes INTEGER,
+      created_at INTEGER NOT NULL,
+      UNIQUE(user_id, snapshot_date)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_memory_snapshot_cache_user
+      ON memory_snapshot_cache(user_id, snapshot_date DESC);
+
+    CREATE TABLE IF NOT EXISTS habits_cache (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      frequency TEXT NOT NULL DEFAULT 'daily',
+      last_completed_date TEXT,
+      current_streak INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      deleted INTEGER NOT NULL DEFAULT 0,
+      sync_state TEXT NOT NULL DEFAULT 'synced'
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_habits_cache_user
+      ON habits_cache(user_id, deleted, created_at ASC);
   `);
 
   // Add streak/daily-job columns to user_profile if they don't exist yet (idempotent)
@@ -511,6 +558,41 @@ export function deleteTask(taskId, userId) {
   return result.changes > 0;
 }
 
+// ── Session notes (quick capture during focus) ─────────────────────────────
+
+export function createNote(sessionId, userId, text) {
+  const database = getDb();
+  const trimmed = (text && String(text).trim()) || '';
+  if (!trimmed) return null;
+  const id = crypto.randomUUID();
+  const now = Date.now();
+  database.prepare(`
+    INSERT INTO session_notes (id, session_id, user_id, text, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(id, sessionId, userId, trimmed, now);
+  return database.prepare(`SELECT * FROM session_notes WHERE id = ?`).get(id);
+}
+
+export function getNotesBySession(sessionId) {
+  const database = getDb();
+  return database.prepare(`
+    SELECT * FROM session_notes WHERE session_id = ? ORDER BY created_at ASC
+  `).all(sessionId);
+}
+
+export function getNotesByUser(userId) {
+  const database = getDb();
+  return database.prepare(`
+    SELECT * FROM session_notes WHERE user_id = ? ORDER BY created_at DESC
+  `).all(userId);
+}
+
+export function deleteNote(noteId, userId) {
+  const database = getDb();
+  const result = database.prepare(`DELETE FROM session_notes WHERE id = ? AND user_id = ?`).run(noteId, userId);
+  return result.changes > 0;
+}
+
 // Reset daily quests whose last_reset_date != today's local date
 // Returns array of quest IDs that were reset
 export function resetDailyQuests(userId, todayDateStr) {
@@ -541,6 +623,192 @@ export function getLastDailyJobDate(userId) {
   const database = getDb();
   const profile = database.prepare(`SELECT last_daily_job_date FROM user_profile WHERE id = ?`).get(userId);
   return profile?.last_daily_job_date || null;
+}
+
+function parseJsonField(value, fallback) {
+  if (!value) return fallback;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
+
+function mapMemorySnapshotCacheRow(row) {
+  return {
+    ...row,
+    emotional_tags: parseJsonField(row.emotional_tags, []),
+    top_skills: parseJsonField(row.top_skills, null),
+  };
+}
+
+export function getMemorySnapshotCache(userId, limit = 90) {
+  const database = getDb();
+  const rows = database.prepare(`
+    SELECT * FROM memory_snapshot_cache
+    WHERE user_id = ?
+    ORDER BY snapshot_date DESC
+    LIMIT ?
+  `).all(userId, limit);
+  return rows.map(mapMemorySnapshotCacheRow);
+}
+
+export function getMemorySnapshotCacheByDate(userId, snapshotDate) {
+  const database = getDb();
+  const row = database.prepare(`
+    SELECT * FROM memory_snapshot_cache
+    WHERE user_id = ? AND snapshot_date = ?
+  `).get(userId, snapshotDate);
+  return row ? mapMemorySnapshotCacheRow(row) : null;
+}
+
+export function upsertMemorySnapshotCache(userId, snapshot) {
+  const database = getDb();
+  const existing = database.prepare(`
+    SELECT id, created_at FROM memory_snapshot_cache
+    WHERE user_id = ? AND snapshot_date = ?
+  `).get(userId, snapshot.snapshot_date);
+  const id = existing?.id || snapshot.id || crypto.randomUUID();
+  const createdAt = snapshot.created_at ?? existing?.created_at ?? Date.now();
+
+  database.prepare(`
+    INSERT INTO memory_snapshot_cache (
+      id, user_id, snapshot_date, behavioral_summary, emotional_tags, peak_hours,
+      avg_session_duration_minutes, top_skills, quest_completion_rate,
+      streak_at_snapshot, session_count, total_minutes, created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(user_id, snapshot_date) DO UPDATE SET
+      behavioral_summary = excluded.behavioral_summary,
+      emotional_tags = excluded.emotional_tags,
+      peak_hours = excluded.peak_hours,
+      avg_session_duration_minutes = excluded.avg_session_duration_minutes,
+      top_skills = excluded.top_skills,
+      quest_completion_rate = excluded.quest_completion_rate,
+      streak_at_snapshot = excluded.streak_at_snapshot,
+      session_count = excluded.session_count,
+      total_minutes = excluded.total_minutes,
+      created_at = excluded.created_at
+  `).run(
+    id,
+    userId,
+    snapshot.snapshot_date,
+    snapshot.behavioral_summary ?? null,
+    JSON.stringify(snapshot.emotional_tags || []),
+    snapshot.peak_hours ?? null,
+    snapshot.avg_session_duration_minutes ?? null,
+    snapshot.top_skills ? JSON.stringify(snapshot.top_skills) : null,
+    snapshot.quest_completion_rate ?? null,
+    snapshot.streak_at_snapshot ?? 0,
+    snapshot.session_count ?? 0,
+    snapshot.total_minutes ?? 0,
+    createdAt
+  );
+
+  return getMemorySnapshotCacheByDate(userId, snapshot.snapshot_date);
+}
+
+function mapHabitCacheRow(row) {
+  if (!row || row.deleted) return null;
+  return {
+    id: row.id,
+    user_id: row.user_id,
+    title: row.title,
+    frequency: row.frequency,
+    last_completed_date: row.last_completed_date,
+    current_streak: row.current_streak,
+    created_at: row.created_at,
+  };
+}
+
+export function listHabitCache(userId) {
+  const database = getDb();
+  const rows = database.prepare(`
+    SELECT * FROM habits_cache
+    WHERE user_id = ? AND deleted = 0
+    ORDER BY created_at ASC
+  `).all(userId);
+  return rows.map(mapHabitCacheRow).filter(Boolean);
+}
+
+export function getHabitCacheById(userId, habitId) {
+  const database = getDb();
+  const row = database.prepare(`
+    SELECT * FROM habits_cache
+    WHERE user_id = ? AND id = ?
+  `).get(userId, habitId);
+  return mapHabitCacheRow(row);
+}
+
+export function upsertHabitCache(userId, habit, syncState = 'synced') {
+  const database = getDb();
+  const now = Date.now();
+  const createdAt = habit.created_at ?? now;
+  const updatedAt = habit.updated_at ?? now;
+
+  database.prepare(`
+    INSERT INTO habits_cache (
+      id, user_id, title, frequency, last_completed_date,
+      current_streak, created_at, updated_at, deleted, sync_state
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      title = excluded.title,
+      frequency = excluded.frequency,
+      last_completed_date = excluded.last_completed_date,
+      current_streak = excluded.current_streak,
+      created_at = excluded.created_at,
+      updated_at = excluded.updated_at,
+      deleted = excluded.deleted,
+      sync_state = excluded.sync_state
+  `).run(
+    habit.id,
+    userId,
+    habit.title,
+    habit.frequency || 'daily',
+    habit.last_completed_date ?? null,
+    habit.current_streak ?? 0,
+    createdAt,
+    updatedAt,
+    habit.deleted ? 1 : 0,
+    syncState
+  );
+
+  return getHabitCacheById(userId, habit.id);
+}
+
+export function markHabitCacheDeleted(userId, habitId) {
+  const database = getDb();
+  database.prepare(`
+    UPDATE habits_cache
+    SET deleted = 1, sync_state = 'pending_delete', updated_at = ?
+    WHERE user_id = ? AND id = ?
+  `).run(Date.now(), userId, habitId);
+}
+
+export function removeHabitCache(userId, habitId) {
+  const database = getDb();
+  database.prepare(`
+    DELETE FROM habits_cache WHERE user_id = ? AND id = ?
+  `).run(userId, habitId);
+}
+
+export function setHabitCacheSyncState(userId, habitId, syncState) {
+  const database = getDb();
+  database.prepare(`
+    UPDATE habits_cache
+    SET sync_state = ?, updated_at = ?
+    WHERE user_id = ? AND id = ?
+  `).run(syncState, Date.now(), userId, habitId);
+}
+
+export function getPendingHabitCache(userId) {
+  const database = getDb();
+  return database.prepare(`
+    SELECT * FROM habits_cache
+    WHERE user_id = ? AND sync_state != 'synced'
+    ORDER BY updated_at ASC
+  `).all(userId);
 }
 
 // Streak helpers

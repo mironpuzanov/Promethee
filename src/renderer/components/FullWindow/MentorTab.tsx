@@ -87,9 +87,9 @@ function ChatView({ chat, onBack }: { chat: Chat; onBack: () => void }) {
   const resizeTextarea = useCallback(() => {
     const el = inputRef.current;
     if (!el) return;
-    el.style.height = '0px';
+    el.style.height = '42px';
     const max = 168;
-    el.style.height = `${Math.min(el.scrollHeight, max)}px`;
+    el.style.height = `${Math.max(42, Math.min(el.scrollHeight, max))}px`;
   }, []);
 
   useLayoutEffect(() => {

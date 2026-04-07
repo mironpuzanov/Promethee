@@ -16,9 +16,10 @@ interface ActiveSessionProps {
   session: Session;
   onEnd: () => void;
   focusAddFieldTrigger?: number;
+  toggleTaskPanelTrigger?: number;
 }
 
-function ActiveSession({ session, onEnd, focusAddFieldTrigger = 0 }: ActiveSessionProps) {
+function ActiveSession({ session, onEnd, focusAddFieldTrigger = 0, toggleTaskPanelTrigger = 0 }: ActiveSessionProps) {
   const [elapsed, setElapsed] = useState(0);
   const [xpSoFar, setXpSoFar] = useState(0);
   const [minimized, setMinimized] = useState(true);
@@ -49,7 +50,11 @@ function ActiveSession({ session, onEnd, focusAddFieldTrigger = 0 }: ActiveSessi
 
   return (
     <div className="active-session">
-      <TaskChecklist session={session} focusAddFieldTrigger={focusAddFieldTrigger} />
+      <TaskChecklist
+        session={session}
+        focusAddFieldTrigger={focusAddFieldTrigger}
+        togglePanelTrigger={toggleTaskPanelTrigger}
+      />
       <LevelPill />
       <TimerCard
         elapsed={formatTime(elapsed)}

@@ -25,9 +25,26 @@ interface Current {
   snapshotCount: number;
 }
 
+interface TodaySession {
+  duration_seconds?: number;
+}
+
 interface MemoryData {
   snapshots: Snapshot[];
   current: Current;
+}
+
+interface LiveSkills {
+  rigueur: number;
+  volonte: number;
+  courage: number;
+}
+
+interface LiveSkillsRaw {
+  totalMinutes: number;
+  streak: number;
+  deepSessions: number;
+  sessionCount?: number;
 }
 
 const containerVariants = {
@@ -94,7 +111,7 @@ function TagBadge({ tag }: { tag: string }) {
   );
 }
 
-function SkillBar({ label, value }: { label: string; value: number }) {
+function SkillBar({ label, value, display }: { label: string; value: number; display: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
       <span style={{ width: 70, fontSize: 12, color: 'var(--text-secondary)', flexShrink: 0 }}>{label}</span>
@@ -106,8 +123,8 @@ function SkillBar({ label, value }: { label: string; value: number }) {
           transition={{ duration: 0.8, ease: 'easeOut', delay: 0.2 }}
         />
       </div>
-      <span style={{ width: 28, fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'right', flexShrink: 0 }}>
-        {value}
+      <span style={{ width: 38, fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'right', flexShrink: 0 }}>
+        {display}
       </span>
     </div>
   );
@@ -121,43 +138,130 @@ function formatMinutes(m: number): string {
   return `${h}h ${rem}m`;
 }
 
-// Mini bar chart: one bar per snapshot, height = total_minutes normalized
-function ActivityChart({ snapshots }: { snapshots: Snapshot[] }) {
-  if (snapshots.length === 0) return null;
-  const ordered = [...snapshots].reverse(); // oldest first
-  const maxMinutes = Math.max(...ordered.map(s => s.total_minutes || 0), 1);
+function formatMinutesCompact(m: number): string {
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  return rem === 0 ? `${h}h` : `${h}h ${rem}m`;
+}
+
+function shiftDate(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return d.toLocaleDateString('en-CA');
+}
+
+function formatDayTick(dateStr: string): string {
+  const todayStr = new Date().toLocaleDateString('en-CA');
+  if (dateStr === todayStr) return 'today';
+  const d = new Date(`${dateStr}T00:00:00`);
+  return d.toLocaleDateString('en-US', { weekday: 'short' });
+}
+
+function buildChartSeries(snapshots: Snapshot[], todayMinutes: number) {
+  const byDate = new Map<string, number>();
+  for (const snapshot of snapshots) {
+    byDate.set(snapshot.snapshot_date, snapshot.total_minutes || 0);
+  }
+
+  const todayStr = new Date().toLocaleDateString('en-CA');
+  const dates = Array.from({ length: 7 }, (_, idx) => shiftDate(todayStr, idx - 6));
+  return dates.map((date) => ({
+    date,
+    minutes: date === todayStr ? todayMinutes : (byDate.get(date) || 0),
+  }));
+}
+
+function ActivityChart({ snapshots, todayMinutes }: { snapshots: Snapshot[]; todayMinutes: number }) {
+  const series = buildChartSeries(snapshots, todayMinutes);
+  const maxMinutes = Math.max(...series.map((s) => s.minutes), 1);
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 40, width: '100%' }}>
-      {ordered.map((s, i) => {
-        const h = Math.max(2, Math.round(((s.total_minutes || 0) / maxMinutes) * 40));
-        return (
-          <div
-            key={s.snapshot_date}
-            title={`${s.snapshot_date}: ${s.total_minutes || 0}m`}
-            style={{
-              flex: 1,
-              height: h,
-              background: i === ordered.length - 1
-                ? 'var(--accent-fire)'
-                : 'var(--accent-glow-strong)',
-              borderRadius: 2,
-              transition: 'height 0.5s ease',
-            }}
-          />
-        );
-      })}
+    <div style={{ display: 'flex', gap: 10, alignItems: 'stretch' }}>
+      <div style={{ width: 34, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', paddingTop: 8, paddingBottom: 20 }}>
+        <span style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'right' }}>{maxMinutes}m</span>
+        <span style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'right' }}>0m</span>
+      </div>
+      <div style={{
+        display: 'flex',
+        alignItems: 'flex-end',
+        gap: 8,
+        height: 124,
+        width: '100%',
+        padding: '12px 10px 10px',
+        borderRadius: 12,
+        background: 'linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))',
+        border: '1px solid var(--border)',
+      }}>
+        {series.map((s, i) => {
+          const h = s.minutes === 0 ? 6 : Math.max(10, Math.round((s.minutes / maxMinutes) * 64));
+          const isLatest = i === series.length - 1;
+          return (
+            <div key={s.date} style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', gap: 6 }}>
+              <span
+                title={`${s.date}: ${s.minutes}m`}
+                style={{
+                  fontSize: 10,
+                  color: isLatest ? 'var(--text-primary)' : 'var(--text-muted)',
+                  textAlign: 'center',
+                  fontVariantNumeric: 'tabular-nums',
+                  minHeight: 12,
+                }}
+              >
+                {s.minutes > 0 ? `${s.minutes}m` : ''}
+              </span>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end' }}>
+                <div
+                  style={{
+                    width: '100%',
+                    height: h,
+                    background: isLatest
+                      ? 'var(--accent-fire)'
+                      : s.minutes > 0
+                        ? 'rgba(232, 146, 42, 0.55)'
+                        : 'rgba(255,255,255,0.08)',
+                    borderRadius: 8,
+                    transition: 'height 0.5s ease',
+                    boxShadow: isLatest ? '0 6px 24px rgba(232, 146, 42, 0.22)' : 'none',
+                  }}
+                />
+              </div>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', textTransform: 'lowercase' }}>
+                {formatDayTick(s.date)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
 export default function MemoryTab() {
   const [data, setData] = useState<MemoryData | null>(null);
+  const [liveSkills, setLiveSkills] = useState<LiveSkills | null>(null);
+  const [liveSkillsRaw, setLiveSkillsRaw] = useState<LiveSkillsRaw | null>(null);
+  const [todayMinutes, setTodayMinutes] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    window.promethee.memory.get().then((result) => {
-      if (result.success) {
-        setData({ snapshots: result.snapshots || [], current: result.current });
+    Promise.all([
+      window.promethee.memory.get(),
+      window.promethee.skills.get(),
+      window.promethee.session.getToday(),
+    ]).then(([memoryResult, skillsResult, sessionsResult]) => {
+      if (memoryResult.success) {
+        setData({ snapshots: memoryResult.snapshots || [], current: memoryResult.current });
+      }
+      if (skillsResult.success && skillsResult.skills) {
+        setLiveSkills(skillsResult.skills as LiveSkills);
+        if (skillsResult.raw) setLiveSkillsRaw(skillsResult.raw as LiveSkillsRaw);
+      }
+      if (sessionsResult.success && sessionsResult.sessions) {
+        const minutes = (sessionsResult.sessions as TodaySession[]).reduce(
+          (sum, session) => sum + Math.floor((session.duration_seconds || 0) / 60),
+          0
+        );
+        setTodayMinutes(minutes);
       }
       setLoading(false);
     });
@@ -204,9 +308,6 @@ export default function MemoryTab() {
   const avgDuration = durationsWithData.length
     ? Math.round(durationsWithData.reduce((s, r) => s + (r.avg_session_duration_minutes || 0), 0) / durationsWithData.length)
     : 0;
-
-  // Latest skills
-  const latestSkills = snapshots.find(s => s.top_skills)?.top_skills ?? null;
 
   return (
     <motion.div
@@ -290,16 +391,12 @@ export default function MemoryTab() {
       )}
 
       {/* Activity chart */}
-      {snapshots.length > 1 && (
+      {(snapshots.length > 0 || todayMinutes > 0) && (
         <motion.div variants={itemVariants} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-muted)', margin: 0 }}>
             Daily focus minutes
           </p>
-          <ActivityChart snapshots={snapshots} />
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
-            <span>{snapshots[snapshots.length - 1]?.snapshot_date}</span>
-            <span>today</span>
-          </div>
+          <ActivityChart snapshots={snapshots} todayMinutes={todayMinutes} />
         </motion.div>
       )}
 
@@ -355,16 +452,31 @@ export default function MemoryTab() {
       )}
 
       {/* Skill trajectory */}
-      {latestSkills && (
+      {liveSkills && (
         <motion.div variants={itemVariants} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-muted)', margin: 0 }}>
-            Focus stats (snapshot)
+            Focus stats (live)
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <SkillBar label="Consistency" value={latestSkills.rigueur} />
-            <SkillBar label="Willpower" value={latestSkills.volonte} />
-            <SkillBar label="Deep runs" value={latestSkills.courage} />
+            <SkillBar
+              label="Willpower"
+              value={liveSkills.rigueur}
+              display={formatMinutesCompact(liveSkillsRaw?.totalMinutes || 0)}
+            />
+            <SkillBar
+              label="Consistency"
+              value={liveSkills.volonte}
+              display={`${liveSkillsRaw?.streak || 0}d`}
+            />
+            <SkillBar
+              label="Deep runs"
+              value={liveSkills.courage}
+              display={String(liveSkillsRaw?.deepSessions || 0)}
+            />
           </div>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+            Bars are normalized for shape, but the numbers shown are real values: focus minutes over the last 30 days, current streak days, and 2h+ sessions.
+          </p>
         </motion.div>
       )}
 
