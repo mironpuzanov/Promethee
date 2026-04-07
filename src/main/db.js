@@ -148,6 +148,24 @@ export function initializeDatabase() {
 
     CREATE INDEX IF NOT EXISTS idx_habits_cache_user
       ON habits_cache(user_id, deleted, created_at ASC);
+
+    CREATE TABLE IF NOT EXISTS blocked_domains (
+      id TEXT PRIMARY KEY,
+      domain TEXT NOT NULL UNIQUE,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      preset INTEGER NOT NULL DEFAULT 0,
+      position INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS blocker_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id TEXT,
+      domain TEXT NOT NULL,
+      blocked_at INTEGER NOT NULL,
+      source TEXT NOT NULL DEFAULT 'network_filter'
+    );
   `);
 
   // Add streak/daily-job columns to user_profile if they don't exist yet (idempotent)
@@ -162,6 +180,17 @@ export function initializeDatabase() {
   if (!colNames.includes('last_daily_job_date')) {
     db.exec(`ALTER TABLE user_profile ADD COLUMN last_daily_job_date TEXT`);
   }
+
+  // Seed default preset blocked domains on first init (idempotent via UNIQUE constraint)
+  const presetDomains = ['x.com', 'twitter.com', 'instagram.com', 'youtube.com', 'reddit.com', 'tiktok.com'];
+  const insertPreset = db.prepare(`
+    INSERT OR IGNORE INTO blocked_domains (id, domain, enabled, preset, position, created_at, updated_at)
+    VALUES (?, ?, 1, 1, ?, ?, ?)
+  `);
+  const now = Date.now();
+  presetDomains.forEach((domain, i) => {
+    insertPreset.run(crypto.randomUUID(), domain, i, now, now);
+  });
 
   return db;
 }
@@ -810,6 +839,56 @@ export function getPendingHabitCache(userId) {
     ORDER BY updated_at ASC
   `).all(userId);
 }
+
+// ── Blocked domains ────────────────────────────────────────────────────────────
+
+export function getBlockedDomains() {
+  const database = getDb();
+  return database.prepare(`
+    SELECT * FROM blocked_domains ORDER BY position ASC, created_at ASC
+  `).all();
+}
+
+export function addBlockedDomain(domain) {
+  const database = getDb();
+  const trimmed = (domain && String(domain).trim().toLowerCase()) || '';
+  if (!trimmed) return null;
+  const id = crypto.randomUUID();
+  const now = Date.now();
+  const row = database.prepare(`
+    SELECT COALESCE(MAX(position), -1) + 1 AS next FROM blocked_domains
+  `).get();
+  const position = row?.next ?? 0;
+  try {
+    database.prepare(`
+      INSERT INTO blocked_domains (id, domain, enabled, preset, position, created_at, updated_at)
+      VALUES (?, ?, 1, 0, ?, ?, ?)
+    `).run(id, trimmed, position, now, now);
+  } catch (e) {
+    if (e.message && e.message.includes('UNIQUE')) {
+      return { error: 'Domain already exists' };
+    }
+    throw e;
+  }
+  return database.prepare(`SELECT * FROM blocked_domains WHERE id = ?`).get(id);
+}
+
+export function toggleBlockedDomain(id, enabled) {
+  const database = getDb();
+  const now = Date.now();
+  database.prepare(`
+    UPDATE blocked_domains SET enabled = ?, updated_at = ? WHERE id = ?
+  `).run(enabled ? 1 : 0, now, id);
+  return database.prepare(`SELECT * FROM blocked_domains WHERE id = ?`).get(id);
+}
+
+export function removeBlockedDomain(id) {
+  const database = getDb();
+  const result = database.prepare(`DELETE FROM blocked_domains WHERE id = ?`).run(id);
+  return result.changes > 0;
+}
+
+// ── Streak helpers ─────────────────────────────────────────────────────────────
 
 // Streak helpers
 export function updateStreak(userId, todayDateStr) {
