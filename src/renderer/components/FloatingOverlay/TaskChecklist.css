@@ -11,7 +11,7 @@
 .task-checklist-pill {
   height: 32px;
   min-width: 32px;
-  padding: 0 12px 0 10px;
+  padding: 0 14px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -32,9 +32,10 @@
 }
 
 .task-checklist-pill:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.18);
+  background: var(--surface-glass-hover);
+  border-color: var(--border-glass-hover);
   color: var(--text-primary);
+  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.48);
 }
 
 .task-checklist-pill:active {
@@ -46,9 +47,21 @@
   color: currentColor;
 }
 
+.task-checklist-pill__label {
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
 .task-checklist-pill__count {
-  color: currentColor;
+  min-width: 1.1em;
+  text-align: center;
   font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.task-checklist-pill:hover .task-checklist-pill__count {
+  color: var(--text-secondary);
 }
 
 /* Expanded panel */
@@ -122,7 +135,8 @@
 }
 
 .task-checklist__row:hover {
-  background: rgba(255, 255, 255, 0.06);
+  /* Slightly warm lift; avoids a “white film” when the panel sits over bright pixels */
+  background: rgba(0, 0, 0, 0.22);
 }
 
 .task-checklist__row:hover .task-checklist__delete {

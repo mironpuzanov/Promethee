@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import IdleBar from './IdleBar';
 import ActiveSession from './ActiveSession';
 import AgentBubble from './AgentBubble';
 import RoomsPanel from './RoomsPanel';
+import { useAudio } from '../../hooks/useAudio';
+import { overlayInstallPointerSync } from '../../lib/overlayMouseBridge';
 import './FloatingOverlay.css';
 
 interface User {
@@ -31,6 +33,19 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [focusTaskInput, setFocusTaskInput] = useState(false);
   const [agentOpenTrigger, setAgentOpenTrigger] = useState(0);
+  const [taskShortcutTrigger, setTaskShortcutTrigger] = useState(0);
+  const { transitionTo } = useAudio();
+  const activeSessionRef = useRef<Session | null>(null);
+  const handleEndSessionRef = useRef<() => Promise<void>>(async () => {});
+
+  // Audio: start dashboard ambient when idle, silence when session is active on load
+  useEffect(() => {
+    if (!activeSession) {
+      transitionTo('dashboard');
+    }
+  }, []);
+
+  useEffect(() => overlayInstallPointerSync(), []);
 
   useEffect(() => {
     window.promethee.session.getActive().then((result: { success: boolean; session?: Session }) => {
@@ -58,30 +73,57 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
     if (result.success) {
       setActiveSession({ ...result.session, roomId: room });
       setSelectedRoomId(null);
+      transitionTo('session-active'); // Prestige Fade lingers then fades out
     } else {
       console.error('Failed to start session:', result.error);
       alert(result.error);
     }
   };
 
-  const handleEndSession = async () => {
-    const result = await window.promethee.session.end();
-    if (result.success && result.session) {
-      setActiveSession(null);
-      // Open dashboard with session complete screen
-      window.promethee.window.openSessionComplete({
-        task: result.session.task || 'Session',
-        durationSeconds: result.session.durationSeconds || 0,
-        xpEarned: result.session.xpEarned || 0,
-        multiplier: result.session.multiplier,
-        streakBonus: result.session.streakBonus,
-        depthBonus: result.session.depthBonus,
-        currentStreak: result.session.currentStreak,
-      });
-    } else if (!result.success) {
-      console.error('Failed to end session:', result.error);
+  const handleEndSession = useCallback(async () => {
+    try {
+      const result = await window.promethee.session.end();
+      if (result.success) {
+        setActiveSession(null);
+        transitionTo('dashboard');
+        if (result.session) {
+          window.promethee.window.openSessionComplete({
+            task: result.session.task || 'Session',
+            durationSeconds: result.session.durationSeconds || 0,
+            xpEarned: result.session.xpEarned || 0,
+            multiplier: result.session.multiplier,
+            streakBonus: result.session.streakBonus,
+            depthBonus: result.session.depthBonus,
+            currentStreak: result.session.currentStreak,
+            sessionId: result.session.id,
+          });
+        }
+      } else {
+        console.error('Failed to end session:', result.error);
+        alert(result.error || 'Could not end session.');
+      }
+    } catch (e) {
+      console.error('session.end failed:', e);
+      alert(e instanceof Error ? e.message : 'Could not end session.');
     }
-  };
+  }, [transitionTo]);
+
+  useEffect(() => {
+    activeSessionRef.current = activeSession;
+  }, [activeSession]);
+
+  useEffect(() => {
+    handleEndSessionRef.current = handleEndSession;
+  }, [handleEndSession]);
+
+  useEffect(() => {
+    const unsub = window.promethee.shortcuts.onFocusShortcut((action) => {
+      if (action === 'openMentor') setAgentOpenTrigger((n) => n + 1);
+      if (action === 'focusAddTask' && activeSessionRef.current) setTaskShortcutTrigger((n) => n + 1);
+      if (action === 'endSession' && activeSessionRef.current) void handleEndSessionRef.current();
+    });
+    return unsub;
+  }, []);
 
   const handleDismissResumePrompt = () => {
     setShowResumePrompt(false);
@@ -89,16 +131,12 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
 
   if (showResumePrompt) {
     return (
-      <div
-        className="floating-overlay"
-        onMouseEnter={() => window.promethee.window.setIgnoreMouseEvents(false)}
-        onMouseLeave={() => window.promethee.window.setIgnoreMouseEvents(true)}
-      >
-        <div className="resume-prompt">
+      <div className="floating-overlay">
+        <div className="resume-prompt promethee-mouse-target">
           <p>Welcome back. Ready to focus?</p>
           <button onClick={handleDismissResumePrompt}>Got it</button>
         </div>
-        <AgentBubble activeSession={null} />
+        <AgentBubble activeSession={null} openTrigger={agentOpenTrigger} />
       </div>
     );
   }
@@ -106,8 +144,12 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
   if (activeSession) {
     return (
       <>
-        <ActiveSession session={activeSession} onEnd={handleEndSession} />
-        <AgentBubble activeSession={activeSession} />
+        <ActiveSession
+          session={activeSession}
+          onEnd={handleEndSession}
+          focusAddFieldTrigger={taskShortcutTrigger}
+        />
+        <AgentBubble activeSession={activeSession} openTrigger={agentOpenTrigger} />
       </>
     );
   }
@@ -121,6 +163,7 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
         autoFocusInput={focusTaskInput}
         onAutoFocusConsumed={() => setFocusTaskInput(false)}
         onOpenMentor={() => setAgentOpenTrigger(n => n + 1)}
+        onSessionStartIntent={() => transitionTo('session-active')}
       />
       <AgentBubble activeSession={null} openTrigger={agentOpenTrigger} />
       <AnimatePresence>

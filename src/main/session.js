@@ -63,6 +63,9 @@ export async function endSessionAndSync() {
   // Update user's total XP
   updateUserXP(activeSession.userId, xpEarned);
 
+  const sessionId = activeSession.id;
+  const userId = activeSession.userId;
+
   const sessionData = {
     ...activeSession,
     endedAt,
@@ -75,28 +78,27 @@ export async function endSessionAndSync() {
     currentStreak
   };
 
-  // Try to sync to Supabase (session + streak mirror)
-  try {
-    await syncSessionToSupabase(sessionData);
-    markSessionSynced(activeSession.id);
-
-    // Mirror streak to Supabase user_profile
-    const profile = getUserProfile(activeSession.userId);
-    if (profile) {
-      await supabase.from('user_profile').update({
-        total_xp: profile.total_xp,
-        level: profile.level,
-        current_streak: profile.current_streak,
-        last_session_date: profile.last_session_date
-      }).eq('id', activeSession.userId);
-    }
-  } catch (error) {
-    console.error('Failed to sync session to Supabase:', error);
-    // Keep synced_at as NULL so it can be retried later
-  }
-
   const completedSession = { ...sessionData };
   activeSession = null;
+
+  // Never block session end on network — IPC must return fast so the UI can clear.
+  void (async () => {
+    try {
+      await syncSessionToSupabase(sessionData);
+      markSessionSynced(sessionId);
+      const profile = getUserProfile(userId);
+      if (profile) {
+        await supabase.from('user_profile').update({
+          total_xp: profile.total_xp,
+          level: profile.level,
+          current_streak: profile.current_streak,
+          last_session_date: profile.last_session_date
+        }).eq('id', userId);
+      }
+    } catch (error) {
+      console.error('Failed to sync session to Supabase:', error);
+    }
+  })();
 
   return completedSession;
 }

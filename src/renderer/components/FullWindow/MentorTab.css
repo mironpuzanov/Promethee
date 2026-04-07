@@ -1,0 +1,316 @@
+/* All interactive defaults live here so :hover isn’t beaten by inline styles */
+
+.mentor-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-radius: 10px;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: inherit;
+  -webkit-app-region: no-drag;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.mentor-list-item:hover {
+  background: var(--input);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.mentor-header-btn--ghost {
+  padding: 4px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  -webkit-app-region: no-drag;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.mentor-header-btn--ghost:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+}
+
+.mentor-header-btn--primary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--input);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 14px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.mentor-header-btn--primary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: var(--text-primary);
+}
+
+.mentor-header-btn--primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mentor-chat-attach {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.mentor-chat-attach:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+}
+
+.mentor-chat-attach:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.mentor-chat-attach--active {
+  background: rgba(232, 146, 42, 0.12) !important;
+  border-color: rgba(232, 146, 42, 0.35) !important;
+  color: #e8922a !important;
+}
+
+.mentor-chat-attach--active:hover:not(:disabled) {
+  background: rgba(232, 146, 42, 0.18) !important;
+}
+
+.mentor-typing-wrap {
+  display: flex;
+  align-items: flex-start;
+}
+
+.mentor-typing-bubble {
+  padding: 12px 16px;
+  border-radius: 14px 14px 14px 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+
+@keyframes mentorTypingDot {
+  0%,
+  80%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  40% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+.mentor-typing-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  animation: mentorTypingDot 1.05s ease-in-out infinite;
+}
+
+.mentor-typing-dot:nth-child(2) {
+  animation-delay: 0.14s;
+}
+
+.mentor-typing-dot:nth-child(3) {
+  animation-delay: 0.28s;
+}
+
+.mentor-chat-textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: 42px;
+  max-height: 168px;
+  overflow-y: auto;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  resize: none;
+  line-height: 1.5;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
+}
+
+.mentor-chat-textarea:focus {
+  border-color: rgba(232, 146, 42, 0.45);
+  box-shadow: 0 0 0 2px rgba(232, 146, 42, 0.12);
+  outline: none;
+}
+
+.mentor-chat-textarea:disabled {
+  opacity: 0.5;
+}
+
+.mentor-chat-send {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: filter 0.15s ease, transform 0.12s ease, opacity 0.15s ease;
+}
+
+.mentor-chat-send:enabled {
+  background: var(--accent-fire);
+  color: var(--primary-foreground);
+  cursor: pointer;
+}
+
+.mentor-chat-send:enabled:hover {
+  filter: brightness(1.08);
+  transform: scale(1.04);
+}
+
+.mentor-chat-send:disabled {
+  background: var(--input);
+  color: var(--text-muted);
+  cursor: default;
+}
+
+/* Live screen — every message */
+.mentor-live-screen-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 0 2px;
+  -webkit-app-region: no-drag;
+}
+
+.mentor-live-screen-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.35;
+  flex: 1;
+  min-width: 0;
+}
+
+.mentor-live-screen-switch {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 11px;
+  border: 1px solid var(--border);
+  background: var(--input);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.mentor-live-screen-switch:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.mentor-live-screen-switch[aria-checked='true'] {
+  background: rgba(232, 146, 42, 0.35);
+  border-color: rgba(232, 146, 42, 0.45);
+}
+
+.mentor-live-screen-switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  transition: transform 0.18s ease, background 0.18s ease;
+}
+
+.mentor-live-screen-switch[aria-checked='true'] .mentor-live-screen-switch-thumb {
+  transform: translateX(18px);
+  background: #e8922a;
+}
+
+/* Queued screen snapshot banner */
+.mentor-screen-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  background: rgba(232, 146, 42, 0.1);
+  border: 1px solid rgba(232, 146, 42, 0.28);
+  border-radius: 8px;
+  font-size: 11px;
+  color: #e8922a;
+  flex-wrap: wrap;
+  line-height: 1.45;
+  -webkit-app-region: no-drag;
+}
+
+.mentor-screen-chip--error {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #f87171;
+  font-size: 12px;
+}
+
+.mentor-screen-chip-remove {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.2);
+  color: #e8922a;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.mentor-screen-chip-remove:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-primary);
+}
+
+.mentor-screen-chip-remove:active {
+  transform: scale(0.96);
+}

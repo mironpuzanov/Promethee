@@ -27,9 +27,9 @@ function PresencePill({ onClick }: PresencePillProps) {
 
   return (
     <button
+      type="button"
       onClick={onClick}
-      onMouseEnter={() => window.promethee.window.setIgnoreMouseEvents(false)}
-      onMouseLeave={() => window.promethee.window.setIgnoreMouseEvents(true)}
+      className="promethee-mouse-target"
       style={{
         display: 'flex',
         alignItems: 'center',

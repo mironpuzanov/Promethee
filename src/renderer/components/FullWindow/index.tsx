@@ -118,15 +118,6 @@ function SessionLog() {
   );
 }
 
-function PlaceholderTab({ title }: { title: string }) {
-  return (
-    <div className="flex flex-col bg-background px-10 py-10 overflow-y-auto gap-6">
-      <h2 className="text-2xl font-light text-foreground">{title}</h2>
-      <p className="text-sm text-muted-foreground">Coming soon.</p>
-    </div>
-  );
-}
-
 interface FullWindowProps {
   user: User | null;
   setUser: (user: User | null) => void;
@@ -160,19 +151,17 @@ function FullWindow({ user, setUser }: FullWindowProps) {
 
   const renderMain = () => {
     switch (activeTab) {
-      case 'home':        return <CharacterPanel user={user} />;
+      case 'home':        return <CharacterPanel user={user} onOpenMemory={() => setActiveTab('memory')} />;
       case 'log':         return <SessionLog />;
       case 'tasks':       return <TasksTab />;
       case 'leaderboard': return <LeaderboardTab />;
       case 'rooms':       return <RoomsTab />;
       case 'quests':      return <QuestsTab />;
       case 'habits':      return <HabitsTab />;
-      case 'skills':      return <PlaceholderTab title="Skills" />;
-      case 'journal':     return <PlaceholderTab title="Journal" />;
       case 'memory':      return <MemoryTab />;
       case 'mentor':      return <MentorTab />;
       case 'settings':    return <SettingsTab user={user} setUser={setUser} />;
-      default:        return <CharacterPanel user={user} />;
+      default:        return <CharacterPanel user={user} onOpenMemory={() => setActiveTab('memory')} />;
     }
   };
 

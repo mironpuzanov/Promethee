@@ -18,7 +18,7 @@ function LevelPill() {
   const dots = Array.from({ length: 5 }, (_, i) => i < filled);
 
   return (
-    <div className="level-pill">
+    <div className="level-pill promethee-mouse-target">
       <span className="level-text">Level {level} · {tier}</span>
       <div className="xp-dots">
         {dots.map((f, i) => (

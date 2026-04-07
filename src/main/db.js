@@ -194,6 +194,33 @@ export function getSessions(userId, limit = 100) {
   return stmt.all(userId, limit);
 }
 
+/** Completed sessions since `sinceMs` (for skill scores — matches local Session log, not only Supabase sync). */
+export function getCompletedSessionsForSkills(userId, sinceMs) {
+  const database = getDb();
+  return database.prepare(`
+    SELECT duration_seconds, started_at FROM sessions
+    WHERE user_id = ?
+      AND started_at >= ?
+      AND ended_at IS NOT NULL
+      AND duration_seconds IS NOT NULL
+    ORDER BY started_at DESC
+  `).all(userId, sinceMs);
+}
+
+/** Completed sessions with start time in [startMs, endMs] (memory snapshot rolling window). */
+export function getCompletedSessionsInRange(userId, startMs, endMs) {
+  const database = getDb();
+  return database.prepare(`
+    SELECT task, duration_seconds, started_at FROM sessions
+    WHERE user_id = ?
+      AND started_at >= ?
+      AND started_at <= ?
+      AND ended_at IS NOT NULL
+      AND duration_seconds IS NOT NULL
+    ORDER BY started_at DESC
+  `).all(userId, startMs, endMs);
+}
+
 export function getSessionById(sessionId) {
   const database = getDb();
   return database.prepare(`SELECT * FROM sessions WHERE id = ?`).get(sessionId);
@@ -469,11 +496,13 @@ export function getTasksByUser(userId) {
 
 export function toggleTask(taskId, userId) {
   const database = getDb();
-  const task = database.prepare(`SELECT * FROM tasks WHERE id = ? AND user_id = ?`).get(taskId, userId);
-  if (!task) return null;
-  const next = task.completed ? 0 : 1;
-  database.prepare(`UPDATE tasks SET completed = ? WHERE id = ?`).run(next, taskId);
-  return database.prepare(`SELECT * FROM tasks WHERE id = ?`).get(taskId);
+  return database.transaction(() => {
+    const task = database.prepare(`SELECT * FROM tasks WHERE id = ? AND user_id = ?`).get(taskId, userId);
+    if (!task) return null;
+    const next = task.completed ? 0 : 1;
+    database.prepare(`UPDATE tasks SET completed = ? WHERE id = ?`).run(next, taskId);
+    return database.prepare(`SELECT * FROM tasks WHERE id = ?`).get(taskId);
+  })();
 }
 
 export function deleteTask(taskId, userId) {

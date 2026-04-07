@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { X, Brain } from 'lucide-react';
 import { getLevelInfo } from '../../../lib/xp';
 import homeBg from '../../../assets/home-bg.png';
+import './CharacterPanel.css';
 
 interface User {
   id: string;
@@ -22,6 +24,18 @@ interface SkillScores {
   courage: number;
 }
 
+interface SkillsRaw {
+  totalMinutes: number;
+  streak: number;
+  deepSessions: number;
+  sessionCount?: number;
+}
+
+interface MemorySnap {
+  behavioral_summary?: string | null;
+  emotional_tags?: string[] | null;
+}
+
 interface DailySignal {
   content: string;
   intensity: 'low' | 'med' | 'high';
@@ -30,6 +44,13 @@ interface DailySignal {
 
 interface CharacterPanelProps {
   user: User | null;
+  onOpenMemory?: () => void;
+}
+
+function truncateText(s: string, max: number): string {
+  const t = s.trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, max).trimEnd()}…`;
 }
 
 const containerVariants = {
@@ -66,11 +87,15 @@ function SkillBar({ label, value }: { label: string; value: number }) {
   );
 }
 
-function CharacterPanel({ user }: CharacterPanelProps) {
+function CharacterPanel({ user, onOpenMemory }: CharacterPanelProps) {
   const userName = user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'Guest';
   const [profile, setProfile] = useState<UserProfile>({ total_xp: 0, level: 1 });
   const [skills, setSkills] = useState<SkillScores | null>(null);
+  const [skillsRaw, setSkillsRaw] = useState<SkillsRaw | null>(null);
+  const [memoryTeaser, setMemoryTeaser] = useState<string | null>(null);
+  const [memoryHasSnapshots, setMemoryHasSnapshots] = useState(false);
   const [signal, setSignal] = useState<DailySignal | null>(null);
+  const [signalDismissed, setSignalDismissed] = useState(false);
 
   useEffect(() => {
     window.promethee.db.getUserProfile().then((result: { success: boolean; profile?: UserProfile }) => {
@@ -82,17 +107,41 @@ function CharacterPanel({ user }: CharacterPanelProps) {
     window.promethee.skills.get().then((result) => {
       if (result.success && result.skills) {
         setSkills(result.skills);
+        if (result.raw) setSkillsRaw(result.raw as SkillsRaw);
       }
+    });
+
+    window.promethee.memory.get().then((result: { success: boolean; snapshots?: MemorySnap[] }) => {
+      if (!result.success) return;
+      const snaps = result.snapshots || [];
+      setMemoryHasSnapshots(snaps.length > 0);
+      const withSummary = snaps.find((s) => s.behavioral_summary?.trim());
+      if (withSummary?.behavioral_summary) {
+        setMemoryTeaser(truncateText(withSummary.behavioral_summary, 220));
+        return;
+      }
+      const withTags = snaps.find((s) => (s.emotional_tags?.length ?? 0) > 0);
+      const tags = withTags?.emotional_tags;
+      if (tags?.length) {
+        setMemoryTeaser(`Recent tags: ${tags.slice(0, 5).join(', ')}`);
+        return;
+      }
+      setMemoryTeaser(null);
     });
 
     window.promethee.signal.getToday().then((result) => {
       if (result.success && result.signal) {
-        setSignal(result.signal);
+        const s = result.signal;
+        setSignal(s);
+        if (localStorage.getItem(`dismissDailySignal:${s.date}`) === '1') {
+          setSignalDismissed(true);
+        }
       }
     });
 
     const unsub = window.promethee.signal.onNew((data) => {
       setSignal(data);
+      setSignalDismissed(localStorage.getItem(`dismissDailySignal:${data.date}`) === '1');
     });
     return unsub;
   }, []);
@@ -166,7 +215,7 @@ function CharacterPanel({ user }: CharacterPanelProps) {
 
       {/* Daily Signal */}
       <AnimatePresence>
-        {signal && (
+        {signal && !signalDismissed && (
           <motion.div
             variants={itemVariants}
             initial="hidden"
@@ -175,14 +224,42 @@ function CharacterPanel({ user }: CharacterPanelProps) {
             style={{ paddingLeft: 40, paddingRight: 40 }}
           >
             <div style={{
+              position: 'relative',
               background: 'var(--surface)',
               border: `1px solid ${INTENSITY_STYLE[signal.intensity].border}`,
               borderRadius: 12,
-              padding: '14px 16px',
+              padding: '14px 40px 14px 16px',
               display: 'flex',
               flexDirection: 'column',
               gap: 6,
             }}>
+              <button
+                type="button"
+                aria-label="Dismiss today’s note"
+                onClick={() => {
+                  localStorage.setItem(`dismissDailySignal:${signal.date}`, '1');
+                  setSignalDismissed(true);
+                }}
+                style={{
+                  position: 'absolute',
+                  top: 10,
+                  right: 10,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 28,
+                  height: 28,
+                  padding: 0,
+                  border: 'none',
+                  borderRadius: 6,
+                  background: 'transparent',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                }}
+                className="daily-signal-close"
+              >
+                <X size={16} strokeWidth={2} />
+              </button>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 <div style={{
                   width: 6, height: 6, borderRadius: '50%',
@@ -190,10 +267,10 @@ function CharacterPanel({ user }: CharacterPanelProps) {
                   flexShrink: 0,
                 }} />
                 <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-muted)', fontWeight: 500 }}>
-                  Prométhée · Today
+                  Promethee · Today
                 </span>
               </div>
-              <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55, fontStyle: 'italic' }}>
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55, fontStyle: 'normal' }}>
                 {signal.content}
               </p>
             </div>
@@ -201,14 +278,56 @@ function CharacterPanel({ user }: CharacterPanelProps) {
         )}
       </AnimatePresence>
 
-      {/* Skills */}
-      <motion.div variants={itemVariants} className="flex flex-col gap-1 px-10">
-        <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground pb-1">Skills</p>
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <SkillBar label="Rigueur" value={skills?.rigueur ?? 0} />
-          <SkillBar label="Volonté" value={skills?.volonte ?? 0} />
-          <SkillBar label="Courage" value={skills?.courage ?? 0} />
+      {/* Memory preview (Supabase snapshots — same source as Memory tab) */}
+      <motion.div variants={itemVariants} className="px-10">
+        <div style={{
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 12,
+          padding: '14px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)' }}>
+            <Brain size={16} strokeWidth={1.75} />
+            <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 500 }}>Memory</span>
+          </div>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55 }}>
+            {memoryTeaser
+              ? memoryTeaser
+              : memoryHasSnapshots
+                ? 'Open Memory for your full behavioral profile and charts.'
+                : 'Promethee saves a short behavioral snapshot when you use the app. After your first snapshot, a preview will show up here.'}
+          </p>
+          {onOpenMemory && (
+            <button
+              type="button"
+              onClick={onOpenMemory}
+              className="character-panel-memory-btn"
+            >
+              Open Memory
+            </button>
+          )}
         </div>
+      </motion.div>
+
+      {/* Focus stats (local sessions, last 30d — matches Session log) */}
+      <motion.div variants={itemVariants} className="flex flex-col gap-1 px-10">
+        <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground pb-1">Focus stats</p>
+        <p className="text-xs text-muted-foreground pb-2" style={{ margin: 0, lineHeight: 1.45 }}>
+          {skillsRaw
+            ? `Last 30 days on this device: ${skillsRaw.sessionCount != null ? skillsRaw.sessionCount : '—'} sessions · ${skillsRaw.totalMinutes ?? 0} min focused · ${skillsRaw.deepSessions ?? 0} deep (≥2h) · ${skillsRaw.streak ?? 0}d streak`
+            : 'Loading…'}
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <SkillBar label="Consistency" value={skills?.rigueur ?? 0} />
+          <SkillBar label="Willpower" value={skills?.volonte ?? 0} />
+          <SkillBar label="Deep runs" value={skills?.courage ?? 0} />
+        </div>
+        <p className="text-xs text-muted-foreground pt-1" style={{ margin: 0, opacity: 0.85 }}>
+          Bars scale to caps: 3000 min · 30-day streak · 20 long sessions — so early numbers stay small until you rack up volume.
+        </p>
       </motion.div>
 
       {/* Streak info */}

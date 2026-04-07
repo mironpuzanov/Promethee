@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Check, ChevronDown, Circle, ListChecks, Trash2 } from 'lucide-react';
+import { overlaySuppressHitTest, overlayRestoreClickThrough } from '../../lib/overlayMouseBridge';
 import './TaskChecklist.css';
 
 interface Session {
@@ -18,6 +19,8 @@ interface DbTask {
 
 interface TaskChecklistProps {
   session: Session;
+  /** Increment (e.g. global shortcut) to expand panel and focus the add-task input */
+  focusAddFieldTrigger?: number;
 }
 
 const RIGHT_MARGIN = 24;
@@ -42,13 +45,14 @@ function clampTopY(y: number, collapsed: boolean): number {
   return Math.max(TOP_MARGIN, Math.min(max, y));
 }
 
-function TaskChecklist({ session }: TaskChecklistProps) {
+function TaskChecklist({ session, focusAddFieldTrigger = 0 }: TaskChecklistProps) {
   const [tasks, setTasks] = useState<DbTask[]>([]);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [draft, setDraft] = useState('');
   const [adding, setAdding] = useState(false);
   const [topY, setTopY] = useState(loadTopY);
   const topYRef = useRef(topY);
+  const addInputRef = useRef<HTMLInputElement>(null);
   const isDragging = useRef(false);
   const didMove = useRef(false);
   const dragStartY = useRef(0);
@@ -65,9 +69,10 @@ function TaskChecklist({ session }: TaskChecklistProps) {
     load();
   }, [load]);
 
-  // New session → anchor to top-right (ignore stale drag offset from previous session)
+  // New session → collapsed pill + anchor top-right (ignore stale drag from previous session)
   useEffect(() => {
-    const y = clampTopY(TOP_MARGIN, false);
+    setCollapsed(true);
+    const y = clampTopY(TOP_MARGIN, true);
     setTopY(y);
     topYRef.current = y;
   }, [session.id]);
@@ -77,11 +82,6 @@ function TaskChecklist({ session }: TaskChecklistProps) {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, [collapsed]);
-
-  const handleMouseEnter = () => window.promethee.window.setIgnoreMouseEvents(false);
-  const handleMouseLeave = () => {
-    if (!isDragging.current) window.promethee.window.setIgnoreMouseEvents(true);
-  };
 
   const onToggle = async (taskId: string) => {
     const r = await window.promethee.tasks.toggle(taskId);
@@ -116,6 +116,8 @@ function TaskChecklist({ session }: TaskChecklistProps) {
     if (!isDragging.current) return;
     isDragging.current = false;
     persistTop();
+    overlaySuppressHitTest(-1);
+    overlayRestoreClickThrough();
   }, [persistTop]);
 
   useEffect(() => {
@@ -129,7 +131,7 @@ function TaskChecklist({ session }: TaskChecklistProps) {
     dragStartY.current = e.clientY;
     dragStartTop.current = topYRef.current;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    window.promethee.window.setIgnoreMouseEvents(false);
+    overlaySuppressHitTest(1);
   };
 
   const onDragHandlePointerMove = (e: React.PointerEvent) => {
@@ -157,12 +159,24 @@ function TaskChecklist({ session }: TaskChecklistProps) {
     setTopY(y => clampTopY(y, collapsed));
   }, [collapsed]);
 
+  useEffect(() => {
+    if (focusAddFieldTrigger <= 0) return;
+    setCollapsed(false);
+    let cancelled = false;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (!cancelled) addInputRef.current?.focus();
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [focusAddFieldTrigger]);
+
   return (
     <div
-      className="task-checklist-root"
+      className="task-checklist-root promethee-mouse-target"
       style={{ right: RIGHT_MARGIN, top: topY }}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
     >
       {collapsed ? (
         <button
@@ -175,6 +189,7 @@ function TaskChecklist({ session }: TaskChecklistProps) {
           onPointerUp={onPillPointerUp}
         >
           <ListChecks size={16} strokeWidth={2} className="task-checklist-pill__icon" aria-hidden />
+          <span className="task-checklist-pill__label">Tasks</span>
           <span className="task-checklist-pill__count">{tasks.length}</span>
         </button>
       ) : (
@@ -235,6 +250,7 @@ function TaskChecklist({ session }: TaskChecklistProps) {
 
           <form onSubmit={onAdd}>
             <input
+              ref={addInputRef}
               className="task-checklist__input"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}

@@ -37,6 +37,19 @@ declare global {
         onSuspend: (callback: (data: any) => void) => void;
         onResume: (callback: () => void) => void;
       };
+      shortcuts: {
+        get: () => Promise<{
+          success: boolean;
+          shortcuts?: { focusOpenMentor: string; focusAddTask: string; focusEndSession: string };
+          error?: string;
+        }>;
+        set: (partial: Partial<{ focusOpenMentor: string; focusAddTask: string; focusEndSession: string }>) => Promise<{
+          success: boolean;
+          shortcuts?: { focusOpenMentor: string; focusAddTask: string; focusEndSession: string };
+          error?: string;
+        }>;
+        onFocusShortcut: (callback: (action: 'openMentor' | 'focusAddTask' | 'endSession') => void) => () => void;
+      };
       db: {
         getSessions: () => Promise<{ success: boolean; sessions?: any[]; error?: string }>;
         getUserProfile: () => Promise<{ success: boolean; profile?: any; error?: string }>;
@@ -53,7 +66,8 @@ declare global {
         resizeForSessionComplete: () => Promise<{ success: boolean }>;
         restoreFromSessionComplete: () => Promise<{ success: boolean }>;
         captureSessionCard: () => Promise<{ success: boolean; dataUrl?: string }>;
-        captureScreen: () => Promise<{ success: boolean; dataUrl?: string; error?: string }>;
+        captureScreen: () => Promise<{ success: boolean; error?: string }>;
+        clearPendingScreenCapture: () => Promise<{ success: boolean }>;
         copyImageToClipboard: () => Promise<{ success: boolean }>;
         copyImageAndText: (text: string) => Promise<{ success: boolean }>;
         openExternal: (url: string) => Promise<{ success: boolean }>;
@@ -72,7 +86,7 @@ declare global {
         delete: (habitId: string) => Promise<{ success: boolean; error?: string }>;
       };
       skills: {
-        get: () => Promise<{ success: boolean; skills?: { rigueur: number; volonte: number; courage: number }; raw?: { totalMinutes: number; streak: number; deepSessions: number }; error?: string }>;
+        get: () => Promise<{ success: boolean; skills?: { rigueur: number; volonte: number; courage: number }; raw?: { totalMinutes: number; streak: number; deepSessions: number; sessionCount?: number }; error?: string }>;
       };
       signal: {
         getToday: () => Promise<{ success: boolean; signal?: { content: string; intensity: 'low' | 'med' | 'high'; date: string } | null; error?: string }>;

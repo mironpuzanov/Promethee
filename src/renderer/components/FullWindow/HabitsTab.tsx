@@ -4,6 +4,16 @@ import { Plus, Trash2, CheckCircle2, Circle, ChevronDown, Flame } from 'lucide-r
 
 type Frequency = 'daily' | 'weekly';
 
+const FREQUENCY_LABELS: Record<Frequency, string> = {
+  daily: 'Daily',
+  weekly: 'Weekly',
+};
+
+const FREQUENCY_COLOR: Record<Frequency, string> = {
+  daily: 'rgba(251,191,36,0.9)',
+  weekly: 'rgba(139,92,246,0.9)',
+};
+
 interface Habit {
   id: string;
   title: string;
@@ -80,6 +90,11 @@ export default function HabitsTab() {
   };
 
   const today = todayStr();
+
+  const groups: { frequency: Frequency; habits: Habit[] }[] = [
+    { frequency: 'daily', habits: habits.filter(h => h.frequency === 'daily') },
+    { frequency: 'weekly', habits: habits.filter(h => h.frequency === 'weekly') },
+  ].filter(g => g.habits.length > 0);
 
   return (
     <div className="flex flex-col bg-background px-10 py-10 overflow-y-auto gap-6" style={{ minHeight: 0, flex: 1 }}>
@@ -204,88 +219,86 @@ export default function HabitsTab() {
         </div>
       ) : (
         <motion.div
-          className="flex flex-col gap-2"
+          className="flex flex-col gap-6"
           initial="hidden"
           animate="visible"
           variants={listVariants}
         >
-          <AnimatePresence mode="popLayout">
-            {habits.map(habit => {
-              const isDone = habit.last_completed_date === today;
-              const streak = habit.current_streak || 0;
-              return (
-                <motion.div
-                  key={habit.id}
-                  variants={itemVariants}
-                  exit="exit"
-                  layout
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    padding: '12px 14px',
-                    borderRadius: 10,
-                    background: isDone ? 'transparent' : 'var(--surface)',
-                    border: `1px solid ${isDone ? 'transparent' : 'var(--border)'}`,
-                    transition: 'background 0.2s, border-color 0.2s',
-                  }}
-                >
-                  {/* Completion toggle */}
-                  <button
-                    onClick={() => handleToggle(habit)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0, display: 'flex', alignItems: 'center' }}
-                  >
-                    {isDone ? (
-                      <CheckCircle2 size={18} style={{ color: 'var(--accent-fire)' }} />
-                    ) : (
-                      <Circle size={18} style={{ color: 'var(--text-muted)' }} />
-                    )}
-                  </button>
+          {groups.map(group => (
+            <div key={group.frequency} className="flex flex-col gap-1">
+              <div
+                className="text-xs font-medium tracking-wide uppercase px-1 pb-2"
+                style={{ color: FREQUENCY_COLOR[group.frequency], opacity: 0.85 }}
+              >
+                {FREQUENCY_LABELS[group.frequency]}
+              </div>
+              <AnimatePresence mode="popLayout">
+                {group.habits.map(habit => {
+                  const isDone = habit.last_completed_date === today;
+                  const streak = habit.current_streak || 0;
+                  const accent = FREQUENCY_COLOR[habit.frequency];
+                  return (
+                    <motion.div
+                      key={habit.id}
+                      variants={itemVariants}
+                      exit="exit"
+                      layout
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        padding: '12px 14px',
+                        borderRadius: 10,
+                        background: isDone ? 'transparent' : 'var(--surface)',
+                        border: `1px solid ${isDone ? 'transparent' : 'var(--border)'}`,
+                        transition: 'background 0.2s, border-color 0.2s',
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => handleToggle(habit)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0, display: 'flex', alignItems: 'center' }}
+                      >
+                        {isDone ? (
+                          <CheckCircle2 size={18} style={{ color: accent }} />
+                        ) : (
+                          <Circle size={18} style={{ color: 'var(--text-muted)' }} />
+                        )}
+                      </button>
 
-                  {/* Title */}
-                  <span style={{
-                    flex: 1,
-                    fontSize: 14,
-                    color: isDone ? 'var(--text-muted)' : 'var(--text-primary)',
-                    textDecoration: isDone ? 'line-through' : 'none',
-                    transition: 'color 0.2s',
-                  }}>
-                    {habit.title}
-                  </span>
-
-                  {/* Frequency badge */}
-                  <span style={{
-                    fontSize: 10,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.1em',
-                    color: 'var(--text-muted)',
-                    flexShrink: 0,
-                  }}>
-                    {habit.frequency}
-                  </span>
-
-                  {/* Streak */}
-                  {streak > 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-                      <Flame size={12} style={{ color: streak >= 7 ? 'var(--accent-fire)' : 'var(--text-muted)' }} />
-                      <span style={{ fontSize: 12, color: streak >= 7 ? 'var(--accent-fire)' : 'var(--text-muted)', fontWeight: streak >= 7 ? 600 : 400 }}>
-                        {streak}
+                      <span style={{
+                        flex: 1,
+                        fontSize: 14,
+                        color: isDone ? 'var(--text-muted)' : 'var(--text-primary)',
+                        textDecoration: isDone ? 'line-through' : 'none',
+                        transition: 'color 0.2s',
+                      }}>
+                        {habit.title}
                       </span>
-                    </div>
-                  )}
 
-                  {/* Delete */}
-                  <button
-                    onClick={() => handleDelete(habit.id)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', color: 'var(--text-muted)', opacity: 0.5, flexShrink: 0 }}
-                    title="Delete habit"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
+                      {streak > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                          <Flame size={12} style={{ color: streak >= 7 ? 'var(--accent-fire)' : 'var(--text-muted)' }} />
+                          <span style={{ fontSize: 12, color: streak >= 7 ? 'var(--accent-fire)' : 'var(--text-muted)', fontWeight: streak >= 7 ? 600 : 400 }}>
+                            {streak}
+                          </span>
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(habit.id)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', color: 'var(--text-muted)', opacity: 0.5, flexShrink: 0 }}
+                        title="Delete habit"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+            </div>
+          ))}
         </motion.div>
       )}
     </div>

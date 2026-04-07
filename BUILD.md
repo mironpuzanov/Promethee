@@ -129,23 +129,131 @@ Run `npm run make` to produce a `.dmg` / `.zip`. No code signing yet (needs Appl
 
 ---
 
-## What's NOT built yet (post-Paris backlog)
+## What's NOT built yet — Full Product Roadmap
 
-- **Passive window tracking** — detect active app automatically, no manual start/stop
-  - macOS: Screen Recording permission + `activeWin` or native API
-  - Windows: win32 `GetForegroundWindow`
-  - This is the single biggest UX improvement. Must be in Real v1.
-- **Hero's journey onboarding** — quiz, quest assignment, "first call to adventure" screen
-- **Anatomy model / character** — placeholder silhouette only now
-- **Quests system** — UI placeholder only
-- **Habits system** — UI placeholder only
-- **Skills system** — UI placeholder only
-- **Journal** — UI placeholder only
-- **Achievements / titles** — partially in RightPanel, no logic
-- **Discord data migration** — historical XP/rank from existing community
-- **Auto-updater** — Electron `autoUpdater` + GitHub Releases
-- **Code signing + notarization** — required for distribution without Gatekeeper warning
-- **Onboarding screen** — partial (`OnboardingScreen.tsx` exists, not wired)
+### Built in the V1 sprint (April 4, 2026)
+- Quests system — real, Supabase-backed, XP on completion
+- Habits system — real, flame streak, daily/weekly
+- Skills system — Rigueur/Volonté/Courage, auto-updating from sessions
+- XP multipliers — streak (+10%/day, cap +50%) × depth (≥2h → +25%), combined cap 2×
+- Daily AI signal — Low/Med/High intensity, generated once/day in runDailyJobs()
+- 90-day memory pipeline — snapshot job + MemoryTab reveal screen
+- Onboarding — wired end-to-end
+
+---
+
+### Layer 1 — Invisible Loop (passive tracking)
+
+**Passive window tracking** — sampling the foreground app into SQLite (`window_events`), surfaced on session complete and in the home right panel ("Apps today"). Uses `active-win` on macOS (Screen Recording permission); fails soft on other OSes.
+
+- Polling: **30s** when idle, **10s** during an active focus session (`src/main/windowTracker.js`). Each poll writes one row (time-sample distribution, not only on app change).
+- Tracking starts after auth: cold start (`getUser`), password sign-in, and **`auth:setSession`** (magic link / OTP).
+- **Agent context:** before each chat message, main process calls **`getCurrentApp()`** so the system prompt always has the current foreground app, not just DB samples (`agent:sendMessage` and `agent:sendMessageWithImages`).
+- **Vision context (MentorTab):** "Attach screen" grabs a **`desktopCapturer`** thumbnail (full screen) and sends via **`sendMessageWithImages`**. Floating `AgentBubble` still attaches images via file picker only.
+
+**Level 3 (future, not implemented):** macOS Accessibility API beyond window title — selected text, focused field, browser URL (Raycast / Superwhisper-style). Requires explicit accessibility permission UX, higher privacy surface, and careful trust boundaries. Keep `active-win` + optional screen attach until product demands deeper context.
+
+- Overlay prompt ("You've been working on [app]… start tracking?") and idle auto-pause: **not built**
+- Windows parity: **untested**
+
+Status: **partial — macOS sampling + agent hooks shipped**; prompt-on-detect and Windows still open
+
+---
+
+### Layer 2 — Character & Visual Identity
+
+**Skill tree as the character** — no human silhouette (too literal). The Rigueur/Volonté/Courage
+system is the character. Visual direction TBD with Nicolas — likely geometric/abstract, not humanoid.
+Skills already update from real data. The visual representation is the open question.
+
+Status: **skill logic built**, visual representation deferred to post-Paris design session
+
+---
+
+### Layer 3 — Soundscape (the world)
+
+Ambient audio that responds to session state. The feature people will describe to friends:
+"The music changes when you're in the zone."
+
+**Music source options:**
+- AI-generated: Suno / Udio / ElevenLabs Sound Effects — generate a custom Promethee score.
+  Full control over mood, no licensing issues. "Weightless" (Marconi Union) style — generative
+  ambient that doesn't distract. ~30-60 min of unique material per state.
+- Licensed ambient: Epidemic Sound, Artlist — clean licensing, less unique
+- Decision: AI-generated preferred. Gives Promethee a sound identity nobody else has.
+
+**Session state → audio mapping:**
+- Idle / pre-session: silence
+- Session start: subtle activation cue (1-2 seconds, system-boot feel)
+- Active session (0-20 min): low ambient texture, barely audible
+- Building (20-45 min): score builds imperceptibly, slight rhythmic pulse
+- Flow state (45+ min): cinematic depth, music is present but not distracting
+- Session end: distinct resolution moment — not a notification, a reward beat
+
+**Implementation:**
+- Electron: Web Audio API in renderer, audio files bundled with the app
+- Volume: user-controlled in Settings, default 20%
+- No external streaming — everything local, no latency, no dependency
+
+Status: **not built** — needs music generation first, then audio engine
+
+---
+
+### Layer 4 — In-App Community (Discord rebuild, focused)
+
+Not a full Discord clone. Just the three things Discord gives users that matter:
+1. **Live presence** — who's working right now, how many people, names/avatars
+2. **Study rooms** — join a room, silent co-working, see session timers of others
+3. **Community feed** — what did people accomplish today (session completions, XP milestones, streaks)
+
+Discord stays as the social/chat layer. This replaces only the accountability infrastructure.
+Required when user base exceeds ~10k — Discord becomes unmanageable at scale and excludes
+users who don't want to join a Discord server.
+
+- Supabase Realtime for presence (already partially built in `presence.js`)
+- Rooms: extend existing RoomsTab — already has join/leave, just needs full UI
+- Feed: new FeedTab, polls `sessions` + `user_profile` for recent completions
+
+Status: **presence + rooms partially built**, feed not built
+
+---
+
+### Journal
+
+Voice/text daily narrative. Feeds the 90-day memory reveal with emotional/contextual data
+(not just behavioral). Nicolas's V2 spec item, buildable now.
+
+- Daily journal entry: text or voice (Web Speech API or Whisper)
+- Weekly report: 3 insights → 3 behavior changes, generated by Prométhée from journal + sessions
+- Recurring pattern visualization: topics/themes that appear across entries over time
+- Feeds `memory_snapshots.emotional_tags` — already in the schema
+
+Status: **not built** — schema ready, UI needed
+
+---
+
+### Distribution & Platform
+
+**macOS:**
+- Code signing + notarization — required for Gatekeeper-free install ($99/yr Apple Developer)
+- Auto-updater — Electron `autoUpdater` + GitHub Releases
+- Status: not set up
+
+**Windows:**
+- 80% of codebase runs identically on Windows
+- Platform-specific work needed:
+  - Passive window tracking: `GetForegroundWindow` instead of `activeWin`
+  - Glass/vibrancy: no native blur on Windows, approximate with CSS
+  - Code signing: EV certificate for SmartScreen (separate from Apple)
+  - Tray icon: works, minor sizing differences
+- Status: untested, not built for Windows-specific paths
+- Decision: macOS-first intentionally for beta. Windows parity before public launch.
+
+**Other:**
+- Hero's journey onboarding — quiz, quest assignment, "first call to adventure" screen
+- Achievements / titles — partially in RightPanel, no logic
+- Discord data migration — historical XP/rank from existing 2,500 customers
+- Mobile companion (V2) — read-only stats, streak check, daily signal. iOS/Android.
 
 ---
 

@@ -1,4 +1,5 @@
 import React from 'react';
+import { overlayRestoreClickThrough } from '../../lib/overlayMouseBridge';
 import './TimerCard.css';
 
 interface TimerCardProps {
@@ -18,45 +19,44 @@ function TimerCard({ elapsed, elapsedSeconds, task, xpSoFar, onStop, minimized, 
   const progress = (elapsedSeconds % CYCLE) / CYCLE;
   const dashOffset = CIRCUMFERENCE - progress * CIRCUMFERENCE;
 
-  const handleMouseEnter = () => window.promethee.window.setIgnoreMouseEvents(false);
-  const handleMouseLeave = () => window.promethee.window.setIgnoreMouseEvents(true);
+  const handleStop = (e: React.SyntheticEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    overlayRestoreClickThrough();
+    onStop();
+  };
 
   if (minimized) {
     return (
-      <div
-        className="timer-card timer-card--pill"
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        onClick={onToggleMinimize}
-      >
-        <div className="timer-pill-ring">
-          <svg width="20" height="20" viewBox="0 0 72 72">
-            <circle cx="36" cy="36" r="32" fill="none" stroke="rgba(232,146,42,0.2)" strokeWidth="6" />
-            <circle
-              cx="36" cy="36" r="32"
-              fill="none"
-              stroke="var(--accent-fire)"
-              strokeWidth="6"
-              strokeDasharray={CIRCUMFERENCE}
-              strokeDashoffset={dashOffset}
-              strokeLinecap="round"
-              transform="rotate(-90 36 36)"
-              style={{ transition: 'stroke-dashoffset 1s linear' }}
-            />
-          </svg>
-        </div>
-        <span className="timer-pill-time">{elapsed}</span>
-        <button className="stop-button" onClick={e => { e.stopPropagation(); onStop(); }} title="End session">■</button>
+      <div className="timer-card timer-card--pill promethee-mouse-target">
+        <button type="button" className="timer-pill-expand-hit" onClick={onToggleMinimize} aria-label="Expand timer">
+          <span className="timer-pill-ring">
+            <svg width="20" height="20" viewBox="0 0 72 72">
+              <circle cx="36" cy="36" r="32" fill="none" stroke="rgba(232,146,42,0.2)" strokeWidth="6" />
+              <circle
+                cx="36" cy="36" r="32"
+                fill="none"
+                stroke="var(--accent-fire)"
+                strokeWidth="6"
+                strokeDasharray={CIRCUMFERENCE}
+                strokeDashoffset={dashOffset}
+                strokeLinecap="round"
+                transform="rotate(-90 36 36)"
+                style={{ transition: 'stroke-dashoffset 1s linear' }}
+              />
+            </svg>
+          </span>
+          <span className="timer-pill-time">{elapsed}</span>
+        </button>
+        <button type="button" className="stop-button" onClick={handleStop} title="End session">
+          ■
+        </button>
       </div>
     );
   }
 
   return (
-    <div
-      className="timer-card"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-    >
+    <div className="timer-card promethee-mouse-target">
       <div className="timer-ring">
         <svg width="72" height="72" viewBox="0 0 72 72">
           <circle cx="36" cy="36" r="32" fill="none" stroke="var(--accent-glow)" strokeWidth="3" />
@@ -84,7 +84,9 @@ function TimerCard({ elapsed, elapsedSeconds, task, xpSoFar, onStop, minimized, 
             <path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3" />
           </svg>
         </button>
-        <button className="stop-button" onClick={onStop} title="End session">■</button>
+        <button type="button" className="stop-button" onClick={handleStop} title="End session">
+          ■
+        </button>
       </div>
     </div>
   );

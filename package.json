@@ -43,6 +43,7 @@
     "@tailwindcss/vite": "^4.2.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "active-win": "^8.2.1",
     "better-sqlite3": "^12.8.0",
     "clsx": "^2.1.1",
     "electron-squirrel-startup": "^1.0.1",

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  Home, ScrollText, Sword, CheckSquare, Zap, BookOpen, MessageCircle, LogOut, Users, Trophy, ChevronDown, Settings, Brain, ListChecks
+  Home, ScrollText, Sword, CheckSquare, MessageCircle, LogOut, Users, Trophy, Settings, Brain, ListChecks
 } from 'lucide-react';
 import { UserProfileSidebar } from '@/components/ui/menu';
 
@@ -30,8 +30,6 @@ const navItems = [
   { id: 'quests',  label: 'Quests',  icon: <Sword size={18} />, isSeparator: true },
   { id: 'habits',  label: 'Habits',  icon: <CheckSquare size={18} /> },
   { id: 'memory',  label: 'Memory',  icon: <Brain size={18} /> },
-  { id: 'skills',  label: 'Skills',  icon: <Zap size={18} />, comingSoon: true },
-  { id: 'journal', label: 'Journal', icon: <BookOpen size={18} />, comingSoon: true },
   { id: 'settings', label: 'Settings', icon: <Settings size={18} />, isSeparator: true },
 ];
 

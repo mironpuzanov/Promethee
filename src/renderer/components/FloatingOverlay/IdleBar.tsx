@@ -14,9 +14,10 @@ interface IdleBarProps {
   autoFocusInput?: boolean;
   onAutoFocusConsumed?: () => void;
   onOpenMentor?: () => void;
+  onSessionStartIntent?: () => void;
 }
 
-function IdleBar({ user, onStartSession, onOpenRooms, autoFocusInput, onAutoFocusConsumed, onOpenMentor }: IdleBarProps) {
+function IdleBar({ user, onStartSession, onOpenRooms, autoFocusInput, onAutoFocusConsumed, onOpenMentor, onSessionStartIntent }: IdleBarProps) {
   const [showTaskInput, setShowTaskInput] = useState(false);
   const [task, setTask] = useState('');
 
@@ -32,6 +33,7 @@ function IdleBar({ user, onStartSession, onOpenRooms, autoFocusInput, onAutoFocu
   const handleStartClick = () => {
     setShowTaskInput(true);
     window.promethee.window.setFocusable(true);
+    onSessionStartIntent?.(); // Triggers Prestige Fade immediately
   };
 
   const dismissInput = () => {
@@ -56,11 +58,8 @@ function IdleBar({ user, onStartSession, onOpenRooms, autoFocusInput, onAutoFocu
     return (user.email || '').charAt(0).toUpperCase();
   };
 
-  const handleMouseEnter = () => window.promethee.window.setIgnoreMouseEvents(false);
-  const handleMouseLeave = () => window.promethee.window.setIgnoreMouseEvents(true);
-
   return (
-    <div className="idle-bar" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+    <div className="idle-bar promethee-mouse-target">
       <button
         className="mentor-button"
         onClick={onOpenMentor}

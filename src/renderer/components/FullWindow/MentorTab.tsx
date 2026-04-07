@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, MessageCircle, Plus, Send } from 'lucide-react';
+import { ArrowLeft, MessageCircle, Plus, Send, Monitor, X } from 'lucide-react';
+import { getMentorLiveScreenEveryMessage, setMentorLiveScreenEveryMessage } from '../../lib/mentorLiveScreenPref';
+import './MentorTab.css';
 
 interface Chat {
   id: string;
@@ -55,25 +57,44 @@ function ChatView({ chat, onBack }: { chat: Chat; onBack: () => void }) {
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
+  const [screenshotAttached, setScreenshotAttached] = useState(false);
+  const [liveScreenEveryMessage, setLiveScreenEveryMessage] = useState(getMentorLiveScreenEveryMessage);
+  const [capturingScreen, setCapturingScreen] = useState(false);
+  const [attachError, setAttachError] = useState<string | null>(null);
   const streamingContentRef = useRef('');
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
+    void window.promethee.window.clearPendingScreenCapture();
+    setScreenshotAttached(false);
+    setAttachError(null);
     window.promethee.agent.getMessages(chat.id).then((r: { success: boolean; messages?: Message[] }) => {
       if (r.success) setMessages(r.messages || []);
     });
   }, [chat.id]);
 
   useEffect(() => {
-    if (messages.length > 0 || streamingContent) {
+    if (messages.length > 0 || streamingContent || streaming) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, streamingContent]);
+  }, [messages, streamingContent, streaming]);
 
   useEffect(() => {
     setTimeout(() => inputRef.current?.focus(), 100);
   }, []);
+
+  const resizeTextarea = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = '0px';
+    const max = 168;
+    el.style.height = `${Math.min(el.scrollHeight, max)}px`;
+  }, []);
+
+  useLayoutEffect(() => {
+    resizeTextarea();
+  }, [input, resizeTextarea]);
 
   useEffect(() => {
     const removeChunk = window.promethee.agent.onChunk(({ chatId, delta }: { chatId: string; delta: string }) => {
@@ -100,17 +121,57 @@ function ChatView({ chat, onBack }: { chat: Chat; onBack: () => void }) {
     return () => { removeChunk(); removeEnd(); removeError(); };
   }, [chat.id]);
 
+  const clearScreenshot = () => {
+    void window.promethee.window.clearPendingScreenCapture();
+    setScreenshotAttached(false);
+    setAttachError(null);
+  };
+
+  /** Grabs the current screen; the next message you send includes that image for the mentor. Click the monitor again (or Remove) to discard. */
+  const toggleLiveScreen = () => {
+    const next = !liveScreenEveryMessage;
+    setLiveScreenEveryMessage(next);
+    setMentorLiveScreenEveryMessage(next);
+    if (next) clearScreenshot();
+  };
+
+  const handleAttachScreen = async () => {
+    if (liveScreenEveryMessage) return;
+    if (screenshotAttached) {
+      clearScreenshot();
+      return;
+    }
+    setAttachError(null);
+    setCapturingScreen(true);
+    const r = await window.promethee.window.captureScreen();
+    setCapturingScreen(false);
+    if (r.success) {
+      setScreenshotAttached(true);
+    } else {
+      setAttachError(r.error || 'Could not capture screen.');
+    }
+  };
+
   const handleSend = async () => {
     if (!input.trim() || streaming) return;
     const content = input.trim();
-    setInput('');
     setStreaming(true);
-    // Capture history before adding the optimistic message so previousMessages
-    // passed to the backend matches what the AI should see as prior context.
-    // The new user message is sent as the `content` argument separately.
+    setAttachError(null);
+
+    if (liveScreenEveryMessage) {
+      const cap = await window.promethee.window.captureScreen();
+      if (!cap.success) {
+        setAttachError(cap.error || 'Could not capture screen.');
+        setStreaming(false);
+        return;
+      }
+    }
+
+    setInput('');
     const history = messages;
     setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'user', content, createdAt: Date.now() }]);
-    await window.promethee.agent.sendMessage(chat.id, content, history);
+    if (!liveScreenEveryMessage) setScreenshotAttached(false);
+    await window.promethee.agent.sendMessageWithImages(chat.id, content, [], history);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -121,10 +182,11 @@ function ChatView({ chat, onBack }: { chat: Chat; onBack: () => void }) {
     <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%', background: 'var(--background)' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '20px 32px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-        <button
-          onClick={onBack}
-          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-        >
+          <button
+            type="button"
+            onClick={onBack}
+            className="mentor-header-btn--ghost"
+          >
           <ArrowLeft size={18} />
         </button>
         <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -160,20 +222,11 @@ function ChatView({ chat, onBack }: { chat: Chat; onBack: () => void }) {
           </div>
         ))}
         {streaming && !streamingContent && (
-          <div style={{ display: 'flex', alignItems: 'flex-start' }}>
-            <div style={{
-              padding: '10px 14px', borderRadius: '14px 14px 14px 4px',
-              background: 'var(--surface)', border: '1px solid var(--border)',
-              display: 'flex', gap: 4, alignItems: 'center',
-            }}>
-              {[0, 1, 2].map(i => (
-                <span key={i} style={{
-                  width: 6, height: 6, borderRadius: '50%',
-                  background: 'var(--text-secondary)',
-                  display: 'inline-block',
-                  animation: `blink 1.2s ease-in-out ${i * 0.2}s infinite`,
-                }} />
-              ))}
+          <div className="mentor-typing-wrap">
+            <div className="mentor-typing-bubble" aria-label="Mentor is typing">
+              <span className="mentor-typing-dot" />
+              <span className="mentor-typing-dot" />
+              <span className="mentor-typing-dot" />
             </div>
           </div>
         )}
@@ -197,43 +250,95 @@ function ChatView({ chat, onBack }: { chat: Chat; onBack: () => void }) {
       </div>
 
       {/* Input */}
-      <div style={{ padding: '12px 24px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center' }}>
-        <textarea
-          ref={inputRef}
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Ask your mentor anything..."
-          disabled={streaming}
-          rows={1}
-          style={{
-            flex: 1,
-            background: 'var(--input)',
-            border: '1px solid var(--border)',
-            borderRadius: 10,
-            padding: '10px 14px',
-            color: 'var(--text-primary)',
-            fontSize: 13,
-            fontFamily: 'inherit',
-            resize: 'none',
-            outline: 'none',
-            lineHeight: 1.5,
-          }}
-        />
-        <button
-          onClick={handleSend}
-          disabled={!input.trim() || streaming}
-          style={{
-            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-            background: input.trim() && !streaming ? 'var(--accent-fire)' : 'var(--input)',
-            border: 'none', cursor: input.trim() && !streaming ? 'pointer' : 'default',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: input.trim() && !streaming ? 'var(--primary-foreground)' : 'var(--text-muted)',
-            transition: 'background 0.15s',
-          }}
-        >
-          <Send size={15} />
-        </button>
+      <div style={{ padding: '12px 24px 20px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+        <div className="mentor-live-screen-row">
+          <span className="mentor-live-screen-label">Include what's on your screen with every message</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={liveScreenEveryMessage}
+            className="mentor-live-screen-switch"
+            onClick={toggleLiveScreen}
+            disabled={streaming}
+            title={liveScreenEveryMessage ? 'Turn off: only sends text unless you use the monitor button' : 'Turn on: captures desktop before each send'}
+          >
+            <span className="mentor-live-screen-switch-thumb" aria-hidden />
+          </button>
+        </div>
+        {attachError && (
+          <div
+            className="mentor-screen-chip mentor-screen-chip--error"
+            role="alert"
+          >
+            <span style={{ flex: 1, minWidth: 0 }}>{attachError}</span>
+            <button
+              type="button"
+              className="mentor-screen-chip-remove"
+              aria-label="Dismiss error"
+              onClick={() => setAttachError(null)}
+            >
+              <X size={14} strokeWidth={2} />
+            </button>
+          </div>
+        )}
+        {screenshotAttached && !liveScreenEveryMessage && (
+          <div
+            className="mentor-screen-chip"
+            title="Captures your display. The floating overlay hides briefly so the image isn’t only Promethee."
+          >
+            <Monitor size={11} />
+            <span>Desktop included · next send</span>
+            <button
+              type="button"
+              aria-label="Remove screen snapshot"
+              className="mentor-screen-chip-remove"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                clearScreenshot();
+              }}
+            >
+              <X size={14} strokeWidth={2} />
+            </button>
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+          <button
+            type="button"
+            onClick={handleAttachScreen}
+            disabled={streaming || capturingScreen || liveScreenEveryMessage}
+            title={
+              liveScreenEveryMessage
+                ? 'Turn off "every message" to queue a single capture instead'
+                : screenshotAttached
+                  ? 'Remove queued desktop snapshot'
+                  : capturingScreen
+                    ? 'Capturing…'
+                    : 'Include desktop on next message (floating overlay hides briefly)'
+            }
+            className={`mentor-chat-attach${screenshotAttached ? ' mentor-chat-attach--active' : ''}`}
+          >
+            <Monitor size={15} />
+          </button>
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask your mentor anything..."
+            disabled={streaming}
+            rows={1}
+            className="mentor-chat-textarea"
+          />
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={!input.trim() || streaming}
+            className="mentor-chat-send"
+          >
+            <Send size={15} />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -276,18 +381,10 @@ export default function MentorTab() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h2 style={{ fontSize: 24, fontWeight: 300, color: 'var(--foreground)', margin: 0 }}>Mentor</h2>
         <button
+          type="button"
           onClick={handleNewChat}
           disabled={creating}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            background: 'var(--input)',
-            border: '1px solid var(--border)',
-            borderRadius: 10,
-            padding: '8px 14px',
-            color: 'var(--text-secondary)',
-            fontSize: 13, fontWeight: 500,
-            cursor: 'pointer', fontFamily: 'inherit',
-          }}
+          className="mentor-header-btn--primary"
         >
           <Plus size={14} />
           New chat
@@ -325,15 +422,9 @@ export default function MentorTab() {
                 <motion.button
                   key={chat.id}
                   variants={rowVariants}
+                  type="button"
                   onClick={() => setSelectedChat(chat)}
-                  style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    padding: '12px 16px', borderRadius: 10,
-                    background: 'var(--surface)',
-                    border: '1px solid var(--border)',
-                    cursor: 'pointer', gap: 12, textAlign: 'left', width: '100%',
-                  }}
-                  whileHover={{ background: 'var(--input)' }}
+                  className="mentor-list-item"
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
                     <MessageCircle size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />

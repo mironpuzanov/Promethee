@@ -12,6 +12,9 @@ module.exports = {
       NSHighResolutionCapable: true,
       CFBundleDisplayName: 'Promethee',
       CFBundleName: 'Promethee',
+      // Required on macOS for desktopCapturer / screen snapshots (mentor attach)
+      NSScreenCaptureUsageDescription:
+        'Promethee attaches a screen snapshot only when you choose it for the mentor chat.',
     },
   },
   rebuildConfig: {},

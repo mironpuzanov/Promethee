@@ -89,6 +89,7 @@ contextBridge.exposeInMainWorld('promethee', {
     restoreFromSessionComplete: () => ipcRenderer.invoke('window:restoreFromSessionComplete'),
     captureSessionCard: () => ipcRenderer.invoke('window:captureSessionCard'),
     captureScreen: () => ipcRenderer.invoke('window:captureScreen'),
+    clearPendingScreenCapture: () => ipcRenderer.invoke('window:clearPendingScreenCapture'),
     copyImageToClipboard: () => ipcRenderer.invoke('window:copyImageToClipboard'),
     copyImageAndText: (text) => ipcRenderer.invoke('window:copyImageAndText', text),
     openExternal: (url) => ipcRenderer.invoke('window:openExternal', url),
@@ -203,6 +204,33 @@ contextBridge.exposeInMainWorld('promethee', {
   // Window tracking
   tracking: {
     getEvents: (opts) => ipcRenderer.invoke('window:getEvents', opts)
+  },
+
+  // Global focus shortcuts (registered in main process)
+  shortcuts: {
+    get: async () => {
+      try {
+        return await ipcRenderer.invoke('shortcuts:get');
+      } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : 'shortcuts:get failed' };
+      }
+    },
+    set: async (partial) => {
+      try {
+        return await ipcRenderer.invoke('shortcuts:set', partial);
+      } catch (e) {
+        return {
+          success: false,
+          error:
+            e instanceof Error ? e.message : 'shortcuts:set failed (restart the app if this persists)',
+        };
+      }
+    },
+    onFocusShortcut: (callback) => {
+      const listener = (_event, action) => callback(action);
+      ipcRenderer.on('focusShortcut', listener);
+      return () => ipcRenderer.removeListener('focusShortcut', listener);
+    },
   },
 
   // Audio control

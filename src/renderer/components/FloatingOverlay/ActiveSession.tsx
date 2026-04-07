@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { overlaySetFocusSessionActive } from '../../lib/overlayMouseBridge';
 import LevelPill from './LevelPill';
 import TimerCard from './TimerCard';
 import TaskChecklist from './TaskChecklist';
@@ -14,9 +15,10 @@ interface Session {
 interface ActiveSessionProps {
   session: Session;
   onEnd: () => void;
+  focusAddFieldTrigger?: number;
 }
 
-function ActiveSession({ session, onEnd }: ActiveSessionProps) {
+function ActiveSession({ session, onEnd, focusAddFieldTrigger = 0 }: ActiveSessionProps) {
   const [elapsed, setElapsed] = useState(0);
   const [xpSoFar, setXpSoFar] = useState(0);
   const [minimized, setMinimized] = useState(true);
@@ -33,12 +35,9 @@ function ActiveSession({ session, onEnd }: ActiveSessionProps) {
     return () => clearInterval(interval);
   }, [session]);
 
-  // Ensure mouse passthrough when component mounts/unmounts
   useEffect(() => {
-    window.promethee.window.setIgnoreMouseEvents(true);
-    return () => {
-      window.promethee.window.setIgnoreMouseEvents(true);
-    };
+    overlaySetFocusSessionActive(true);
+    return () => overlaySetFocusSessionActive(false);
   }, []);
 
   const formatTime = (seconds: number) => {
@@ -50,7 +49,7 @@ function ActiveSession({ session, onEnd }: ActiveSessionProps) {
 
   return (
     <div className="active-session">
-      <TaskChecklist session={session} />
+      <TaskChecklist session={session} focusAddFieldTrigger={focusAddFieldTrigger} />
       <LevelPill />
       <TimerCard
         elapsed={formatTime(elapsed)}

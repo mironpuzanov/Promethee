@@ -2,6 +2,7 @@
   position: fixed;
   bottom: 24px;
   left: 24px;
+  z-index: 250; /* above task checklist (99) + mentor bubble (100); stop must always receive clicks */
   background: var(--surface);
   backdrop-filter: blur(24px);
   border: 1px solid var(--border);
@@ -10,6 +11,12 @@
   display: flex;
   align-items: center;
   gap: 16px;
+  /* Root must not be drag: on macOS, drag parents can eat clicks on stop/minimize. */
+  -webkit-app-region: no-drag;
+}
+
+.timer-ring,
+.timer-info {
   -webkit-app-region: drag;
 }
 
@@ -21,6 +28,23 @@
   align-items: center;
   -webkit-app-region: no-drag;
   cursor: pointer;
+}
+
+.timer-pill-expand-hit {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  -webkit-app-region: no-drag;
 }
 
 .timer-pill-ring {
@@ -126,8 +150,13 @@
 }
 
 .stop-button {
-  width: 20px;
-  height: 20px;
+  min-width: 32px;
+  min-height: 32px;
+  width: 32px;
+  height: 32px;
+  margin: -4px;
+  padding: 0;
+  box-sizing: border-box;
   background: transparent;
   border: none;
   color: #444;

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { ShortcutField } from './ShortcutField';
 
 interface User {
   id: string;
@@ -68,6 +69,20 @@ function SettingsTab({ user, setUser }: SettingsTabProps) {
   const [passwordStatus, setPasswordStatus] = useState<{ success?: string; error?: string }>({});
   const [passwordLoading, setPasswordLoading] = useState(false);
 
+  const [focusShortcuts, setFocusShortcuts] = useState({
+    focusOpenMentor: '',
+    focusAddTask: '',
+    focusEndSession: '',
+  });
+  const [focusShortcutStatus, setFocusShortcutStatus] = useState<{ success?: string; error?: string }>({});
+  const [focusShortcutLoading, setFocusShortcutLoading] = useState(false);
+
+  useEffect(() => {
+    window.promethee.shortcuts.get().then((r) => {
+      if (r.success && r.shortcuts) setFocusShortcuts(r.shortcuts);
+    });
+  }, []);
+
   const handleAvatarPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -88,29 +103,62 @@ function SettingsTab({ user, setUser }: SettingsTabProps) {
     e.preventDefault();
     setProfileLoading(true);
     setProfileStatus({});
+    try {
+      // Upload avatar first if a new file was picked
+      if (pendingFile) {
+        const uploadResult = await window.promethee.auth.uploadAvatar(pendingFile.buffer, pendingFile.mimeType);
+        if (!uploadResult.success) {
+          setProfileStatus({ error: uploadResult.error || 'Avatar upload failed.' });
+          return;
+        }
+        if (uploadResult.user) setUser(uploadResult.user);
+        setPendingFile(null);
+      }
 
-    // Upload avatar first if a new file was picked
-    if (pendingFile) {
-      const uploadResult = await window.promethee.auth.uploadAvatar(pendingFile.buffer, pendingFile.mimeType);
-      if (!uploadResult.success) {
-        setProfileLoading(false);
-        setProfileStatus({ error: uploadResult.error || 'Avatar upload failed.' });
+      const result = await window.promethee.auth.updateProfile({
+        displayName: displayName.trim() || undefined,
+      });
+      if (result.success) {
+        setProfileStatus({ success: 'Profile updated.' });
+        if (result.user) setUser(result.user);
+      } else {
+        setProfileStatus({ error: result.error || 'Something went wrong.' });
+      }
+    } catch (err) {
+      setProfileStatus({ error: err instanceof Error ? err.message : 'Something went wrong.' });
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  const handleFocusShortcutsSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFocusShortcutLoading(true);
+    setFocusShortcutStatus({});
+    try {
+      const api = window.promethee.shortcuts;
+      if (!api?.set) {
+        setFocusShortcutStatus({
+          error: 'Shortcuts API unavailable — fully quit and restart Promethee (preload may be stale).',
+        });
         return;
       }
-      if (uploadResult.user) setUser(uploadResult.user);
-      setPendingFile(null);
-    }
-
-    // Save display name (always, in case only name changed)
-    const result = await window.promethee.auth.updateProfile({
-      displayName: displayName.trim() || undefined,
-    });
-    setProfileLoading(false);
-    if (result.success) {
-      setProfileStatus({ success: 'Profile updated.' });
-      if (result.user) setUser(result.user);
-    } else {
-      setProfileStatus({ error: result.error || 'Something went wrong.' });
+      const payload = {
+        focusOpenMentor: focusShortcuts.focusOpenMentor,
+        focusAddTask: focusShortcuts.focusAddTask,
+        focusEndSession: focusShortcuts.focusEndSession,
+      };
+      const result = await api.set(payload);
+      if (result.success) {
+        setFocusShortcutStatus({ success: 'Focus shortcuts updated.' });
+        if (result.shortcuts) setFocusShortcuts(result.shortcuts);
+      } else {
+        setFocusShortcutStatus({ error: result.error || 'Could not save shortcuts.' });
+      }
+    } catch (err) {
+      setFocusShortcutStatus({ error: err instanceof Error ? err.message : 'Could not save shortcuts.' });
+    } finally {
+      setFocusShortcutLoading(false);
     }
   };
 
@@ -126,14 +174,19 @@ function SettingsTab({ user, setUser }: SettingsTabProps) {
     }
     setPasswordLoading(true);
     setPasswordStatus({});
-    const result = await window.promethee.auth.updatePassword(newPassword);
-    setPasswordLoading(false);
-    if (result.success) {
-      setPasswordStatus({ success: 'Password updated.' });
-      setNewPassword('');
-      setConfirmPassword('');
-    } else {
-      setPasswordStatus({ error: result.error || 'Something went wrong.' });
+    try {
+      const result = await window.promethee.auth.updatePassword(newPassword);
+      if (result.success) {
+        setPasswordStatus({ success: 'Password updated.' });
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        setPasswordStatus({ error: result.error || 'Something went wrong.' });
+      }
+    } catch (err) {
+      setPasswordStatus({ error: err instanceof Error ? err.message : 'Something went wrong.' });
+    } finally {
+      setPasswordLoading(false);
     }
   };
 
@@ -191,6 +244,38 @@ function SettingsTab({ user, setUser }: SettingsTabProps) {
         <Field label="Email">
           <Input type="email" value={user?.email || ''} disabled />
         </Field>
+      </Section>
+
+      <div className="border-t border-border" />
+
+      <Section title="Focus shortcuts">
+        <p className="text-xs text-muted-foreground -mt-1 max-w-xl">
+          Global shortcuts work even when another app is focused. They target the focus overlay (mentor, session tasks,
+          end session). Leave a field empty to disable that shortcut. Use Electron syntax, e.g.{' '}
+          <code className="text-foreground/80">CommandOrControl+Alt+M</code>.
+        </p>
+        <form onSubmit={handleFocusShortcutsSave} className="flex flex-col gap-4">
+          <Field label="Open mentor chat and focus input">
+            <ShortcutField
+              value={focusShortcuts.focusOpenMentor}
+              onChange={(v) => setFocusShortcuts((s) => ({ ...s, focusOpenMentor: v }))}
+            />
+          </Field>
+          <Field label="Focus add-task field (during an active session)">
+            <ShortcutField
+              value={focusShortcuts.focusAddTask}
+              onChange={(v) => setFocusShortcuts((s) => ({ ...s, focusAddTask: v }))}
+            />
+          </Field>
+          <Field label="End focus session">
+            <ShortcutField
+              value={focusShortcuts.focusEndSession}
+              onChange={(v) => setFocusShortcuts((s) => ({ ...s, focusEndSession: v }))}
+            />
+          </Field>
+          <StatusMessage {...focusShortcutStatus} />
+          <SaveButton loading={focusShortcutLoading} label="Save shortcuts" />
+        </form>
       </Section>
 
       <div className="border-t border-border" />

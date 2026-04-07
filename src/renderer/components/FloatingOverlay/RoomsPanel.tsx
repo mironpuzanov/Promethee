@@ -33,9 +33,6 @@ const ROOMS = [
 ];
 
 function RoomsPanel({ onClose }: RoomsPanelProps) {
-  const handleMouseEnter = () => window.promethee.window.setIgnoreMouseEvents(false);
-  const handleMouseLeave = () => window.promethee.window.setIgnoreMouseEvents(true);
-
   const openDiscord = (url: string) => {
     window.promethee.window.openExternal(url);
     onClose();
@@ -43,12 +40,11 @@ function RoomsPanel({ onClose }: RoomsPanelProps) {
 
   return (
     <motion.div
+      className="promethee-mouse-target"
       initial={{ opacity: 0, y: -8, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -8, scale: 0.97 }}
       transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
       style={{
         position: 'fixed',
         bottom: 64,

@@ -28,6 +28,9 @@ body {
   --text-muted:     #5C5450;
   --text-faint:     #2E2A27;
   --surface:        rgba(20, 17, 14, 0.90);
+  /* Dark chips over transparent overlay: keep hover opaque so light wallpapers don’t wash them out */
+  --surface-glass-hover: rgba(18, 15, 12, 0.96);
+  --border-glass-hover:  rgba(255, 255, 255, 0.22);
   --surface-overlay: rgba(12, 10, 9, 0.65);
   --border:         rgba(255, 255, 255, 0.06);
   --border-accent:  rgba(232, 146, 42, 0.30);
@@ -176,4 +179,9 @@ body {
   border-top: none;
   border-left: none;
   transform: rotate(45deg);
+}
+
+.daily-signal-close:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: var(--text-secondary) !important;
 }

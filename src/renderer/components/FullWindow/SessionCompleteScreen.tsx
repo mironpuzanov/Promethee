@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { shouldIncludeAppInUsageStats } from '../../../lib/appUsageFilter.js';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Zap, Clock, Trophy, Share2, X, Download } from 'lucide-react';
 import forestBg from '../../../assets/forest-bg.png';
@@ -12,6 +13,7 @@ interface Props {
   streakBonus?: number;
   depthBonus?: number;
   currentStreak?: number;
+  sessionId?: string;
   onClose: () => void;
 }
 
@@ -24,12 +26,26 @@ function formatDuration(seconds: number): string {
   return `${s}s`;
 }
 
-export default function SessionCompleteScreen({ task, durationSeconds, xpEarned, multiplier, streakBonus, depthBonus, currentStreak, onClose }: Props) {
+// Summarise window events into top apps with % time
+function summariseApps(events: Array<{ app_name: string }>): Array<{ name: string; pct: number }> {
+  const filtered = events.filter((e) => shouldIncludeAppInUsageStats(e.app_name || ''));
+  if (!filtered.length) return [];
+  const counts: Record<string, number> = {};
+  for (const e of filtered) counts[e.app_name] = (counts[e.app_name] || 0) + 1;
+  const total = filtered.length;
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4)
+    .map(([name, count]) => ({ name, pct: Math.round((count / total) * 100) }));
+}
+
+export default function SessionCompleteScreen({ task, durationSeconds, xpEarned, multiplier, streakBonus, depthBonus, currentStreak, sessionId, onClose }: Props) {
   const [rank, setRank] = useState<number | null>(null);
   const [userName, setUserName] = useState<string>('');
   const [avatarUrl, setAvatarUrl] = useState<string>('');
   const [shareOpen, setShareOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [topApps, setTopApps] = useState<Array<{ name: string; pct: number }>>([]);
 
   useEffect(() => {
     window.promethee.auth.getUser().then((ur: any) => {
@@ -45,8 +61,13 @@ export default function SessionCompleteScreen({ task, durationSeconds, xpEarned,
         });
       }
     });
+    if (sessionId) {
+      window.promethee.tracking.getEvents({ sessionId }).then((r: any) => {
+        if (r.success && r.events?.length) setTopApps(summariseApps(r.events));
+      });
+    }
     return () => { window.promethee.window.restoreFromSessionComplete(); };
-  }, []);
+  }, [sessionId]);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -239,31 +260,39 @@ export default function SessionCompleteScreen({ task, durationSeconds, xpEarned,
           <Stat icon={<Zap size={11} color="var(--accent-fire)" />} label="XP" value={xpEarned > 0 ? `+${xpEarned}` : '0'} valueColor="var(--accent-fire)" />
           {rank && <Stat icon={<Trophy size={11} color="rgba(255,255,255,0.4)" />} label="Rank" value={`#${rank}`} />}
         </div>
-        {/* Multiplier badges — only shown when a bonus was applied */}
+        {/* Multiplier — muted text only (matches Apps used / stat hierarchy) */}
         {multiplier && multiplier > 1 && (
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             {(streakBonus || 0) > 0 && (
-              <div style={{
-                display: 'inline-flex', alignItems: 'center', gap: 5,
-                background: 'var(--accent-glow)',
-                border: '1px solid var(--border-accent)',
-                borderRadius: 20, padding: '3px 9px',
-                fontSize: 11, color: 'var(--foreground)',
-              }}>
-                🔥 {currentStreak}-day streak · +{Math.round((streakBonus || 0) * 100)}%
-              </div>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.42)', fontWeight: 400, lineHeight: 1.35 }}>
+                {currentStreak}-day streak · +{Math.round((streakBonus || 0) * 100)}% XP
+              </span>
             )}
             {(depthBonus || 0) > 0 && (
-              <div style={{
-                display: 'inline-flex', alignItems: 'center', gap: 5,
-                background: 'rgba(99,102,241,0.15)',
-                border: '1px solid rgba(99,102,241,0.3)',
-                borderRadius: 20, padding: '3px 9px',
-                fontSize: 11, color: 'var(--foreground)',
-              }}>
-                ⚡ Deep work · +25%
-              </div>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.42)', fontWeight: 400, lineHeight: 1.35 }}>
+                Deep work · +25% XP
+              </span>
             )}
+          </div>
+        )}
+
+        {/* App breakdown */}
+        {topApps.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
+            <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.16em' }}>
+              Apps used
+            </span>
+            {topApps.map(({ name, pct }) => (
+              <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)', width: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {name}
+                </span>
+                <div style={{ flex: 1, height: 3, background: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ width: `${pct}%`, height: '100%', background: 'rgba(255,255,255,0.45)', borderRadius: 2 }} />
+                </div>
+                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', width: 28, textAlign: 'right' }}>{pct}%</span>
+              </div>
+            ))}
           </div>
         )}
       </motion.div>

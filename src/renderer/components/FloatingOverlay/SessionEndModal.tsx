@@ -35,17 +35,13 @@ function SessionEndModal({ task, durationSeconds, xpEarned, onClose }: SessionEn
     return () => clearTimeout(timer);
   }, []);
 
-  const handleMouseEnter = () => window.promethee.window.setIgnoreMouseEvents(false);
-  const handleMouseLeave = () => window.promethee.window.setIgnoreMouseEvents(true);
-
   return (
     <motion.div
+      className="promethee-mouse-target"
       initial={{ opacity: 0, y: 20, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 20, scale: 0.95 }}
       transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
       onClick={onClose}
       style={{
         position: 'fixed',

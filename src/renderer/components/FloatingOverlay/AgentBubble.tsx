@@ -1,5 +1,8 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Monitor, X } from 'lucide-react';
+import { getMentorLiveScreenEveryMessage, setMentorLiveScreenEveryMessage } from '../../lib/mentorLiveScreenPref';
+import { overlaySuppressHitTest, overlayRestoreClickThrough } from '../../lib/overlayMouseBridge';
 import './AgentBubble.css';
 
 interface Message {
@@ -82,6 +85,10 @@ function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
   const [allChats, setAllChats] = useState<Array<{ id: string; title: string; updatedAt: string }>>([]);
   const [bottomY, setBottomY] = useState<number>(loadBottomY);
   const [isDraggingState, setIsDraggingState] = useState(false);
+  const [screenSnapQueued, setScreenSnapQueued] = useState(false);
+  const [liveScreenEveryMessage, setLiveScreenEveryMessage] = useState(getMentorLiveScreenEveryMessage);
+  const [screenCaptureError, setScreenCaptureError] = useState<string | null>(null);
+  const [capturingScreen, setCapturingScreen] = useState(false);
 
   const isDragging = useRef(false);
   const didMove = useRef(false);
@@ -100,13 +107,14 @@ function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
   }, [openTrigger]);
 
   useEffect(() => {
+    if (openTrigger <= 0 || !open) return;
+    const t = setTimeout(() => inputRef.current?.focus(), 50);
+    return () => clearTimeout(t);
+  }, [openTrigger, open]);
+
+  useEffect(() => {
     return () => { attachedImages.forEach(img => URL.revokeObjectURL(img.objectUrl)); };
   }, []);
-
-  const handleMouseEnter = () => window.promethee.window.setIgnoreMouseEvents(false);
-  const handleMouseLeave = () => {
-    if (!isDragging.current) window.promethee.window.setIgnoreMouseEvents(true);
-  };
 
   const initChat = useCallback(async () => {
     const tokenResult = await window.promethee.agent.getToken();
@@ -139,16 +147,38 @@ function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
   useEffect(() => { initChat(); }, [initChat]);
 
   useEffect(() => {
+    if (!chat?.id) return;
+    void window.promethee.window.clearPendingScreenCapture();
+    setScreenSnapQueued(false);
+    setScreenCaptureError(null);
+  }, [chat?.id]);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, streamingContent]);
+  }, [messages, streamingContent, streaming]);
+
+  const resizeInput = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = '0px';
+    const max = 120;
+    el.style.height = `${Math.min(el.scrollHeight, max)}px`;
+  }, []);
+
+  useLayoutEffect(() => {
+    resizeInput();
+  }, [input, resizeInput]);
 
   useEffect(() => {
     if (open) {
       window.promethee.window.setFocusable(true);
-      setTimeout(() => inputRef.current?.focus(), 50);
-    } else {
-      window.promethee.window.setFocusable(false);
+      const t = setTimeout(() => inputRef.current?.focus(), 50);
+      return () => clearTimeout(t);
     }
+    window.promethee.window.setFocusable(false);
+    void window.promethee.window.clearPendingScreenCapture();
+    setScreenSnapQueued(false);
+    setScreenCaptureError(null);
   }, [open]);
 
   const chatIdRef = useRef<string | null>(null);
@@ -195,22 +225,60 @@ function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
     });
   };
 
+  const clearScreenSnap = () => {
+    void window.promethee.window.clearPendingScreenCapture();
+    setScreenSnapQueued(false);
+    setScreenCaptureError(null);
+  };
+
+  const toggleLiveScreen = () => {
+    const next = !liveScreenEveryMessage;
+    setLiveScreenEveryMessage(next);
+    setMentorLiveScreenEveryMessage(next);
+    if (next) clearScreenSnap();
+  };
+
+  const handleScreenSnap = async () => {
+    if (!chat || streaming || liveScreenEveryMessage) return;
+    if (screenSnapQueued) {
+      clearScreenSnap();
+      return;
+    }
+    setScreenCaptureError(null);
+    setCapturingScreen(true);
+    const r = await window.promethee.window.captureScreen();
+    setCapturingScreen(false);
+    if (r.success) setScreenSnapQueued(true);
+    else setScreenCaptureError(r.error || 'Could not capture screen.');
+  };
+
   const handleSend = async () => {
     if (!input.trim() || streaming || !chat) return;
     const content = input.trim();
     const imagesToSend = [...attachedImages];
+    setStreaming(true);
+    setScreenCaptureError(null);
+    setError(null);
+
+    if (liveScreenEveryMessage) {
+      const cap = await window.promethee.window.captureScreen();
+      if (!cap.success) {
+        setScreenCaptureError(cap.error || 'Could not capture screen.');
+        setStreaming(false);
+        return;
+      }
+    }
+
     setInput('');
     setAttachedImages([]);
-    setError(null);
-    setStreaming(true);
+    setScreenSnapQueued(false);
     setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'user', content, createdAt: Date.now() }]);
-    if (imagesToSend.length > 0) {
-      const base64Images = await Promise.all(imagesToSend.map(img => fileToBase64(img.file)));
-      imagesToSend.forEach(img => URL.revokeObjectURL(img.objectUrl));
-      await window.promethee.agent.sendMessageWithImages(chat.id, content, base64Images, messages);
-    } else {
-      await window.promethee.agent.sendMessage(chat.id, content, messages);
-    }
+    const base64Images =
+      imagesToSend.length > 0
+        ? await Promise.all(imagesToSend.map((img) => fileToBase64(img.file)))
+        : [];
+    imagesToSend.forEach((img) => URL.revokeObjectURL(img.objectUrl));
+    await window.promethee.agent.sendMessageWithImages(chat.id, content, base64Images, messages);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -244,7 +312,7 @@ function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
     dragStartClientY.current = e.clientY;
     dragStartBottomY.current = bottomYRef.current;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    window.promethee.window.setIgnoreMouseEvents(false);
+    overlaySuppressHitTest(1);
   };
 
   const handleBubblePointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
@@ -259,6 +327,8 @@ function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
     isDragging.current = false;
     setIsDraggingState(false);
     localStorage.setItem(STORAGE_KEY, String(bottomYRef.current));
+    overlaySuppressHitTest(-1);
+    overlayRestoreClickThrough();
   }, []);
 
   const handleBubblePointerUp = (e: React.PointerEvent<HTMLButtonElement>) => {
@@ -276,12 +346,7 @@ function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
   const openUpward = bottomY < window.innerHeight / 2;
 
   return (
-    <div
-      className="agent-bubble-root"
-      style={{ right: RIGHT_MARGIN, bottom: bottomY }}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-    >
+    <div className="agent-bubble-root promethee-mouse-target" style={{ right: RIGHT_MARGIN, bottom: bottomY }}>
       <AnimatePresence>
         {open && (
           <motion.div
@@ -371,6 +436,15 @@ function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
                       )}
                     </div>
                   ))}
+                  {streaming && !streamingContent && (
+                    <div className="agent-message agent-message--assistant">
+                      <div className="agent-typing-bubble" aria-label="Assistant is typing">
+                        <span className="agent-typing-dot" />
+                        <span className="agent-typing-dot" />
+                        <span className="agent-typing-dot" />
+                      </div>
+                    </div>
+                  )}
                   {streaming && streamingContent && (
                     <div className="agent-message agent-message--assistant agent-message--streaming">
                       <span className="agent-message-content">
@@ -398,7 +472,40 @@ function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
                   </div>
                 )}
 
-                <div className="agent-input-row">
+                {screenCaptureError && (
+                  <div className="agent-screen-chip agent-screen-chip--error" role="alert">
+                    <span className="agent-screen-chip-text">{screenCaptureError}</span>
+                    <button type="button" className="agent-screen-chip-remove" aria-label="Dismiss" onClick={() => setScreenCaptureError(null)}>
+                      <X size={13} strokeWidth={2} />
+                    </button>
+                  </div>
+                )}
+                {screenSnapQueued && !screenCaptureError && !liveScreenEveryMessage && (
+                  <div className="agent-screen-chip" title="Your desktop (without Promethee covering it) is sent with the next message.">
+                    <Monitor size={12} />
+                    <span className="agent-screen-chip-text">Screen · next send</span>
+                    <button type="button" className="agent-screen-chip-remove" aria-label="Remove snapshot" onClick={clearScreenSnap}>
+                      <X size={13} strokeWidth={2} />
+                    </button>
+                  </div>
+                )}
+
+                <div className="agent-live-screen-bar">
+                  <span className="agent-live-screen-bar-label">Screen on every send</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={liveScreenEveryMessage}
+                    className="agent-live-screen-switch"
+                    onClick={toggleLiveScreen}
+                    disabled={streaming}
+                    title={liveScreenEveryMessage ? 'Turn off — use monitor for one send only' : 'Capture desktop before each message'}
+                  >
+                    <span className="agent-live-screen-switch-thumb" aria-hidden />
+                  </button>
+                </div>
+
+                <div className="agent-input-row agent-input-row--align-end">
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -412,6 +519,23 @@ function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
                       <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
                     </svg>
                   </button>
+                  <button
+                    type="button"
+                    className={`agent-screen-snap${screenSnapQueued ? ' agent-screen-snap--active' : ''}`}
+                    onClick={handleScreenSnap}
+                    disabled={streaming || capturingScreen || liveScreenEveryMessage}
+                    title={
+                      liveScreenEveryMessage
+                        ? 'Turn off "every send" to queue one capture'
+                        : screenSnapQueued
+                          ? 'Remove queued desktop'
+                          : capturingScreen
+                            ? 'Capturing…'
+                            : 'Include desktop on next message (overlay stays visible)'
+                    }
+                  >
+                    <Monitor size={14} />
+                  </button>
                   <textarea
                     ref={inputRef}
                     className="agent-input"
@@ -423,11 +547,9 @@ function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
                     disabled={streaming}
                   />
                   <button className="agent-send" onClick={handleSend} disabled={!input.trim() || streaming} title="Send (Enter)">
-                    {streaming ? <span className="agent-send-spinner" /> : (
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                        <path d="M1 7L13 1L7 13L6 8L1 7Z" fill="currentColor" />
-                      </svg>
-                    )}
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+                      <path d="M1 7L13 1L7 13L6 8L1 7Z" fill="currentColor" />
+                    </svg>
                   </button>
                 </div>
               </>
@@ -436,17 +558,16 @@ function AgentBubble({ activeSession, openTrigger = 0 }: AgentBubbleProps) {
         )}
       </AnimatePresence>
 
-      <motion.button
+      <button
+        type="button"
         className={`agent-bubble ${open ? 'agent-bubble--open' : ''} ${isDraggingState ? 'agent-bubble--dragging' : ''}`}
         onPointerDown={handleBubblePointerDown}
         onPointerMove={handleBubblePointerMove}
         onPointerUp={handleBubblePointerUp}
-        whileHover={isDraggingState ? {} : { scale: 1.03 }}
-        whileTap={isDraggingState ? {} : { scale: 0.97 }}
         title="Mentor AI — drag to reposition"
       >
         <span className="agent-bubble-label">Mentor AI</span>
-      </motion.button>
+      </button>
     </div>
   );
 }

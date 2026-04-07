@@ -224,7 +224,7 @@ export default function MemoryTab() {
         </div>
         <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
           {snapshotCount === 0
-            ? 'Prométhée starts building your memory profile from your first session.'
+            ? 'Promethee starts building your memory profile from your first session.'
             : `${snapshotCount} day${snapshotCount !== 1 ? 's' : ''} of observation`}
         </p>
       </motion.div>
@@ -240,7 +240,7 @@ export default function MemoryTab() {
           color: 'var(--text-secondary)',
           lineHeight: 1.5,
         }}>
-          Prométhée is still learning. Patterns become visible after 3+ days of data.
+          Promethee is still learning. Patterns become visible after 3+ days of data.
           {latestSummary && <span> Here's what's visible so far.</span>}
         </motion.div>
       )}
@@ -249,10 +249,10 @@ export default function MemoryTab() {
       {snapshotCount === 0 && (
         <motion.div variants={itemVariants} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6, maxWidth: 460 }}>
-            Complete your first session and return here tomorrow — Prométhée will have built the first page of your profile.
+            Complete your first session and return here tomorrow — Promethee will have built the first page of your profile.
           </p>
           <p style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-            At day 90, the full reveal unlocks: time patterns, focus trajectory, skill arc, and a narrative Prométhée has been writing about you since day 1.
+            At day 90, the full reveal unlocks: time patterns, focus trajectory, skill arc, and a narrative Promethee has been writing about you since day 1.
           </p>
         </motion.div>
       )}
@@ -303,7 +303,7 @@ export default function MemoryTab() {
         </motion.div>
       )}
 
-      {/* Prométhée's observation */}
+      {/* Promethee observation */}
       {latestSummary && (
         <motion.div variants={itemVariants} style={{
           background: 'var(--surface)',
@@ -315,7 +315,7 @@ export default function MemoryTab() {
           gap: 8,
         }}>
           <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--text-muted)', margin: 0 }}>
-            Prométhée observes
+            Promethee observes
           </p>
           <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0, fontStyle: 'italic' }}>
             "{latestSummary}"
@@ -358,12 +358,12 @@ export default function MemoryTab() {
       {latestSkills && (
         <motion.div variants={itemVariants} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-muted)', margin: 0 }}>
-            Skill trajectory
+            Focus stats (snapshot)
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <SkillBar label="Rigueur" value={latestSkills.rigueur} />
-            <SkillBar label="Volonté" value={latestSkills.volonte} />
-            <SkillBar label="Courage" value={latestSkills.courage} />
+            <SkillBar label="Consistency" value={latestSkills.rigueur} />
+            <SkillBar label="Willpower" value={latestSkills.volonte} />
+            <SkillBar label="Deep runs" value={latestSkills.courage} />
           </div>
         </motion.div>
       )}
@@ -387,7 +387,7 @@ export default function MemoryTab() {
             <div style={{ height: '100%', width: `${(snapshotCount / 90) * 100}%`, background: 'var(--accent-glow-strong)', borderRadius: 1 }} />
           </div>
           <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0, fontStyle: 'italic' }}>
-            A complete portrait — time patterns, focus arc, skill evolution, and a narrative written by Prométhée from day 1.
+            A complete portrait — time patterns, focus arc, skill evolution, and a narrative written by Promethee from day 1.
           </p>
         </motion.div>
       )}
@@ -408,7 +408,7 @@ export default function MemoryTab() {
             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>90-day reveal unlocked</span>
           </div>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.55 }}>
-            Prométhée has observed you for 90 days. The full profile — time patterns, behavioural arc, skill trajectory, and narrative — is above.
+            Promethee has observed you for 90 days. The full profile — time patterns, behavioural arc, skill trajectory, and narrative — is above.
           </p>
         </motion.div>
       )}

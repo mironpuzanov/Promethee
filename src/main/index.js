@@ -26,11 +26,19 @@ import { signIn, signUp, signOut, sendMagicLink, getUser, setSession, getCurrent
 import { setupPowerMonitoring } from './power.js';
 import { setupLeaderboardPolling, stopLeaderboardPolling, getLeaderboard } from './leaderboard.js';
 import { setupPresence, stopPresence, sendHeartbeat, removePresence, postToLiveFeed, getPresenceCount, getRooms, getRoomPresence } from './presence.js';
-import { getTodaysSessions, getSessions, getUserProfile, initializeDatabase, getAgentChats, getOrCreateAgentChat, createAgentChat, getAgentMessages, addAgentMessage, getQuests, createQuest, completeQuest, uncompleteQuest, deleteQuest, resetDailyQuests, setLastDailyJobDate, getLastDailyJobDate, updateStreak, updateUserXP, getWindowEvents, recordWindowEvent, getSessionById, createTask, getTasksBySession, getTasksByUser, toggleTask, deleteTask } from './db.js';
+import { getTodaysSessions, getSessions, getUserProfile, getCompletedSessionsForSkills, getCompletedSessionsInRange, initializeDatabase, getAgentChats, getOrCreateAgentChat, createAgentChat, getAgentMessages, addAgentMessage, getQuests, createQuest, completeQuest, uncompleteQuest, deleteQuest, resetDailyQuests, setLastDailyJobDate, getLastDailyJobDate, updateStreak, updateUserXP, getWindowEvents, recordWindowEvent, getSessionById, createTask, getTasksBySession, getTasksByUser, toggleTask, deleteTask } from './db.js';
 import { startWindowTracking, stopWindowTracking, setTrackingSession, clearTrackingSession, getCurrentApp, canSampleForegroundApp } from './windowTracker.js';
 import { maybePromptScreenRecordingAccess, resetScreenRecordingPromptGate } from './screenRecordingPrompt.js';
 import { shouldIncludeAppInUsageStats } from '../lib/appUsageFilter.js';
 import keytar from 'keytar';
+import {
+  setFocusShortcutBroadcast,
+  loadFocusShortcuts,
+  saveFocusShortcutsToDisk,
+  validateFocusShortcutsConfig,
+  applyRegisteredFocusShortcuts,
+  unregisterAllFocusShortcuts,
+} from './focusShortcuts.js';
 
 function startTrackingWithPermissionPrompt(userId) {
   startWindowTracking(userId);
@@ -61,6 +69,9 @@ import OpenAI from 'openai';
 let floatingWindow = null;
 let fullWindow = null;
 let tray = null;
+
+/** Mentor “attach screen”: store PNG data URL in main so we don’t ship multi‑MB strings renderer→main (IPC clone limits / perf). */
+let pendingAgentScreenDataUrl = null;
 
 const createFloatingWindow = () => {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
@@ -125,7 +136,7 @@ const createFloatingWindow = () => {
 
 const createFullWindow = ({ sessionComplete = false } = {}) => {
   const w = sessionComplete ? 380 : 1200;
-  const h = sessionComplete ? 620 : 800;
+  const h = sessionComplete ? 620 : 900;
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
   fullWindow = new BrowserWindow({
     width: w,
@@ -356,6 +367,16 @@ app.whenReady().then(async () => {
     createFullWindow();
   }
 
+  setFocusShortcutBroadcast((action) => {
+    if (!floatingWindow || floatingWindow.isDestroyed()) return;
+    try {
+      floatingWindow.webContents.send('focusShortcut', action);
+    } catch {
+      /* ignore */
+    }
+  });
+  applyRegisteredFocusShortcuts();
+
   setupPowerMonitoring(floatingWindow);
   setupLeaderboardPolling();
   setupPresence(floatingWindow);
@@ -380,8 +401,43 @@ app.on('window-all-closed', () => {
 app.on('before-quit', async () => {
   stopLeaderboardPolling();
   stopPresence();
+  unregisterAllFocusShortcuts();
   const user = getCurrentUser();
   if (user) await removePresence(user.id);
+});
+
+ipcMain.handle('shortcuts:get', () => {
+  try {
+    return { success: true, shortcuts: loadFocusShortcuts() };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('shortcuts:set', (_event, partial) => {
+  try {
+    if (!partial || typeof partial !== 'object') {
+      return { success: false, error: 'Invalid payload.' };
+    }
+    const cur = loadFocusShortcuts();
+    const next = { ...cur };
+    for (const k of ['focusOpenMentor', 'focusAddTask', 'focusEndSession']) {
+      if (Object.prototype.hasOwnProperty.call(partial, k)) {
+        next[k] = partial[k] === '' || partial[k] == null ? '' : String(partial[k]).trim();
+      }
+    }
+    const v = validateFocusShortcutsConfig(next);
+    if (!v.ok) return { success: false, error: v.error };
+    saveFocusShortcutsToDisk({
+      focusOpenMentor: next.focusOpenMentor,
+      focusAddTask: next.focusAddTask,
+      focusEndSession: next.focusEndSession,
+    });
+    applyRegisteredFocusShortcuts();
+    return { success: true, shortcuts: loadFocusShortcuts() };
+  } catch (e) {
+    return { success: false, error: e.message || 'Failed to save shortcuts.' };
+  }
 });
 
 // Mouse passthrough for floating overlay
@@ -443,19 +499,20 @@ ipcMain.handle('session:end', async () => {
   try {
     const user = getCurrentUser();
     const session = await endSessionAndSync();
-    // One last foreground sample so the session card always has ≥1 row if the OS allows active-win
-    if (user?.id && session?.id) {
-      try {
-        const live = await getCurrentApp();
-        if (live) recordWindowEvent(user.id, session.id, live.appName, live.windowTitle);
-      } catch (e) {
-        debugLog(`session:end final window sample: ${e?.message || e}`);
-      }
-    }
     clearTrackingSession();
 
-    // Remove presence when session ends
-    if (user) await removePresence(user.id);
+    // Fire-and-forget: never stall session:end on network or active-win
+    if (user?.id && session?.id) {
+      void (async () => {
+        try {
+          const live = await getCurrentApp();
+          if (live) recordWindowEvent(user.id, session.id, live.appName, live.windowTitle);
+        } catch (e) {
+          debugLog(`session:end final window sample: ${e?.message || e}`);
+        }
+      })();
+    }
+    if (user) void removePresence(user.id).catch(() => {});
 
     return { success: true, session };
   } catch (error) {
@@ -722,11 +779,11 @@ ipcMain.handle('window:resizeForSessionComplete', () => {
 ipcMain.handle('window:restoreFromSessionComplete', () => {
   if (fullWindow) {
     fullWindow.setResizable(true);
-    fullWindow.setSize(1200, 800, true);
+    fullWindow.setSize(1200, 900, true);
     const { width, height } = screen.getPrimaryDisplay().workAreaSize;
     fullWindow.setPosition(
       Math.round((width - 1200) / 2),
-      Math.round((height - 800) / 2),
+      Math.round((height - 900) / 2),
       true
     );
     fullWindow.setResizable(true);
@@ -735,18 +792,94 @@ ipcMain.handle('window:restoreFromSessionComplete', () => {
 
 // Capture the user's full screen as a base64 PNG for agent vision context
 ipcMain.handle('window:captureScreen', async () => {
+  const windowsToRestore = [];
   try {
+    await getUser();
+    const user = getCurrentUser();
+    if (!user) return { success: false, error: 'Sign in required.' };
+
+    const hideIfShowing = (w) => {
+      if (w && !w.isDestroyed() && w.isVisible()) {
+        w.hide();
+        windowsToRestore.push(w);
+      }
+    };
+    const dashboardVisible = fullWindow && !fullWindow.isDestroyed() && fullWindow.isVisible();
+
+    // Hide dashboard window if it’s only partially in play; focus overlay stays visible so the HUD
+    // doesn’t flash and the capture matches what the user sees (timer + pills + desktop).
+    if (!dashboardVisible) {
+      hideIfShowing(fullWindow);
+    }
+    // Full-window Mentor/dashboard: hide floating overlay so the shot isn’t duplicated UI.
+    if (dashboardVisible) {
+      hideIfShowing(floatingWindow);
+    }
+
+    if (windowsToRestore.length > 0) {
+      await new Promise((r) => setTimeout(r, 160));
+    }
+
     const { desktopCapturer } = await import('electron');
     const sources = await desktopCapturer.getSources({
       types: ['screen'],
-      thumbnailSize: { width: 1280, height: 800 },
+      thumbnailSize: { width: 1920, height: 1080 },
     });
-    if (!sources.length) return { success: false, error: 'No screen source' };
-    const dataUrl = sources[0].thumbnail.toDataURL();
-    return { success: true, dataUrl };
+    if (!sources.length) {
+      const hint =
+        process.platform === 'darwin'
+          ? 'No screen source (often Screen Recording is off). System Settings → Privacy & Security → Screen Recording → enable Promethee or Electron (dev), then fully quit (⌘Q) and reopen.'
+          : 'No screen sources returned by the OS.';
+      debugLog(`captureScreen: ${hint}`);
+      return { success: false, error: hint };
+    }
+
+    let bestPng = null;
+    let bestBytes = 0;
+    for (const s of sources) {
+      try {
+        const t = s.thumbnail;
+        if (!t || t.isEmpty()) continue;
+        const png = t.toPNG();
+        if (png && png.length > bestBytes) {
+          bestBytes = png.length;
+          bestPng = png;
+        }
+      } catch (e) {
+        debugLog(`captureScreen: skip source: ${e.message}`);
+      }
+    }
+
+    if (!bestPng || bestBytes < 2048) {
+      const hint =
+        process.platform === 'darwin'
+          ? 'Snapshot was empty or too small. Grant Screen Recording for Electron (npm start) or Promethee, then fully quit (⌘Q) and reopen.'
+          : 'Screen thumbnail was empty.';
+      debugLog(`captureScreen: ${hint} (bestBytes=${bestBytes}, sources=${sources.length})`);
+      return { success: false, error: hint };
+    }
+
+    const dataUrl = `data:image/png;base64,${bestPng.toString('base64')}`;
+    pendingAgentScreenDataUrl = dataUrl;
+    debugLog(`captureScreen: ok, ${bestBytes} bytes PNG, hidAppFrames=${windowsToRestore.length}`);
+    return { success: true };
   } catch (error) {
-    return { success: false, error: error.message };
+    debugLog(`captureScreen error: ${error.message}`);
+    return { success: false, error: error.message || 'Capture failed' };
+  } finally {
+    for (const w of windowsToRestore) {
+      try {
+        if (!w.isDestroyed()) w.show();
+      } catch (e) {
+        debugLog(`captureScreen restore window: ${e.message}`);
+      }
+    }
   }
+});
+
+ipcMain.handle('window:clearPendingScreenCapture', () => {
+  pendingAgentScreenDataUrl = null;
+  return { success: true };
 });
 
 ipcMain.handle('window:captureSessionCard', async () => {
@@ -869,6 +1002,42 @@ ipcMain.handle('agent:setToken', async (_event, key) => {
   }
 });
 
+// Sanitize OS-provided strings before embedding in LLM prompts.
+// Window titles are user-controlled (e.g. browser tab names) and can contain
+// adversarial prompt-injection text — truncate and strip newlines/control chars.
+function sanitizeForPrompt(str, maxLen = 120) {
+  if (!str || typeof str !== 'string') return '';
+  return str.replace(/[\r\n\t]/g, ' ').trim().slice(0, maxLen);
+}
+
+async function buildWindowContext(user, activeSession) {
+  let ctx = '';
+  const liveApp = await getCurrentApp();
+  if (liveApp) {
+    const appName = sanitizeForPrompt(liveApp.appName, 60);
+    const title = liveApp.windowTitle ? ` ("${sanitizeForPrompt(liveApp.windowTitle)}")` : '';
+    ctx = `\nActive app right now: ${appName}${title}.`;
+  }
+  if (user) {
+    const sinceMs = activeSession ? activeSession.startedAt : Date.now() - 3600_000;
+    const events = getWindowEvents(user.id, { sinceMs, sessionId: activeSession?.id, limit: 200 });
+    if (events.length > 0) {
+      const appCounts = {};
+      for (const e of events) {
+        if (!shouldIncludeAppInUsageStats(e.app_name)) continue;
+        appCounts[e.app_name] = (appCounts[e.app_name] || 0) + 1;
+      }
+      const topApps = Object.entries(appCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 4)
+        .map(([name]) => sanitizeForPrompt(name, 40))
+        .join(', ');
+      if (topApps) ctx += `\nApps this session: ${topApps}.`;
+    }
+  }
+  return ctx;
+}
+
 ipcMain.handle('agent:getChats', async () => {
   try {
     const user = await getUser();
@@ -939,25 +1108,7 @@ ipcMain.handle('agent:sendMessage', async (_event, chatId, content, previousMess
     const level = profile?.level || 1;
     const totalXp = profile?.total_xp || 0;
 
-    // Window context — live current app + top apps in session/last hour
-    let windowContext = '';
-    const liveApp = await getCurrentApp();
-    if (liveApp) {
-      windowContext = `\nActive app right now: ${liveApp.appName}${liveApp.windowTitle ? ` ("${liveApp.windowTitle}")` : ''}.`;
-    }
-    if (user) {
-      const sinceMs = activeSession ? activeSession.startedAt : Date.now() - 3600_000;
-      const events = getWindowEvents(user.id, { sinceMs, sessionId: activeSession?.id, limit: 200 });
-      if (events.length > 0) {
-        const appCounts = {};
-        for (const e of events) {
-          if (!shouldIncludeAppInUsageStats(e.app_name)) continue;
-          appCounts[e.app_name] = (appCounts[e.app_name] || 0) + 1;
-        }
-        const topApps = Object.entries(appCounts).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([name]) => name).join(', ');
-        windowContext += `\nApps this session: ${topApps}.`;
-      }
-    }
+    const windowContext = await buildWindowContext(user, activeSession);
 
     let resolvedSystemPrompt;
     if (activeSession) {
@@ -1022,6 +1173,22 @@ ipcMain.handle('agent:sendMessageWithImages', async (_event, chatId, content, im
       return { success: false, error: 'No API key. Configure it first.' };
     }
 
+    const fromRenderer = Array.isArray(images)
+      ? images.filter((x) => typeof x === 'string' && x.length > 0)
+      : [];
+    const visionUrls = [];
+    if (fromRenderer.length > 0) {
+      visionUrls.push(...fromRenderer);
+    }
+    if (pendingAgentScreenDataUrl) {
+      visionUrls.push(pendingAgentScreenDataUrl);
+      pendingAgentScreenDataUrl = null;
+    }
+
+    debugLog(
+      `sendMessageWithImages: chatId=${chatId} visionParts=${visionUrls.length} fromRenderer=${fromRenderer.length}`
+    );
+
     // Persist only text content to SQLite (images are ephemeral)
     addAgentMessage(chatId, 'user', content);
 
@@ -1042,24 +1209,7 @@ ipcMain.handle('agent:sendMessageWithImages', async (_event, chatId, content, im
     const level = profile?.level || 1;
     const totalXp = profile?.total_xp || 0;
 
-    let windowContext = '';
-    const liveApp = await getCurrentApp();
-    if (liveApp) {
-      windowContext = `\nActive app right now: ${liveApp.appName}${liveApp.windowTitle ? ` ("${liveApp.windowTitle}")` : ''}.`;
-    }
-    if (user) {
-      const sinceMs = activeSession ? activeSession.startedAt : Date.now() - 3600_000;
-      const events = getWindowEvents(user.id, { sinceMs, sessionId: activeSession?.id, limit: 100 });
-      if (events.length > 0) {
-        const appCounts = {};
-        for (const e of events) {
-          if (!shouldIncludeAppInUsageStats(e.app_name)) continue;
-          appCounts[e.app_name] = (appCounts[e.app_name] || 0) + 1;
-        }
-        const topApps = Object.entries(appCounts).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name]) => name).join(', ');
-        windowContext += `\nApps used: ${topApps}.`;
-      }
-    }
+    const windowContext = await buildWindowContext(user, activeSession);
 
     let resolvedSystemPrompt;
     if (activeSession) {
@@ -1082,13 +1232,19 @@ Recent sessions: ${recentNames || 'none yet'}.
 Answer concisely.`;
     }
 
+    if (visionUrls.length > 0) {
+      resolvedSystemPrompt +=
+        "\n\nYou can see the user's screen right now (their workspace — Promethee is hidden from the frame briefly so you mostly see their other work). Use what you see to help." +
+        "\n\nIn your replies: never tell the user you got a screenshot, photo, image, picture, or file, or that they attached something visual — answer as if you're looking at their screen with them, naturally.";
+    }
+
     // Build the final user message with text + image content blocks
     const userContent = [
       { type: 'text', text: content },
-      ...images.map(dataUrl => ({
+      ...visionUrls.map((dataUrl) => ({
         type: 'image_url',
-        image_url: { url: dataUrl, detail: 'auto' }
-      }))
+        image_url: { url: dataUrl, detail: 'auto' },
+      })),
     ];
 
     const messagesForApi = [
@@ -1126,57 +1282,36 @@ Answer concisely.`;
 });
 
 // ── Skills IPC Handler ────────────────────────────────────────────────────────
-// Rigueur  = total session minutes (last 30d), 0–100 on 3000-min ceiling
-// Volonté  = current_streak (from Supabase user_profile), 0–100 on 30-day ceiling
-// Courage  = count of sessions ≥ 2h (last 30d), 0–100 on 20-session ceiling
-// All data sourced from Supabase (not SQLite) to avoid cross-store joins.
+// Scores 0–100 from local SQLite (same source as Session log). Last 30 days only.
+// rigueur  = total focus minutes / 3000 min cap
+// volonte  = current_streak days / 30 day cap (local user_profile)
+// courage  = sessions ≥ 2h / 20 sessions cap
 
 ipcMain.handle('skills:get', async () => {
   try {
     const user = getCurrentUser();
     if (!user) return { success: false, error: 'Not authenticated' };
 
-    const { supabase } = await import('../lib/supabase.js');
     const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
-
-    // Fetch last 30 days of sessions from Supabase
-    const { data: sessions, error: sessErr } = await supabase
-      .from('sessions')
-      .select('duration_seconds, started_at')
-      .eq('user_id', user.id)
-      .gte('started_at', thirtyDaysAgo)
-      .not('duration_seconds', 'is', null);
-
-    if (sessErr) throw sessErr;
-
-    // Fetch user_profile for streak
-    const { data: profileRow, error: profErr } = await supabase
-      .from('user_profile')
-      .select('current_streak')
-      .eq('id', user.id)
-      .single();
-
-    if (profErr && profErr.code !== 'PGRST116') throw profErr;
-
+    const sessions = getCompletedSessionsForSkills(user.id, thirtyDaysAgo);
+    const profileRow = getUserProfile(user.id);
     const streak = profileRow?.current_streak || 0;
 
-    // Rigueur: total session minutes
-    const totalMinutes = (sessions || []).reduce((sum, s) => {
+    const totalMinutes = sessions.reduce((sum, s) => {
       return sum + Math.floor((s.duration_seconds || 0) / 60);
     }, 0);
     const rigueur = Math.min(Math.round((totalMinutes / 3000) * 100), 100);
 
-    // Volonté: streak days
     const volonte = Math.min(Math.round((streak / 30) * 100), 100);
 
-    // Courage: sessions ≥ 2 hours (7200 seconds)
-    const deepSessions = (sessions || []).filter(s => (s.duration_seconds || 0) >= 7200).length;
+    const deepSessions = sessions.filter(s => (s.duration_seconds || 0) >= 7200).length;
     const courage = Math.min(Math.round((deepSessions / 20) * 100), 100);
+    const sessionCount = sessions.length;
 
     return {
       success: true,
       skills: { rigueur, volonte, courage },
-      raw: { totalMinutes, streak, deepSessions }
+      raw: { totalMinutes, streak, deepSessions, sessionCount }
     };
   } catch (error) {
     return { success: false, error: error.message };
@@ -1618,7 +1753,7 @@ async function generateDailySignal(userId, todayStr) {
       ? 'No sessions logged yesterday.'
       : `${sessionCount} session${sessionCount !== 1 ? 's' : ''}, ${totalMinutes} minutes${tasks ? ` — ${tasks}` : ''}.`;
 
-    const prompt = `You are Prométhée, an AI mentor for ${userName}. Generate a single short signal (1–2 sentences, max 30 words) for today. ${intensityContext} ${contextText} Be direct, personal, and motivating. No filler phrases. No "I noticed" or "Remember".`;
+    const prompt = `You are Promethee, an AI mentor for ${userName}. Generate a single short signal (1–2 sentences, max 30 words) for today. ${intensityContext} ${contextText} Be direct, personal, and motivating. No filler phrases. No "I noticed" or "Remember".`;
 
     const openai = new OpenAI({ apiKey });
     const resp = await openai.chat.completions.create({
@@ -1674,28 +1809,15 @@ async function generateMemorySnapshot(userId, todayStr) {
   const todayStart = now - oneDayMs; // yesterday's data is the "day" we're snapshotting
   const thirtyDaysAgo = now - 30 * oneDayMs;
 
-  // Yesterday's sessions (for today's snapshot we record what happened today so far;
-  // snapshot runs at first-open which may be early, so we use the rolling 24h window)
-  const { data: todaysSessions } = await supabase
-    .from('sessions')
-    .select('task, duration_seconds, started_at')
-    .eq('user_id', userId)
-    .gte('started_at', todayStart)
-    .lte('started_at', now)
-    .not('duration_seconds', 'is', null);
+  // Rolling 24h window from local SQLite (same store as Session log)
+  const todaysSessions = getCompletedSessionsInRange(userId, todayStart, now);
 
   const sessionCount = todaysSessions?.length || 0;
   const totalMinutes = (todaysSessions || []).reduce(
     (s, r) => s + Math.floor((r.duration_seconds || 0) / 60), 0
   );
 
-  // Peak hour: find the hour-of-day with most session starts in the last 30 days
-  const { data: allRecentSessions } = await supabase
-    .from('sessions')
-    .select('started_at, duration_seconds')
-    .eq('user_id', userId)
-    .gte('started_at', thirtyDaysAgo)
-    .not('duration_seconds', 'is', null);
+  const allRecentSessions = getCompletedSessionsForSkills(userId, thirtyDaysAgo);
 
   let peakHours = null;
   if (allRecentSessions && allRecentSessions.length > 0) {
@@ -1708,7 +1830,6 @@ async function generateMemorySnapshot(userId, todayStr) {
     peakHours = `${String(peakHour).padStart(2,'0')}:00–${String(peakHour + 1).padStart(2,'0')}:00`;
   }
 
-  // Average session duration (30d)
   const allMinutes = (allRecentSessions || []).reduce(
     (s, r) => s + Math.floor((r.duration_seconds || 0) / 60), 0
   );
@@ -1716,16 +1837,10 @@ async function generateMemorySnapshot(userId, todayStr) {
     ? Math.round(allMinutes / allRecentSessions.length)
     : 0;
 
-  // Skill scores snapshot
   const thirtyDaysMinutes = allMinutes;
   const rigueur = Math.min(Math.round((thirtyDaysMinutes / 3000) * 100), 100);
 
-  const { data: profileRow } = await supabase
-    .from('user_profile')
-    .select('current_streak')
-    .eq('id', userId)
-    .single();
-  const streak = profileRow?.current_streak || 0;
+  const streak = getUserProfile(userId)?.current_streak || 0;
   const volonte = Math.min(Math.round((streak / 30) * 100), 100);
   const deepCount = (allRecentSessions || []).filter(s => (s.duration_seconds || 0) >= 7200).length;
   const courage = Math.min(Math.round((deepCount / 20) * 100), 100);
@@ -1745,7 +1860,7 @@ async function generateMemorySnapshot(userId, todayStr) {
   if (apiKey && allRecentSessions && allRecentSessions.length >= 1) {
     try {
       const openai = new OpenAI({ apiKey });
-      const prompt = `You are Prométhée. Write a 1-sentence behavioral observation about this user based on their last 30 days of work data. Be precise and personal, not generic.
+      const prompt = `You are Promethee. Write a 1-sentence behavioral observation about this user based on their last 30 days of work data. Be precise and personal, not generic.
 
 Data:
 - Total sessions (30d): ${allRecentSessions.length}
@@ -1818,20 +1933,9 @@ ipcMain.handle('memory:get', async () => {
 
     if (error) throw error;
 
-    // Latest skills + streak for current state
     const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
-    const { data: recentSessions } = await supabase
-      .from('sessions')
-      .select('duration_seconds, started_at')
-      .eq('user_id', user.id)
-      .gte('started_at', thirtyDaysAgo)
-      .not('duration_seconds', 'is', null);
-
-    const { data: profileRow } = await supabase
-      .from('user_profile')
-      .select('current_streak, total_xp, level, display_name')
-      .eq('id', user.id)
-      .single();
+    const recentSessions = getCompletedSessionsForSkills(user.id, thirtyDaysAgo);
+    const profileRow = getUserProfile(user.id);
 
     const totalMinutes30d = (recentSessions || []).reduce(
       (s, r) => s + Math.floor((r.duration_seconds || 0) / 60), 0
