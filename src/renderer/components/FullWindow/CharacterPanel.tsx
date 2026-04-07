@@ -32,8 +32,13 @@ interface SkillsRaw {
 }
 
 interface MemorySnap {
+  snapshot_date?: string;
   behavioral_summary?: string | null;
   emotional_tags?: string[] | null;
+  peak_hours?: string | null;
+  session_count?: number | null;
+  total_minutes?: number | null;
+  streak_at_snapshot?: number | null;
 }
 
 interface DailySignal {
@@ -50,6 +55,34 @@ function truncateText(s: string, max: number): string {
   const t = s.trim();
   if (t.length <= max) return t;
   return `${t.slice(0, max).trimEnd()}…`;
+}
+
+function buildMemoryTeaser(snapshot?: MemorySnap | null): string | null {
+  if (!snapshot) return null;
+  if (snapshot.behavioral_summary?.trim()) {
+    return truncateText(snapshot.behavioral_summary, 220);
+  }
+
+  const parts: string[] = [];
+  const minutes = snapshot.total_minutes || 0;
+  const sessions = snapshot.session_count || 0;
+  const streak = snapshot.streak_at_snapshot || 0;
+
+  if (minutes > 0) parts.push(`${minutes}m focused`);
+  if (sessions > 0) parts.push(`${sessions} session${sessions === 1 ? '' : 's'}`);
+  if (snapshot.peak_hours) parts.push(`peak ${snapshot.peak_hours}`);
+  if (streak > 0) parts.push(`${streak}d streak`);
+
+  if (parts.length > 0) {
+    return `Latest memory: ${parts.join(' · ')}.`;
+  }
+
+  const tags = snapshot.emotional_tags || [];
+  if (tags.length > 0) {
+    return `Recent tags: ${tags.slice(0, 5).join(', ')}`;
+  }
+
+  return null;
 }
 
 const containerVariants = {
@@ -241,18 +274,7 @@ function CharacterPanel({ user }: CharacterPanelProps) {
       if (!result.success) return;
       const snaps = result.snapshots || [];
       setMemoryHasSnapshots(snaps.length > 0);
-      const withSummary = snaps.find((s) => s.behavioral_summary?.trim());
-      if (withSummary?.behavioral_summary) {
-        setMemoryTeaser(truncateText(withSummary.behavioral_summary, 220));
-        return;
-      }
-      const withTags = snaps.find((s) => (s.emotional_tags?.length ?? 0) > 0);
-      const tags = withTags?.emotional_tags;
-      if (tags?.length) {
-        setMemoryTeaser(`Recent tags: ${tags.slice(0, 5).join(', ')}`);
-        return;
-      }
-      setMemoryTeaser(null);
+      setMemoryTeaser(buildMemoryTeaser(snaps[0] || null));
     }).catch(() => {
       setMemoryLoaded(true);
     });
