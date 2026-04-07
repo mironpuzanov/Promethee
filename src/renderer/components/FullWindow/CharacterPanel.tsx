@@ -70,19 +70,88 @@ const INTENSITY_STYLE: Record<DailySignal['intensity'], { dot: string; border: s
   high: { dot: 'var(--destructive)',           border: 'rgba(239,68,68,0.25)' },
 };
 
-function SkillBar({ label, value }: { label: string; value: number }) {
+function TriangleChart({ rigueur, volonte, courage }: SkillScores) {
+  const cx = 95, cy = 95, R = 68;
+
+  // Courage top (270°), Willpower bottom-right (30°), Consistency bottom-left (150°)
+  const vertices = [
+    { angle: 270, label: 'Deep runs',    value: courage },
+    { angle: 30,  label: 'Willpower',   value: volonte },
+    { angle: 150, label: 'Consistency', value: rigueur },
+  ];
+
+  const toXY = (angleDeg: number, r: number) => {
+    const rad = (angleDeg * Math.PI) / 180;
+    return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+  };
+
+  const bgPts = vertices.map(v => toXY(v.angle, R));
+
+  // Scale relative to the highest value so the shape always fills the triangle.
+  // If all values are 0, show a tiny dot at center rather than nothing.
+  const maxVal = Math.max(...vertices.map(v => v.value), 1);
+  const innerPts = vertices.map(v => toXY(v.angle, Math.max(3, R * (v.value / maxVal))));
+
+  const toPath = (pts: { x: number; y: number }[]) =>
+    pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ') + ' Z';
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingTop: 8, paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>
-      <span style={{ flex: 1, fontSize: 13, color: 'var(--text-secondary)' }}>{label}</span>
-      <div style={{ width: 80, height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
-        <motion.div
-          style={{ height: '100%', background: 'var(--accent-fire)', borderRadius: 2 }}
-          initial={{ width: 0 }}
-          animate={{ width: `${value}%` }}
-          transition={{ duration: 0.7, ease: 'easeOut', delay: 0.1 }}
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+      <svg width={190} height={190} viewBox="0 0 190 190" style={{ overflow: 'visible' }}>
+        {/* Background triangle */}
+        <path
+          d={toPath(bgPts)}
+          fill="rgba(255,255,255,0.03)"
+          stroke="rgba(255,255,255,0.1)"
+          strokeWidth={1}
         />
-      </div>
-      <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', width: 28, textAlign: 'right' }}>{value}</span>
+
+        {/* Filled inner polygon */}
+        <motion.path
+          d={toPath(innerPts)}
+          fill="rgba(251,146,60,0.12)"
+          stroke="var(--accent-fire)"
+          strokeWidth={1.5}
+          strokeLinejoin="round"
+          initial={{ opacity: 0, scale: 0.4 }}
+          animate={{ opacity: 1, scale: 1 }}
+          style={{ transformOrigin: `${cx}px ${cy}px` }}
+          transition={{ duration: 0.7, ease: 'easeOut' }}
+        />
+
+        {/* Vertex dots + labels */}
+        {vertices.map((v) => {
+          const dot = toXY(v.angle, Math.max(3, R * (v.value / maxVal)));
+          const labelPt = toXY(v.angle, R + 20);
+          return (
+            <g key={v.label}>
+              <circle cx={dot.x} cy={dot.y} r={3} fill="var(--accent-fire)" />
+              <text
+                x={labelPt.x}
+                y={labelPt.y - 5}
+                textAnchor="middle"
+                fontSize={9}
+                fill="var(--text-muted)"
+                fontFamily="inherit"
+                style={{ textTransform: 'uppercase', letterSpacing: '0.08em' }}
+              >
+                {v.label}
+              </text>
+              <text
+                x={labelPt.x}
+                y={labelPt.y + 8}
+                textAnchor="middle"
+                fontSize={12}
+                fontWeight={500}
+                fill="var(--text-primary)"
+                fontFamily="inherit"
+              >
+                {v.value}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
     </div>
   );
 }
@@ -312,21 +381,19 @@ function CharacterPanel({ user, onOpenMemory }: CharacterPanelProps) {
         </div>
       </motion.div>
 
-      {/* Focus stats (local sessions, last 30d — matches Session log) */}
+      {/* Skill triangle */}
       <motion.div variants={itemVariants} className="flex flex-col gap-1 px-10">
-        <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground pb-1">Focus stats</p>
+        <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground pb-1">Skills</p>
         <p className="text-xs text-muted-foreground pb-2" style={{ margin: 0, lineHeight: 1.45 }}>
           {skillsRaw
-            ? `Last 30 days on this device: ${skillsRaw.sessionCount != null ? skillsRaw.sessionCount : '—'} sessions · ${skillsRaw.totalMinutes ?? 0} min focused · ${skillsRaw.deepSessions ?? 0} deep (≥2h) · ${skillsRaw.streak ?? 0}d streak`
+            ? `Last 30 days: ${skillsRaw.sessionCount != null ? skillsRaw.sessionCount : '—'} sessions · ${skillsRaw.totalMinutes ?? 0} min · ${skillsRaw.deepSessions ?? 0} deep (≥2h) · ${skillsRaw.streak ?? 0}d streak`
             : 'Loading…'}
         </p>
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <SkillBar label="Consistency" value={skills?.rigueur ?? 0} />
-          <SkillBar label="Willpower" value={skills?.volonte ?? 0} />
-          <SkillBar label="Deep runs" value={skills?.courage ?? 0} />
+        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 4, paddingBottom: 4 }}>
+          {skills ? <TriangleChart {...skills} /> : <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Loading…</p>}
         </div>
-        <p className="text-xs text-muted-foreground pt-1" style={{ margin: 0, opacity: 0.85 }}>
-          Bars scale to caps: 3000 min · 30-day streak · 20 long sessions — so early numbers stay small until you rack up volume.
+        <p className="text-xs text-muted-foreground pt-1" style={{ margin: 0, opacity: 0.75 }}>
+          Scores scale to caps: 3 000 min · 30-day streak · 20 deep sessions
         </p>
       </motion.div>
 
