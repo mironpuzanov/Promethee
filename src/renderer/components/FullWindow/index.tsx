@@ -39,6 +39,19 @@ interface Session {
   xp_earned?: number;
 }
 
+interface UpdateState {
+  status: 'idle' | 'checking' | 'up-to-date' | 'available' | 'error' | 'development';
+  currentVersion: string;
+  latestVersion?: string | null;
+  checkedAt?: number | null;
+  releaseUrl?: string | null;
+  downloadUrl?: string | null;
+  assetName?: string | null;
+  publishedAt?: string | null;
+  error?: string | null;
+  isSkipped?: boolean;
+}
+
 function dayLabel(ts: number): string {
   return new Date(ts).toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
 }
@@ -135,6 +148,11 @@ function FullWindow({ user, setUser }: FullWindowProps) {
     currentStreak?: number;
     sessionId?: string;
   } | null>(null);
+  const [updateState, setUpdateState] = useState<UpdateState>({
+    status: 'idle',
+    currentVersion: '—',
+  });
+  const [dismissedUpdateVersion, setDismissedUpdateVersion] = useState<string | null>(null);
 
   useEffect(() => {
     // Check if main process has a pending session complete from before this window mounted
@@ -146,6 +164,12 @@ function FullWindow({ user, setUser }: FullWindowProps) {
     const unsub = window.promethee.window.onSessionComplete((data) => {
       setCompletedSession(data);
     });
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    window.promethee.update.getState().then(setUpdateState);
+    const unsub = window.promethee.update.onStatus(setUpdateState);
     return unsub;
   }, []);
 
@@ -167,6 +191,10 @@ function FullWindow({ user, setUser }: FullWindowProps) {
 
   const isHome = activeTab === 'home';
   const showRightPanel = activeTab === 'home';
+  const showUpdatePrompt =
+    updateState.status === 'available' &&
+    !updateState.isSkipped &&
+    updateState.latestVersion !== dismissedUpdateVersion;
 
   // Session complete: show ONLY the completion screen, no dashboard behind it
   if (completedSession) {
@@ -188,6 +216,36 @@ function FullWindow({ user, setUser }: FullWindowProps) {
   return (
     <div className={`full-window${isHome ? '' : ' no-right-panel'}`}>
       <div className="titlebar-drag" />
+      {showUpdatePrompt && (
+        <div className="pointer-events-none fixed top-14 left-1/2 z-[120] -translate-x-1/2">
+          <div className="pointer-events-auto flex items-center gap-3 rounded-2xl border border-border/70 bg-background/95 px-4 py-3 shadow-[0_18px_48px_rgba(0,0,0,0.38)] backdrop-blur-md">
+            <div className="flex flex-col">
+              <span className="text-sm text-foreground">Promethee v{updateState.latestVersion} is available</span>
+              <span className="text-xs text-muted-foreground">
+                Download the latest build from GitHub and replace the app in Applications.
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  void window.promethee.update.openDownload();
+                }}
+                className="rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground transition-opacity hover:opacity-90"
+              >
+                Download update
+              </button>
+              <button
+                type="button"
+                onClick={() => setDismissedUpdateVersion(updateState.latestVersion || null)}
+                className="rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground transition-colors hover:border-ring hover:text-foreground"
+              >
+                Later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} user={user} />
       {renderMain()}
       {showRightPanel && <RightPanel />}

@@ -12,6 +12,19 @@ interface SettingsTabProps {
   setUser: (user: User) => void;
 }
 
+interface UpdateState {
+  status: 'idle' | 'checking' | 'up-to-date' | 'available' | 'error' | 'development';
+  currentVersion: string;
+  latestVersion?: string | null;
+  checkedAt?: number | null;
+  releaseUrl?: string | null;
+  downloadUrl?: string | null;
+  assetName?: string | null;
+  publishedAt?: string | null;
+  error?: string | null;
+  isSkipped?: boolean;
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-4">
@@ -76,11 +89,22 @@ function SettingsTab({ user, setUser }: SettingsTabProps) {
   });
   const [focusShortcutStatus, setFocusShortcutStatus] = useState<{ success?: string; error?: string }>({});
   const [focusShortcutLoading, setFocusShortcutLoading] = useState(false);
+  const [updateState, setUpdateState] = useState<UpdateState>({
+    status: 'idle',
+    currentVersion: '—',
+  });
+  const [updateActionStatus, setUpdateActionStatus] = useState<{ success?: string; error?: string }>({});
 
   useEffect(() => {
     window.promethee.shortcuts.get().then((r) => {
       if (r.success && r.shortcuts) setFocusShortcuts(r.shortcuts);
     });
+  }, []);
+
+  useEffect(() => {
+    window.promethee.update.getState().then(setUpdateState);
+    const unsub = window.promethee.update.onStatus(setUpdateState);
+    return unsub;
   }, []);
 
   const handleAvatarPick = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -190,6 +214,45 @@ function SettingsTab({ user, setUser }: SettingsTabProps) {
     }
   };
 
+  const handleCheckForUpdates = async () => {
+    setUpdateActionStatus({});
+    const nextState = await window.promethee.update.check(true);
+    setUpdateState(nextState);
+  };
+
+  const handleOpenUpdateDownload = async () => {
+    setUpdateActionStatus({});
+    const result = await window.promethee.update.openDownload();
+    if (!result.success) {
+      setUpdateActionStatus({ error: result.error || 'Could not open the download page.' });
+      return;
+    }
+    setUpdateActionStatus({ success: 'Opened the latest release download.' });
+  };
+
+  const handleSkipVersion = async () => {
+    setUpdateActionStatus({});
+    const nextState = await window.promethee.update.skipVersion(updateState.latestVersion || null);
+    setUpdateState(nextState);
+    setUpdateActionStatus({ success: `Promethee will stop prompting for v${nextState.latestVersion}.` });
+  };
+
+  const handleClearSkippedVersion = async () => {
+    setUpdateActionStatus({});
+    const nextState = await window.promethee.update.clearSkippedVersion();
+    setUpdateState(nextState);
+    setUpdateActionStatus({ success: 'Update prompts restored.' });
+  };
+
+  const checkedAtLabel = updateState.checkedAt
+    ? new Date(updateState.checkedAt).toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : null;
+
   return (
     <div className="flex flex-col bg-background px-10 py-10 overflow-y-auto gap-10 h-full">
       <h2 className="text-2xl font-light text-foreground">Settings</h2>
@@ -276,6 +339,82 @@ function SettingsTab({ user, setUser }: SettingsTabProps) {
           <StatusMessage {...focusShortcutStatus} />
           <SaveButton loading={focusShortcutLoading} label="Save shortcuts" />
         </form>
+      </Section>
+
+      <div className="border-t border-border" />
+
+      <Section title="App updates">
+        <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-card px-4 py-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col gap-1">
+              <p className="text-sm text-foreground">Current version: v{updateState.currentVersion}</p>
+              {updateState.status === 'available' && (
+                <p className="text-xs text-muted-foreground">
+                  v{updateState.latestVersion} is available{updateState.assetName ? ` (${updateState.assetName})` : ''}.
+                </p>
+              )}
+              {updateState.status === 'up-to-date' && (
+                <p className="text-xs text-muted-foreground">You are on the latest released build.</p>
+              )}
+              {updateState.status === 'checking' && (
+                <p className="text-xs text-muted-foreground">Checking GitHub Releases…</p>
+              )}
+              {updateState.status === 'development' && (
+                <p className="text-xs text-muted-foreground">
+                  Automatic prompts only run in packaged builds. Manual checks still work here.
+                </p>
+              )}
+              {updateState.status === 'error' && (
+                <p className="text-xs text-destructive">{updateState.error || 'Update check failed.'}</p>
+              )}
+              {updateState.isSkipped && updateState.latestVersion && (
+                <p className="text-xs text-muted-foreground">v{updateState.latestVersion} is currently ignored.</p>
+              )}
+              {checkedAtLabel && (
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground/70">
+                  Last checked {checkedAtLabel}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={handleCheckForUpdates}
+              disabled={updateState.status === 'checking'}
+              className="px-3 py-2 rounded-lg text-sm border border-border text-muted-foreground hover:text-foreground hover:border-ring transition-colors disabled:opacity-50"
+            >
+              {updateState.status === 'checking' ? 'Checking…' : 'Check now'}
+            </button>
+          </div>
+          {updateState.status === 'available' && (
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleOpenUpdateDownload}
+                className="px-3 py-2 rounded-lg text-sm font-medium bg-accent text-accent-foreground hover:opacity-90 transition-opacity"
+              >
+                Download update
+              </button>
+              {updateState.isSkipped ? (
+                <button
+                  type="button"
+                  onClick={handleClearSkippedVersion}
+                  className="px-3 py-2 rounded-lg text-sm border border-border text-muted-foreground hover:text-foreground hover:border-ring transition-colors"
+                >
+                  Restore prompts
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleSkipVersion}
+                  className="px-3 py-2 rounded-lg text-sm border border-border text-muted-foreground hover:text-foreground hover:border-ring transition-colors"
+                >
+                  Skip this version
+                </button>
+              )}
+            </div>
+          )}
+          <StatusMessage {...updateActionStatus} />
+        </div>
       </Section>
 
       <div className="border-t border-border" />

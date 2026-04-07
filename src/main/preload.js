@@ -251,5 +251,19 @@ contextBridge.exposeInMainWorld('promethee', {
       ipcRenderer.on('audio:muteToggle', listener);
       return () => ipcRenderer.removeListener('audio:muteToggle', listener);
     }
+  },
+
+  // App updates
+  update: {
+    getState: () => ipcRenderer.invoke('update:getState'),
+    check: (force = false) => ipcRenderer.invoke('update:check', force),
+    openDownload: () => ipcRenderer.invoke('update:openDownload'),
+    skipVersion: (version) => ipcRenderer.invoke('update:skipVersion', version),
+    clearSkippedVersion: () => ipcRenderer.invoke('update:clearSkippedVersion'),
+    onStatus: (callback) => {
+      const listener = (_event, data) => callback(data);
+      ipcRenderer.on('update:status', listener);
+      return () => ipcRenderer.removeListener('update:status', listener);
+    },
   }
 });

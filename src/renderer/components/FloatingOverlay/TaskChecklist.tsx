@@ -83,14 +83,22 @@ function TaskChecklist({ session, focusAddFieldTrigger = 0, togglePanelTrigger =
   const [draft, setDraft] = useState('');
   const [adding, setAdding] = useState(false);
   const [topY, setTopY] = useState(loadTopY);
+  const [panelSize, setPanelSize] = useState(loadPanelSize);
   const topYRef = useRef(topY);
+  const panelSizeRef = useRef(panelSize);
   const addInputRef = useRef<HTMLTextAreaElement>(null);
   const isDragging = useRef(false);
   const didMove = useRef(false);
   const dragStartY = useRef(0);
   const dragStartTop = useRef(0);
+  const isResizing = useRef(false);
+  const resizeStartX = useRef(0);
+  const resizeStartY = useRef(0);
+  const resizeStartW = useRef(0);
+  const resizeStartH = useRef(0);
 
   useEffect(() => { topYRef.current = topY; }, [topY]);
+  useEffect(() => { panelSizeRef.current = panelSize; }, [panelSize]);
 
   const loadTasks = useCallback(async () => {
     const r = await window.promethee.tasks.list(session.id);
@@ -150,6 +158,37 @@ function TaskChecklist({ session, focusAddFieldTrigger = 0, togglePanelTrigger =
       setAdding(false);
       if (r.success) { setDraft(''); await loadNotes(); }
     }
+  };
+
+  const onResizePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    isResizing.current = true;
+    resizeStartX.current = e.clientX;
+    resizeStartY.current = e.clientY;
+    resizeStartW.current = panelSizeRef.current.w;
+    resizeStartH.current = panelSizeRef.current.h;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    overlaySuppressHitTest(1);
+  };
+
+  const onResizePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isResizing.current) return;
+    // Panel anchored to right — dragging left makes it wider
+    const dw = resizeStartX.current - e.clientX;
+    const dh = e.clientY - resizeStartY.current;
+    setPanelSize({
+      w: Math.max(TC_MIN_W, Math.min(TC_MAX_W, resizeStartW.current + dw)),
+      h: Math.max(TC_MIN_H, Math.min(TC_MAX_H, resizeStartH.current + dh)),
+    });
+  };
+
+  const onResizePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isResizing.current) return;
+    (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    isResizing.current = false;
+    overlaySuppressHitTest(-1);
+    overlayRestoreClickThrough();
+    try { localStorage.setItem(PANEL_SIZE_KEY, JSON.stringify(panelSizeRef.current)); } catch {}
   };
 
   const persistTop = useCallback(() => {
@@ -260,7 +299,7 @@ function TaskChecklist({ session, focusAddFieldTrigger = 0, togglePanelTrigger =
           {totalCount > 0 && <span className="task-checklist-pill__count">{totalCount}</span>}
         </button>
       ) : (
-        <div className="task-checklist-panel">
+        <div className="task-checklist-panel" style={{ width: panelSize.w, height: panelSize.h }}>
           {/* Drag handle / collapse header */}
           <div
             className="task-checklist__header task-checklist__header--draggable"
@@ -389,6 +428,14 @@ function TaskChecklist({ session, focusAddFieldTrigger = 0, togglePanelTrigger =
             }}
             placeholder={tab === 'tasks' ? 'Add a task… (↵ to save)' : 'Quick note… (↵ to save)'}
             maxLength={1000}
+          />
+          {/* Resize handle — bottom-left corner */}
+          <div
+            className="task-checklist__resize-handle"
+            onPointerDown={onResizePointerDown}
+            onPointerMove={onResizePointerMove}
+            onPointerUp={onResizePointerUp}
+            title="Drag to resize"
           />
         </div>
       )}

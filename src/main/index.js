@@ -39,6 +39,14 @@ import {
   applyRegisteredFocusShortcuts,
   unregisterAllFocusShortcuts,
 } from './focusShortcuts.js';
+import {
+  setUpdateBroadcast,
+  getUpdateState,
+  checkForAppUpdate,
+  openUpdateDownload,
+  skipUpdateVersion,
+  clearSkippedUpdateVersion,
+} from './updateCheck.js';
 
 function scheduleDailyJobs(userId) {
   if (!userId) return;
@@ -75,6 +83,7 @@ let floatingWindow = null;
 let fullWindow = null;
 let tray = null;
 let dailyJobsInterval = null;
+let updateCheckInterval = null;
 
 /** Mentor “attach screen”: store PNG data URL in main so we don’t ship multi‑MB strings renderer→main (IPC clone limits / perf). */
 let pendingAgentScreenDataUrl = null;
@@ -381,6 +390,16 @@ app.whenReady().then(async () => {
       /* ignore */
     }
   });
+  setUpdateBroadcast((state) => {
+    BrowserWindow.getAllWindows().forEach((window) => {
+      if (window.isDestroyed()) return;
+      try {
+        window.webContents.send('update:status', state);
+      } catch {
+        /* ignore */
+      }
+    });
+  });
   applyRegisteredFocusShortcuts();
 
   setupPowerMonitoring(floatingWindow);
@@ -390,6 +409,16 @@ app.whenReady().then(async () => {
     const user = getCurrentUser();
     if (user?.id) scheduleDailyJobs(user.id);
   }, 5 * 60 * 1000);
+  setTimeout(() => {
+    checkForAppUpdate().catch((e) => {
+      debugLog(`checkForAppUpdate error: ${e.message}`);
+    });
+  }, 2500);
+  updateCheckInterval = setInterval(() => {
+    checkForAppUpdate().catch((e) => {
+      debugLog(`scheduled update check error: ${e.message}`);
+    });
+  }, 12 * 60 * 60 * 1000);
 
   app.on('activate', () => {
     // Dock click — bring full window to front if it exists, otherwise open it
@@ -416,9 +445,29 @@ app.on('before-quit', async () => {
     clearInterval(dailyJobsInterval);
     dailyJobsInterval = null;
   }
+  if (updateCheckInterval) {
+    clearInterval(updateCheckInterval);
+    updateCheckInterval = null;
+  }
   const user = getCurrentUser();
   if (user) await removePresence(user.id);
 });
+
+ipcMain.handle('update:getState', () => getUpdateState());
+
+ipcMain.handle('update:check', async (_event, force = false) => checkForAppUpdate({ force: Boolean(force) }));
+
+ipcMain.handle('update:openDownload', async () => {
+  try {
+    return await openUpdateDownload();
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Could not open download page' };
+  }
+});
+
+ipcMain.handle('update:skipVersion', (_event, version = null) => skipUpdateVersion(version));
+
+ipcMain.handle('update:clearSkippedVersion', () => clearSkippedUpdateVersion());
 
 ipcMain.handle('shortcuts:get', () => {
   try {
