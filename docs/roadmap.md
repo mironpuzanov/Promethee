@@ -6,15 +6,27 @@ Goal: Replace Notion as delivery mechanism. Own the software layer.
 
 ---
 
+## Status Update (April 7, 2026)
+
+Since this roadmap was written, the app has moved past the original Paris-sprint baseline:
+
+- Onboarding now exists instead of being a Day 1 placeholder.
+- Tasks, Habits, Quests, Mentor, and Memory all have live app surfaces rather than "coming soon" shells.
+- Session notes/tasks render in-session and in the dashboard, with markdown support.
+- Core local-first work is in place for focus sessions, habits, and memory snapshots, so the app remains usable on unstable internet.
+- The remaining biggest product gaps are still community feed, achievements/titles logic, soundscape, auto-updater, and notarized distribution.
+
+---
+
 ## Baseline: What Exists Today
 
 **App primitives built:**
 - Floating overlay: timer, XP pill, session start/end
 - Full window: character panel (level, XP progress bar), session log, leaderboard
-- Right panel: today stats (time, XP), active quests, titles (hardcoded)
+- Right panel: today stats (time, XP), active quests, streak, live presence/feed
 - AI agent chat bubble (GPT-4o, context-aware, per-session history)
-- Auth: Supabase magic link wired, no onboarding screen yet
-- DB: SQLite local + Supabase sync (sessions, user_profile, agent_chats)
+- Auth: Supabase onboarding + session restore
+- DB: SQLite local + Supabase sync (sessions, user_profile, agent_chats, local-first habits, local-first memory snapshots)
 
 **What the Notion/Discord product has that the app doesn't:**
 - Rooms (video + camera presence — this is the #1 feature)

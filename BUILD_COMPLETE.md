@@ -1,5 +1,7 @@
 # Promethee - Build Complete
 
+> Historical note: this file captures the March 31 prototype milestone. It is no longer the source of truth for current feature status. Use `BUILD.md` for the live checklist.
+
 **Status**: ✅ COMPLETE
 **Date**: March 31, 2026
 **Target**: Working prototype before Paris (April 6)

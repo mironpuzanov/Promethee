@@ -3,7 +3,9 @@
 
 ## How to test
 
-`npm start` — launches the app in dev mode.
+`npm install` — install dependencies if `node_modules` is missing.
+
+`npm start` — launches the Electron app in dev mode.
 
 ---
 
@@ -79,10 +81,9 @@
 - [ ] Avatar — uploaded photo or initials fallback
 - [ ] Display name + level label
 - [ ] XP progress bar to next level
-- [ ] Current streak (days)
 - [ ] Signal intensity dot — Low / Med / High (AI-generated once/day)
-- [ ] Skill bars — Focus, Consistency, Depth, Streak — computed from real session history
-- [ ] "View Memory" link → navigates to Memory tab
+- [ ] Skill triangle — Willpower, Consistency, Deep runs — computed from real session history and shown with real values
+- [ ] Memory insight teaser → navigates to Memory tab
 
 ---
 
@@ -92,6 +93,7 @@
 - [ ] Live feed — name, task, room, time ago (updates in real time)
 - [ ] Active quests — top 3 incomplete quests from DB (hidden if none)
 - [ ] Today stats — hours + XP
+- [ ] Current streak (days)
 
 ---
 
@@ -172,7 +174,7 @@
 
 ### XP & Leveling
 
-- [ ] XP per session = base (1 XP/min) × depth multiplier × streak multiplier
+- [ ] XP per session = base (10 XP/min) × depth multiplier × streak multiplier
 - [ ] Depth bonus — sessions ≥2h get +25%
 - [ ] Streak bonus — +10% per day of streak, capped at +50%
 - [ ] Combined cap — 2× max
@@ -191,12 +193,13 @@
 
 ### Infrastructure / Background
 
-- [ ] SQLite local DB: sessions, user_profile, habits, quests, tasks, agent_chats, agent_messages
+- [ ] SQLite local DB: sessions, user_profile, habits, quests, tasks, agent_chats, agent_messages, local-first habit cache, local-first memory snapshot cache
 - [ ] Supabase: auth, user_profile sync, presence, leaderboard, memory_snapshots, daily_signals
 - [ ] Heartbeat every 30s during session → Supabase presence
 - [ ] Daily job on startup: reset daily quests, update streak, generate AI signal, flush pending syncs
 - [ ] Session auto-ends on system suspend
 - [ ] `flushPendingSyncs()` on startup — retries all unsynced sessions
+- [ ] Session start works offline, sync happens best-effort in background
 - [ ] Active session survives app restart
 
 ---
