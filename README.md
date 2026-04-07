@@ -64,6 +64,7 @@ Notes:
 - [DESIGN.md](./DESIGN.md): design system and visual direction
 - [docs/product-spec.md](./docs/product-spec.md): product strategy and wedge
 - [docs/roadmap.md](./docs/roadmap.md): rollout roadmap and status updates
+- [docs/website-blocker-v1.md](./docs/website-blocker-v1.md): concrete investigation and recommended V1 for website blocking
 
 ## Reality Check
 

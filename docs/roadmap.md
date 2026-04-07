@@ -131,6 +131,8 @@ The real Discord replacement. This is significant engineering.
 - Do not start before beta. Requires infrastructure decisions (TURN servers, media relay)
 
 ### Auto-Updater
+- Replace the current GitHub API version check with a public version manifest served from Promethee infrastructure (site or Supabase), so update prompts work even while the repo stays private.
+- Ship manual update prompts off that manifest first, then add full in-app auto-update later if it proves worth the complexity.
 - Electron auto-updater for seamless version updates post-beta
 - No app store for initial beta — DMG/ZIP download via Discord
 

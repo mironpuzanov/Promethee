@@ -133,6 +133,69 @@ declare global {
         sendMuteToggle: (isMuted: boolean) => void;
         onMuteToggle: (callback: (isMuted: boolean) => void) => () => void;
       };
+      update: {
+        getState: () => Promise<{
+          status: 'idle' | 'checking' | 'up-to-date' | 'available' | 'error' | 'development';
+          currentVersion: string;
+          latestVersion?: string | null;
+          checkedAt?: number | null;
+          releaseUrl?: string | null;
+          downloadUrl?: string | null;
+          assetName?: string | null;
+          publishedAt?: string | null;
+          error?: string | null;
+          isSkipped?: boolean;
+        }>;
+        check: (force?: boolean) => Promise<{
+          status: 'idle' | 'checking' | 'up-to-date' | 'available' | 'error' | 'development';
+          currentVersion: string;
+          latestVersion?: string | null;
+          checkedAt?: number | null;
+          releaseUrl?: string | null;
+          downloadUrl?: string | null;
+          assetName?: string | null;
+          publishedAt?: string | null;
+          error?: string | null;
+          isSkipped?: boolean;
+        }>;
+        openDownload: () => Promise<{ success: boolean; url?: string; error?: string }>;
+        skipVersion: (version?: string | null) => Promise<{
+          status: 'idle' | 'checking' | 'up-to-date' | 'available' | 'error' | 'development';
+          currentVersion: string;
+          latestVersion?: string | null;
+          checkedAt?: number | null;
+          releaseUrl?: string | null;
+          downloadUrl?: string | null;
+          assetName?: string | null;
+          publishedAt?: string | null;
+          error?: string | null;
+          isSkipped?: boolean;
+        }>;
+        clearSkippedVersion: () => Promise<{
+          status: 'idle' | 'checking' | 'up-to-date' | 'available' | 'error' | 'development';
+          currentVersion: string;
+          latestVersion?: string | null;
+          checkedAt?: number | null;
+          releaseUrl?: string | null;
+          downloadUrl?: string | null;
+          assetName?: string | null;
+          publishedAt?: string | null;
+          error?: string | null;
+          isSkipped?: boolean;
+        }>;
+        onStatus: (callback: (state: {
+          status: 'idle' | 'checking' | 'up-to-date' | 'available' | 'error' | 'development';
+          currentVersion: string;
+          latestVersion?: string | null;
+          checkedAt?: number | null;
+          releaseUrl?: string | null;
+          downloadUrl?: string | null;
+          assetName?: string | null;
+          publishedAt?: string | null;
+          error?: string | null;
+          isSkipped?: boolean;
+        }) => void) => () => void;
+      };
     };
   }
 }
