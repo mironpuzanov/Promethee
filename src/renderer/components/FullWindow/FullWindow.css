@@ -25,6 +25,14 @@
   grid-template-columns: 280px 1fr;
 }
 
+/* Grid children: no-drag so scroll events reach inner scroll containers.
+   min-height/width: 0 so flex/grid children can shrink below content size. */
+.full-window > * {
+  -webkit-app-region: no-drag;
+  min-height: 0;
+  min-width: 0;
+}
+
 .tab-panel {
   padding: 32px 40px;
   overflow-y: auto;

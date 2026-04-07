@@ -179,7 +179,7 @@ function ChatView({ chat, onBack }: { chat: Chat; onBack: () => void }) {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%', background: 'var(--background)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%', minHeight: 0, background: 'var(--background)' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '20px 32px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
           <button
@@ -196,7 +196,7 @@ function ChatView({ chat, onBack }: { chat: Chat; onBack: () => void }) {
       </div>
 
       {/* Messages */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: 16 }}>
         {messages.length === 0 && !streaming && (
           <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', marginTop: 40 }}>
             Start the conversation — ask anything.
