@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   Home, ScrollText, Sword, CheckSquare, MessageCircle, LogOut, Users, Trophy, Settings, Brain, ListChecks
 } from 'lucide-react';
-import { UserProfileSidebar } from '@/components/ui/menu';
+import { UserProfileSidebar } from '../ui/menu';
 
 interface User {
   id: string;

@@ -155,7 +155,7 @@ function AgentBubble({ activeSession, openTrigger = 0, toggleTrigger = 0 }: Agen
     if (!result.success) { setError('Could not load chat history.'); return; }
     const msgResult = await window.promethee.agent.getMessages(result.chat.id);
     setChat(result.chat);
-    setMessages(msgResult.success ? msgResult.messages : []);
+    setMessages(msgResult.success ? (msgResult.messages || []) : []);
   }, [activeSession?.id]);
 
   const handleSaveApiKey = async () => {
@@ -329,7 +329,7 @@ function AgentBubble({ activeSession, openTrigger = 0, toggleTrigger = 0 }: Agen
     const msgResult = await window.promethee.agent.getMessages(chatId);
     const chatObj = allChats.find(c => c.id === chatId);
     if (chatObj) setChat({ id: chatObj.id, title: chatObj.title, systemPrompt: '' });
-    setMessages(msgResult.success ? msgResult.messages : []);
+    setMessages(msgResult.success ? (msgResult.messages || []) : []);
     setShowHistory(false);
   };
 

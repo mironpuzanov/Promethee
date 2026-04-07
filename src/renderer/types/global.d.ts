@@ -34,8 +34,8 @@ declare global {
         onFeed: (callback: (feed: any[]) => void) => () => void;
       };
       power: {
-        onSuspend: (callback: (data: any) => void) => void;
-        onResume: (callback: () => void) => void;
+        onSuspend: (callback: (data: any) => void) => () => void;
+        onResume: (callback: () => void) => () => void;
       };
       shortcuts: {
         get: () => Promise<{
@@ -121,6 +121,7 @@ declare global {
         createChat: (title: string, sessionId: string | null, systemPrompt: string) => Promise<{ success: boolean; chat?: any; error?: string }>;
         getMessages: (chatId: string) => Promise<{ success: boolean; messages?: any[]; error?: string }>;
         sendMessage: (chatId: string, content: string, messages: any[]) => Promise<{ success: boolean; error?: string }>;
+        sendMessageWithImages: (chatId: string, content: string, images: string[], messages: any[]) => Promise<{ success: boolean; error?: string }>;
         onChunk: (callback: (data: { chatId: string; delta: string }) => void) => () => void;
         onStreamEnd: (callback: (data: { chatId: string; message: any }) => void) => () => void;
         onStreamError: (callback: (data: { chatId: string; error: string }) => void) => () => void;
