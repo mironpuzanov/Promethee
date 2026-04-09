@@ -4,7 +4,7 @@ interface OnboardingScreenProps {
   onAuthenticated: (user: any) => void;
 }
 
-type Step = 'signin' | 'signup' | 'magic-link' | 'check-email' | 'check-confirm';
+type Step = 'restore-session' | 'signin' | 'signup' | 'magic-link' | 'check-email' | 'check-confirm';
 
 const dragBar = (
   <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 48, WebkitAppRegion: 'drag' as any }} />
@@ -104,6 +104,13 @@ export default function OnboardingScreen({ onAuthenticated }: OnboardingScreenPr
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    // Check for stored session flag — if present, show restore step instead of signup
+    if ((window.promethee as any).onboarding?.hasStoredSession) {
+      (window.promethee as any).onboarding.hasStoredSession().then((has: boolean) => {
+        if (has) setStep('restore-session');
+      }).catch(() => {});
+    }
+
     const remove = window.promethee.auth.onAuthError((message: string) => {
       setStep('signin');
       setError(message || 'Link expired. Try again.');
@@ -120,6 +127,49 @@ export default function OnboardingScreen({ onAuthenticated }: OnboardingScreenPr
   };
 
   const go = (s: Step) => { setStep(s); setError(null); };
+
+  // ── Restore session (returning user) ─────────────────────────────────────
+  if (step === 'restore-session') {
+    const handleRestore = () => {
+      run(async () => {
+        const r = await (window.promethee as any).onboarding.restoreSession();
+        if (r.success && r.user) {
+          onAuthenticated(r.user);
+        } else {
+          // Stale flag — nothing in keychain, fall through to sign in
+          setStep('signin');
+        }
+      });
+    };
+
+    return (
+      <Shell>
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Promethee</div>
+          <h1 style={{ fontSize: 30, fontWeight: 300, margin: 0, letterSpacing: '-0.03em' }}>Welcome back</h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: '8px 0 0' }}>
+            Your session is saved. Tap below to pick up where you left off.
+          </p>
+        </div>
+
+        {error && <Err msg={error} />}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <button
+            onClick={handleRestore}
+            disabled={loading}
+            style={{ ...btnPrimary, opacity: loading ? 0.6 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
+          >
+            {loading ? 'Restoring…' : 'Continue'}
+          </button>
+          <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
+            Not you?{' '}
+            <button onClick={() => go('signin')} style={btnLink}>Sign in with a different account</button>
+          </p>
+        </div>
+      </Shell>
+    );
+  }
 
   // ── Sign in ──────────────────────────────────────────────────────────────
   if (step === 'signin') {

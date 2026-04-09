@@ -12,6 +12,16 @@ import { probeForegroundApp } from './windowTracker.js';
 import fs from 'fs';
 import path from 'path';
 
+// Returns true if the in-app permissions onboarding has been completed.
+// While it hasn't, the native dialog is suppressed — the in-app flow handles it.
+function isOnboardingSeen() {
+  try {
+    return fs.existsSync(path.join(app.getPath('userData'), 'permissions-onboarding-seen.json'));
+  } catch {
+    return false;
+  }
+}
+
 const SNOOZE_MS = 7 * 24 * 60 * 60 * 1000;
 
 function statePath() {
@@ -70,6 +80,10 @@ export function resetScreenRecordingPromptGate() {
 export async function maybePromptScreenRecordingAccess(parentWindow) {
   if (process.platform !== 'darwin') return;
   if (!app.isReady()) return;
+
+  // Suppress native dialog while in-app onboarding hasn't been completed yet.
+  // The onboarding screen handles permissions sequentially — we don't want both.
+  if (!isOnboardingSeen()) return;
 
   if (promptAttemptedThisRun) return;
   promptAttemptedThisRun = true;

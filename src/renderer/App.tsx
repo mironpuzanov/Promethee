@@ -67,7 +67,17 @@ function App() {
 
   // Full window: gate on auth
   if (mode === 'full') {
-    if (!user) return <OnboardingScreen onAuthenticated={(u) => { setUser(u); setPermsOnboardingSeen((prev) => prev === true ? true : false); }} />;
+    if (!user) return <OnboardingScreen onAuthenticated={(u) => {
+      setUser(u);
+      // Re-fetch perms-seen state from disk after auth — don't guess
+      if ((window.promethee as any).onboarding) {
+        (window.promethee as any).onboarding.permsSeen().then((seen: boolean) => {
+          setPermsOnboardingSeen(seen);
+        }).catch(() => setPermsOnboardingSeen(true));
+      } else {
+        setPermsOnboardingSeen(true);
+      }
+    }} />;
     if (permsOnboardingSeen === null) return null; // still loading
     if (!permsOnboardingSeen) {
       return <PermissionsOnboardingScreen onDone={() => setPermsOnboardingSeen(true)} />;
