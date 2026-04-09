@@ -7,6 +7,7 @@
 html, body, #root {
   width: 100%;
   height: 100%;
+  background: transparent;
 }
 
 body {
@@ -27,33 +28,33 @@ body {
   --text-secondary: #A09890;
   --text-muted:     #5C5450;
   --text-faint:     #2E2A27;
-  --surface:        rgba(20, 17, 14, 0.90);
+  --surface:        rgba(20, 17, 14, 0.40);
   /* Dark chips over transparent overlay: keep hover opaque so light wallpapers don’t wash them out */
   --surface-glass-hover: rgba(18, 15, 12, 0.96);
   --border-glass-hover:  rgba(255, 255, 255, 0.22);
   --surface-overlay: rgba(12, 10, 9, 0.65);
   --border:         rgba(255, 255, 255, 0.06);
   --border-accent:  rgba(232, 146, 42, 0.30);
-  --bg:             #0C0A09;
-  --sidebar-bg:     #070605;
+  --bg:             rgba(12, 10, 9, 0.55);
+  --sidebar-bg:     rgba(7, 6, 5, 0.50);
 
   /* shadcn-compatible tokens — mapped to Promethee palette */
-  --background:         #0C0A09;
+  --background:         rgba(12, 10, 9, 0.55);
   --foreground:         #F2EDE8;
 
-  --card:               #0E0C0A;
+  --card:               rgba(14, 12, 10, 0.45);
   --card-foreground:    #F2EDE8;
 
-  --popover:            #131109;
+  --popover:            rgba(19, 17, 9, 0.88);
   --popover-foreground: #F2EDE8;
 
   --primary:            #F2EDE8;
   --primary-foreground: #0C0A09;
 
-  --secondary:          #1A1714;
+  --secondary:          rgba(26, 23, 20, 0.50);
   --secondary-foreground: #A09890;
 
-  --muted:              #1A1714;
+  --muted:              rgba(26, 23, 20, 0.50);
   --muted-foreground:   #5C5450;
 
   --accent:             rgba(255,255,255,0.05);
@@ -63,7 +64,7 @@ body {
   --destructive-foreground: #F2EDE8;
 
   --border-color:       rgba(255,255,255,0.06);
-  --input:              rgba(255,255,255,0.06);
+  --input:              rgba(255,255,255,0.07);
   --ring:               #E8922A;
 }
 
@@ -98,6 +99,54 @@ body {
   --color-border:             var(--border-color);
   --color-input:              var(--input);
   --color-ring:               var(--ring);
+}
+
+/* ─── Light theme overrides ────────────────────────────────────── */
+[data-theme="light"] {
+  --accent-fire:    #C96A0A;
+  --accent-orange:  #C96A0A;
+  --accent-glow:    rgba(201, 106, 10, 0.12);
+  --accent-glow-strong: rgba(201, 106, 10, 0.22);
+  --text-primary:   #1A1209;
+  --text-secondary: #6B5E52;
+  --text-muted:     #A0907F;
+  --text-faint:     #D4C9BE;
+  --surface:        rgba(255, 252, 248, 0.95);
+  --surface-glass-hover: rgba(255, 250, 244, 0.98);
+  --border-glass-hover:  rgba(0, 0, 0, 0.12);
+  --surface-overlay: rgba(240, 235, 228, 0.80);
+  --border:         rgba(0, 0, 0, 0.08);
+  --border-accent:  rgba(201, 106, 10, 0.25);
+  --bg:             #F5F0EA;
+  --sidebar-bg:     #EDE7DF;
+
+  --background:         #F5F0EA;
+  --foreground:         #1A1209;
+
+  --card:               #FDFAF6;
+  --card-foreground:    #1A1209;
+
+  --popover:            #FDFAF6;
+  --popover-foreground: #1A1209;
+
+  --primary:            #1A1209;
+  --primary-foreground: #F5F0EA;
+
+  --secondary:          #EDE7DF;
+  --secondary-foreground: #6B5E52;
+
+  --muted:              #EDE7DF;
+  --muted-foreground:   #A0907F;
+
+  --accent:             rgba(0, 0, 0, 0.06);
+  --accent-foreground:  #1A1209;
+
+  --destructive:        #dc2626;
+  --destructive-foreground: #FDFAF6;
+
+  --border-color:       rgba(0, 0, 0, 0.08);
+  --input:              rgba(0, 0, 0, 0.06);
+  --ring:               #C96A0A;
 }
 
 /* ─── Sign-in / onboarding animations ─────────────────────────── */

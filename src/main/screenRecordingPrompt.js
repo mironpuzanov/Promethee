@@ -37,8 +37,30 @@ function saveState(state) {
 /** One prompt per app run (unless snoozed before launch). */
 let promptAttemptedThisRun = false;
 
-/** Call when re-checking (e.g. session start) so we can show the dialog if active-win still fails. */
+/** Returns true if the user has an active snooze (dialog suppressed until future date). */
+export function isScreenRecordingSnoozed() {
+  const state = loadState();
+  return Boolean(state.screenRecordingSnoozedUntil && Date.now() < state.screenRecordingSnoozedUntil);
+}
+
+/** Returns true if the user already went to System Settings to grant permission. */
+export function isScreenRecordingAcknowledged() {
+  return Boolean(loadState().screenRecordingAcknowledged);
+}
+
+/** Returns true if the user explicitly rejected the permission dialog ("Don't ask again"). */
+export function isScreenRecordingRejected() {
+  return Boolean(loadState().screenRecordingRejected);
+}
+
+/**
+ * Call when re-checking (e.g. session start) so we can show the dialog if active-win still fails.
+ * No-op if the user snoozed, acknowledged, or rejected — avoids re-prompting.
+ */
 export function resetScreenRecordingPromptGate() {
+  if (isScreenRecordingSnoozed()) return;
+  if (isScreenRecordingAcknowledged()) return;
+  if (isScreenRecordingRejected()) return;
   promptAttemptedThisRun = false;
 }
 
@@ -62,13 +84,53 @@ export async function maybePromptScreenRecordingAccess(parentWindow) {
     /* still may need Settings toggle */
   }
 
-  const probe = await probeForegroundApp();
+  let probe = await probeForegroundApp();
+  if (!probe.ok) {
+    // TCC sometimes needs a moment to propagate after first grant — retry once after 2s
+    await new Promise((r) => setTimeout(r, 2000));
+    probe = await probeForegroundApp();
+  }
   if (probe.ok) {
     console.info('[Promethee] Foreground app sampling is working (active-win). No permission dialog needed.');
     return;
   }
 
   const state = loadState();
+
+  // User previously went to Settings to grant permission.
+  // active-win often returns null on the first call after granting because macOS requires
+  // a full app restart for TCC to take effect. Show a "please restart" nudge instead of
+  // re-showing the full permission dialog.
+  if (state.screenRecordingAcknowledged) {
+    console.info('[Promethee] Screen Recording was acknowledged — active-win still failing, likely needs restart.');
+    const parent =
+      parentWindow && !parentWindow.isDestroyed()
+        ? parentWindow
+        : BrowserWindow.getFocusedWindow() || undefined;
+    const { response } = await dialog.showMessageBox(parent ?? undefined, {
+      type: 'info',
+      title: 'Restart required',
+      message: 'Fully quit Promethee to apply Screen Recording',
+      detail:
+        'macOS needs a full restart of Promethee to activate Screen Recording.\n\nQuit the app completely (⌘Q), then reopen it.',
+      buttons: ['Got it — I\'ll restart', 'I didn\'t grant it', 'Don\'t ask again'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (response === 1) {
+      // User says they didn't actually grant — clear the flag so we show the main dialog next time
+      delete state.screenRecordingAcknowledged;
+      saveState(state);
+    } else if (response === 2) {
+      // User wants to stop being asked entirely
+      delete state.screenRecordingAcknowledged;
+      state.screenRecordingRejected = true;
+      saveState(state);
+    }
+    // Either way, don't show the main permission dialog this run
+    return;
+  }
+
   if (state.screenRecordingSnoozedUntil && Date.now() < state.screenRecordingSnoozedUntil) {
     const until = new Date(state.screenRecordingSnoozedUntil).toISOString();
     console.warn(
@@ -99,21 +161,28 @@ export async function maybePromptScreenRecordingAccess(parentWindow) {
       'Promethee uses Screen Recording on macOS to read which app is in front (window titles only — not a video of your screen).\n\n' +
       (app.isPackaged
         ? 'Turn on **Promethee** under Privacy & Security → Screen Recording. If problems remain, also allow **Accessibility** for Promethee, then fully quit and reopen.'
-        +
-        tech
+        + tech
         : 'Turn on **Electron** under Privacy & Security → Screen Recording (and **Accessibility** if macOS still blocks window info). Fully quit the app (⌘Q) after changing permissions.' +
-      (devBundleHint || '') +
-        tech),
-    buttons: ['Open System Settings', 'Remind me later'],
+      (devBundleHint || '') + tech),
+    buttons: ['Open System Settings', 'Remind me later', 'Don\'t ask again'],
     defaultId: 0,
     cancelId: 1,
   });
 
   if (response === 0) {
+    // User is going to Settings — mark acknowledged so we don't re-show the main dialog.
+    // We'll show a "restart required" nudge on the next launch if active-win still fails.
+    state.screenRecordingAcknowledged = true;
+    saveState(state);
     await shell.openExternal(
       'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'
     );
+  } else if (response === 2) {
+    // User explicitly rejected — never ask again
+    state.screenRecordingRejected = true;
+    saveState(state);
   } else {
+    // Remind me later — snooze for 7 days
     state.screenRecordingSnoozedUntil = Date.now() + SNOOZE_MS;
     saveState(state);
   }

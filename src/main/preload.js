@@ -135,6 +135,13 @@ contextBridge.exposeInMainWorld('promethee', {
     complete: (habitId) => ipcRenderer.invoke('habits:complete', habitId),
     uncomplete: (habitId) => ipcRenderer.invoke('habits:uncomplete', habitId),
     delete: (habitId) => ipcRenderer.invoke('habits:delete', habitId),
+    getCompletions: (habitId, limitDays) => ipcRenderer.invoke('habits:getCompletions', habitId, limitDays),
+    getAllCompletions: (limitDays) => ipcRenderer.invoke('habits:getAllCompletions', limitDays),
+    onStreaksExpired: (callback) => {
+      const listener = (_event, data) => callback(data);
+      ipcRenderer.on('habits:streaksExpired', listener);
+      return () => ipcRenderer.removeListener('habits:streaksExpired', listener);
+    },
   },
 
   // Daily signal APIs
@@ -166,6 +173,7 @@ contextBridge.exposeInMainWorld('promethee', {
     list: (sessionId) => ipcRenderer.invoke('tasks:list', sessionId),
     listAll: () => ipcRenderer.invoke('tasks:listAll'),
     add: (sessionId, text) => ipcRenderer.invoke('tasks:add', sessionId, text),
+    addStandalone: (text, xpReward) => ipcRenderer.invoke('tasks:addStandalone', text, xpReward),
     toggle: (taskId) => ipcRenderer.invoke('tasks:toggle', taskId),
     delete: (taskId) => ipcRenderer.invoke('tasks:delete', taskId),
   },
@@ -180,14 +188,13 @@ contextBridge.exposeInMainWorld('promethee', {
 
   // Agent APIs
   agent: {
-    getToken: () => ipcRenderer.invoke('agent:getToken'),
-    setToken: (key) => ipcRenderer.invoke('agent:setToken', key),
     getChats: () => ipcRenderer.invoke('agent:getChats'),
     getOrCreateChat: (title, sessionId, systemPrompt) =>
       ipcRenderer.invoke('agent:getOrCreateChat', title, sessionId, systemPrompt),
     createChat: (title, sessionId, systemPrompt) =>
       ipcRenderer.invoke('agent:createChat', title, sessionId, systemPrompt),
     getMessages: (chatId) => ipcRenderer.invoke('agent:getMessages', chatId),
+    summarizeChat: (chatId) => ipcRenderer.invoke('agent:summarizeChat', chatId),
     sendMessage: (chatId, content, messages) =>
       ipcRenderer.invoke('agent:sendMessage', chatId, content, messages),
     sendMessageWithImages: (chatId, content, images, messages) =>
@@ -267,6 +274,15 @@ contextBridge.exposeInMainWorld('promethee', {
       ipcRenderer.on('blocker:status', listener);
       return () => ipcRenderer.removeListener('blocker:status', listener);
     },
+  },
+
+  // Permissions onboarding
+  onboarding: {
+    permsSeen: () => ipcRenderer.invoke('onboarding:permsSeen'),
+    permsMarkSeen: () => ipcRenderer.invoke('onboarding:permsMarkSeen'),
+    probeScreenRecording: () => ipcRenderer.invoke('onboarding:probeScreenRecording'),
+    getScreenRecordingStatus: () => ipcRenderer.invoke('onboarding:getScreenRecordingStatus'),
+    resetScreenRecording: () => ipcRenderer.invoke('onboarding:resetScreenRecording'),
   },
 
   // App updates

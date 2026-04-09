@@ -22,13 +22,13 @@ const __dirname = path.dirname(__filename);
 
 // Import modules
 import { startSession, endSessionAndSync, getActiveSession, flushPendingSyncs } from './session.js';
-import { signIn, signUp, signOut, sendMagicLink, getUser, setSession, getCurrentUser, updateProfile, updatePassword, uploadAvatar } from './auth.js';
+import { signIn, signUp, signOut, sendMagicLink, getUser, getAccessToken, setSession, getCurrentUser, updateProfile, updatePassword, uploadAvatar } from './auth.js';
 import { setupPowerMonitoring } from './power.js';
 import { setupLeaderboardPolling, stopLeaderboardPolling, getLeaderboard } from './leaderboard.js';
 import { setupPresence, stopPresence, sendHeartbeat, removePresence, postToLiveFeed, getPresenceCount, getRooms, getRoomPresence } from './presence.js';
-import { getTodaysSessions, getSessions, getUserProfile, getCompletedSessionsForSkills, getCompletedSessionsInRange, initializeDatabase, getAgentChats, getOrCreateAgentChat, createAgentChat, getAgentMessages, addAgentMessage, getQuests, createQuest, completeQuest, uncompleteQuest, deleteQuest, resetDailyQuests, setLastDailyJobDate, getLastDailyJobDate, updateStreak, updateUserXP, getWindowEvents, recordWindowEvent, getSessionById, createTask, getTasksBySession, getTasksByUser, toggleTask, deleteTask, createNote, getNotesBySession, getNotesByUser, deleteNote, getMemorySnapshotCache, getMemorySnapshotCacheByDate, upsertMemorySnapshotCache, listHabitCache, getHabitCacheById, upsertHabitCache, markHabitCacheDeleted, removeHabitCache, setHabitCacheSyncState, getPendingHabitCache, getBlockedDomains, addBlockedDomain, toggleBlockedDomain, removeBlockedDomain } from './db.js';
+import { getTodaysSessions, getSessions, getUserProfile, getCompletedSessionsForSkills, getCompletedSessionsInRange, initializeDatabase, getAgentChats, getOrCreateAgentChat, createAgentChat, getAgentMessages, addAgentMessage, updateChatSummary, getRecentChatSummaries, getUnsummarizedChats, getQuests, createQuest, completeQuest, uncompleteQuest, deleteQuest, resetDailyQuests, setLastDailyJobDate, getLastDailyJobDate, updateStreak, updateUserXP, getWindowEvents, recordWindowEvent, getSessionById, createTask, createStandaloneTask, getTasksBySession, getTasksByUser, toggleTask, deleteTask, createNote, getNotesBySession, getNotesByUser, deleteNote, getMemorySnapshotCache, getMemorySnapshotCacheByDate, upsertMemorySnapshotCache, listHabitCache, getHabitCacheById, upsertHabitCache, markHabitCacheDeleted, removeHabitCache, setHabitCacheSyncState, getPendingHabitCache, recordHabitCompletion, removeHabitCompletion, getHabitCompletionDates, expireHabitStreaks, backfillHabitCompletions, getBlockedDomains, addBlockedDomain, toggleBlockedDomain, removeBlockedDomain } from './db.js';
 import { startWindowTracking, stopWindowTracking, setTrackingSession, clearTrackingSession, getCurrentApp, canSampleForegroundApp } from './windowTracker.js';
-import { maybePromptScreenRecordingAccess, resetScreenRecordingPromptGate } from './screenRecordingPrompt.js';
+import { maybePromptScreenRecordingAccess, resetScreenRecordingPromptGate, isScreenRecordingSnoozed, isScreenRecordingAcknowledged, isScreenRecordingRejected } from './screenRecordingPrompt.js';
 import { shouldIncludeAppInUsageStats } from '../lib/appUsageFilter.js';
 import keytar from 'keytar';
 import {
@@ -52,6 +52,71 @@ import { activate as blockerActivate, deactivate as blockerDeactivate, cleanupOn
 function scheduleDailyJobs(userId) {
   if (!userId) return;
   runDailyJobs(userId).catch((e) => debugLog(`runDailyJobs error: ${e.message}`));
+}
+
+async function backfillChatSummaries(userId) {
+  try {
+    const unsummarized = getUnsummarizedChats(userId);
+    if (unsummarized.length === 0) return;
+    debugLog(`backfillChatSummaries: ${unsummarized.length} chats to summarize`);
+
+    const accessToken = await getAccessToken();
+    if (!accessToken) return;
+
+    for (const { id: chatId } of unsummarized) {
+      try {
+        const messages = getAgentMessages(chatId);
+        if (messages.length < 2) continue;
+
+        const transcript = messages
+          .map(m => `${m.role === 'user' ? 'User' : 'AI'}: ${m.content}`)
+          .join('\n');
+
+        const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/mentor-chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            messages: [
+              { role: 'system', content: 'Summarize this conversation in 1-2 sentences. Focus on what the user was working on and any key help provided. Be specific.' },
+              { role: 'user', content: transcript },
+            ],
+          }),
+        });
+
+        if (!res.ok) continue;
+
+        let summary = '';
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          for (const line of chunk.split('\n')) {
+            if (!line.startsWith('data: ')) continue;
+            const raw = line.slice(6).trim();
+            if (raw === '[DONE]') continue;
+            try {
+              const parsed = JSON.parse(raw);
+              summary += parsed.choices?.[0]?.delta?.content || '';
+            } catch { /* skip */ }
+          }
+        }
+
+        if (summary) updateChatSummary(chatId, summary.trim());
+        // Small delay between requests to avoid rate limiting
+        await new Promise(r => setTimeout(r, 800));
+      } catch (e) {
+        debugLog(`backfillChatSummaries: failed for ${chatId}: ${e.message}`);
+      }
+    }
+    debugLog('backfillChatSummaries: done');
+  } catch (e) {
+    debugLog(`backfillChatSummaries error: ${e.message}`);
+  }
 }
 
 function startTrackingWithPermissionPrompt(userId) {
@@ -163,8 +228,9 @@ const createFullWindow = ({ sessionComplete = false } = {}) => {
     frame: false,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
-    transparent: false,
-    backgroundColor: '#0a0a0a',
+    transparent: true,
+    vibrancy: 'under-window',
+    visualEffectState: 'active',
     hasShadow: true,
     movable: true,
     skipTaskbar: false,
@@ -199,7 +265,13 @@ const createFullWindow = ({ sessionComplete = false } = {}) => {
 
   fullWindow.on('closed', () => {
     fullWindow = null;
-    floatingWindow?.show();
+    // Only restore the floating overlay if the user is logged in AND has an active session.
+    // Without this guard, closing the dashboard after fresh signup shows the empty overlay.
+    const currentUser = getCurrentUser();
+    const activeSession = getActiveSession();
+    if (currentUser && activeSession) {
+      floatingWindow?.show();
+    }
   });
 };
 
@@ -376,6 +448,8 @@ app.whenReady().then(async () => {
       startTrackingWithPermissionPrompt(user.id);
       // Run once-per-day jobs (quest resets, etc.)
       scheduleDailyJobs(user.id);
+      // Backfill summaries for any old chats that don't have one yet
+      setTimeout(() => backfillChatSummaries(user.id), 5000);
     }
   } catch (error) {
     debugLog(`Failed to restore user session: ${error.message}`);
@@ -475,6 +549,63 @@ ipcMain.handle('update:skipVersion', (_event, version = null) => skipUpdateVersi
 
 ipcMain.handle('update:clearSkippedVersion', () => clearSkippedUpdateVersion());
 
+// Permissions onboarding — one-time screen shown after first signup
+const PERMS_ONBOARDING_FILE = path.join(app.getPath('userData'), 'permissions-onboarding-seen.json');
+
+ipcMain.handle('onboarding:permsSeen', () => {
+  try {
+    return fs.existsSync(PERMS_ONBOARDING_FILE);
+  } catch {
+    return false;
+  }
+});
+
+ipcMain.handle('onboarding:probeScreenRecording', async () => {
+  try {
+    const { probeForegroundApp } = await import('./windowTracker.js');
+    const result = await probeForegroundApp();
+    return { ok: result.ok, error: result.error || null };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+ipcMain.handle('onboarding:getScreenRecordingStatus', () => {
+  try {
+    if (isScreenRecordingRejected()) return { status: 'rejected' };
+    if (isScreenRecordingAcknowledged()) return { status: 'acknowledged' };
+    if (isScreenRecordingSnoozed()) return { status: 'snoozed' };
+    return { status: 'not-set' };
+  } catch (e) {
+    return { status: 'unknown', error: e.message };
+  }
+});
+
+ipcMain.handle('onboarding:resetScreenRecording', () => {
+  try {
+    const stateFile = path.join(app.getPath('userData'), 'permission-prompts.json');
+    let state = {};
+    try { state = JSON.parse(fs.readFileSync(stateFile, 'utf8')); } catch { /* fresh */ }
+    delete state.screenRecordingAcknowledged;
+    delete state.screenRecordingRejected;
+    delete state.screenRecordingSnoozedUntil;
+    fs.writeFileSync(stateFile, JSON.stringify(state));
+    resetScreenRecordingPromptGate();
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('onboarding:permsMarkSeen', () => {
+  try {
+    fs.writeFileSync(PERMS_ONBOARDING_FILE, JSON.stringify({ seen: true, ts: Date.now() }));
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
 ipcMain.handle('shortcuts:get', () => {
   try {
     return { success: true, shortcuts: loadFocusShortcuts() };
@@ -542,6 +673,9 @@ ipcMain.handle('session:start', async (event, task, roomId = null) => {
     setImmediate(() => {
       void (async () => {
         if (process.platform !== 'darwin') return;
+        if (isScreenRecordingSnoozed()) return;    // snoozed until future date
+        if (isScreenRecordingAcknowledged()) return; // went to Settings, awaiting restart
+        if (isScreenRecordingRejected()) return;   // user said "don't ask again"
         if (await canSampleForegroundApp()) return;
         resetScreenRecordingPromptGate();
         const parent =
@@ -1183,41 +1317,7 @@ ipcMain.handle('window:toggleFullWindow', () => {
 const AGENT_KEYCHAIN_SERVICE = 'Promethee';
 const AGENT_KEYCHAIN_ACCOUNT = 'openai-key';
 
-// Cached OpenAI client — recreated only when the key changes
-let _openaiClient = null;
-let _openaiKey = null;
-
-async function getOpenAIClient() {
-  const key = await keytar.getPassword(AGENT_KEYCHAIN_SERVICE, AGENT_KEYCHAIN_ACCOUNT);
-  if (!key) return null;
-  if (key !== _openaiKey) {
-    _openaiKey = key;
-    _openaiClient = new OpenAI({ apiKey: key });
-  }
-  return _openaiClient;
-}
-
-ipcMain.handle('agent:getToken', async () => {
-  try {
-    const key = await keytar.getPassword(AGENT_KEYCHAIN_SERVICE, AGENT_KEYCHAIN_ACCOUNT);
-    if (!key) {
-      return { success: false, error: 'No API key configured. Set it via agent:setToken.' };
-    }
-    return { success: true, token: key };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
-
-ipcMain.handle('agent:setToken', async (_event, key) => {
-  try {
-    await keytar.setPassword(AGENT_KEYCHAIN_SERVICE, AGENT_KEYCHAIN_ACCOUNT, key);
-    _openaiKey = null; _openaiClient = null; // invalidate cache
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
+const SUPABASE_FUNCTIONS_URL = 'https://qnnqnfitlaffcadtunuk.supabase.co/functions/v1';
 
 // Sanitize OS-provided strings before embedding in LLM prompts.
 // Window titles are user-controlled (e.g. browser tab names) and can contain
@@ -1300,20 +1400,77 @@ ipcMain.handle('agent:getMessages', async (_event, chatId) => {
   }
 });
 
-const MENTOR_MODEL = 'gpt-4.1';
+ipcMain.handle('agent:summarizeChat', async (_event, chatId) => {
+  try {
+    const user = await getUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+
+    const accessToken = await getAccessToken();
+    if (!accessToken) return { success: false, error: 'Not authenticated' };
+
+    const messages = getAgentMessages(chatId);
+    if (messages.length < 2) return { success: true }; // nothing to summarize
+
+    const transcript = messages
+      .map(m => `${m.role === 'user' ? 'User' : 'AI'}: ${m.content}`)
+      .join('\n');
+
+    const summaryMessages = [
+      {
+        role: 'system',
+        content: 'You are a concise summarizer. Summarize the following conversation in 1-2 sentences, focusing on what the user was working on and any key insights or help provided. Be specific, not generic.',
+      },
+      { role: 'user', content: transcript },
+    ];
+
+    const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/mentor-chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ messages: summaryMessages }),
+    });
+
+    if (!res.ok) return { success: false, error: 'Summary request failed' };
+
+    let summary = '';
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      for (const line of chunk.split('\n')) {
+        if (!line.startsWith('data: ')) continue;
+        const raw = line.slice(6).trim();
+        if (raw === '[DONE]') continue;
+        try {
+          const parsed = JSON.parse(raw);
+          summary += parsed.choices?.[0]?.delta?.content || '';
+        } catch { /* skip */ }
+      }
+    }
+
+    if (summary) updateChatSummary(chatId, summary.trim());
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
 
 ipcMain.handle('agent:sendMessage', async (_event, chatId, content, previousMessages) => {
   try {
-    const openai = await getOpenAIClient();
-    if (!openai) {
-      return { success: false, error: 'No API key. Configure it first.' };
-    }
+    const user = await getUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+
+    const accessToken = await getAccessToken();
+    if (!accessToken) return { success: false, error: 'Not authenticated' };
 
     // Persist user message
     addAgentMessage(chatId, 'user', content);
 
     // Build system prompt fresh from DB so the agent always has current stats
-    const user = await getUser();
     const activeSession = getActiveSession();
     const todaysSessions = user ? getTodaysSessions(user.id) : [];
     const profile = user ? getUserProfile(user.id) : null;
@@ -1329,6 +1486,10 @@ ipcMain.handle('agent:sendMessage', async (_event, chatId, content, previousMess
     const totalXp = profile?.total_xp || 0;
 
     const windowContext = await buildWindowContext(user, activeSession);
+    const pastSummaries = getRecentChatSummaries(user.id, chatId);
+    const pastContext = pastSummaries.length > 0
+      ? '\nPast conversations:\n' + pastSummaries.map(c => `- ${c.summary}`).join('\n')
+      : '';
 
     let resolvedSystemPrompt;
     if (activeSession) {
@@ -1338,7 +1499,7 @@ ipcMain.handle('agent:sendMessage', async (_event, chatId, content, previousMess
 Current session: "${activeSession.task || 'Untitled'}" — ${elapsedMinutes} minute${elapsedMinutes !== 1 ? 's' : ''} in.${windowContext}
 Today: ${xpToday} XP earned across ${sessionCountToday} session${sessionCountToday !== 1 ? 's' : ''}.
 User level: ${level} (${totalXp} XP total).
-Recent sessions: ${recentNames || 'none yet'}.
+Recent sessions: ${recentNames || 'none yet'}.${pastContext}
 
 Answer concisely. You already know what they're working on — don't ask them to re-explain.`;
     } else {
@@ -1346,7 +1507,7 @@ Answer concisely. You already know what they're working on — don't ask them to
 
 Today: ${xpToday} XP earned across ${sessionCountToday} session${sessionCountToday !== 1 ? 's' : ''}.${windowContext}
 User level: ${level} (${totalXp} XP total).
-Recent sessions: ${recentNames || 'none yet'}.
+Recent sessions: ${recentNames || 'none yet'}.${pastContext}
 
 Answer concisely.`;
     }
@@ -1359,19 +1520,41 @@ Answer concisely.`;
       { role: 'user', content }
     ];
 
-    const stream = await openai.chat.completions.create({
-      model: MENTOR_MODEL,
-      messages: messagesForApi,
-      stream: true
+    const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/mentor-chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ messages: messagesForApi }),
     });
 
-    let fullContent = '';
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`mentor-chat function error: ${errText}`);
+    }
 
-    for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta?.content || '';
-      if (delta) {
-        fullContent += delta;
-        [floatingWindow, fullWindow].forEach(w => w?.webContents.send('agent:chunk', { chatId, delta }));
+    let fullContent = '';
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      // Parse SSE lines: "data: {...}\n\n"
+      for (const line of chunk.split('\n')) {
+        if (!line.startsWith('data: ')) continue;
+        const raw = line.slice(6).trim();
+        if (raw === '[DONE]') continue;
+        try {
+          const parsed = JSON.parse(raw);
+          const delta = parsed.choices?.[0]?.delta?.content || '';
+          if (delta) {
+            fullContent += delta;
+            [floatingWindow, fullWindow].forEach(w => w?.webContents.send('agent:chunk', { chatId, delta }));
+          }
+        } catch { /* skip malformed lines */ }
       }
     }
 
@@ -1388,10 +1571,11 @@ Answer concisely.`;
 
 ipcMain.handle('agent:sendMessageWithImages', async (_event, chatId, content, images, previousMessages) => {
   try {
-    const openai = await getOpenAIClient();
-    if (!openai) {
-      return { success: false, error: 'No API key. Configure it first.' };
-    }
+    const user = await getUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+
+    const accessToken = await getAccessToken();
+    if (!accessToken) return { success: false, error: 'Not authenticated' };
 
     const fromRenderer = Array.isArray(images)
       ? images.filter((x) => typeof x === 'string' && x.length > 0)
@@ -1412,7 +1596,6 @@ ipcMain.handle('agent:sendMessageWithImages', async (_event, chatId, content, im
     // Persist only text content to SQLite (images are ephemeral)
     addAgentMessage(chatId, 'user', content);
 
-    const user = await getUser();
     const activeSession = getActiveSession();
     const todaysSessions = user ? getTodaysSessions(user.id) : [];
     const profile = user ? getUserProfile(user.id) : null;
@@ -1428,6 +1611,10 @@ ipcMain.handle('agent:sendMessageWithImages', async (_event, chatId, content, im
     const totalXp = profile?.total_xp || 0;
 
     const windowContext = await buildWindowContext(user, activeSession);
+    const pastSummaries = getRecentChatSummaries(user.id, chatId);
+    const pastContext = pastSummaries.length > 0
+      ? '\nPast conversations:\n' + pastSummaries.map(c => `- ${c.summary}`).join('\n')
+      : '';
 
     let resolvedSystemPrompt;
     if (activeSession) {
@@ -1437,7 +1624,7 @@ ipcMain.handle('agent:sendMessageWithImages', async (_event, chatId, content, im
 Current session: "${activeSession.task || 'Untitled'}" — ${elapsedMinutes} minute${elapsedMinutes !== 1 ? 's' : ''} in.${windowContext}
 Today: ${xpToday} XP earned across ${sessionCountToday} session${sessionCountToday !== 1 ? 's' : ''}.
 User level: ${level} (${totalXp} XP total).
-Recent sessions: ${recentNames || 'none yet'}.
+Recent sessions: ${recentNames || 'none yet'}.${pastContext}
 
 Answer concisely. You already know what they're working on — don't ask them to re-explain.`;
     } else {
@@ -1445,7 +1632,7 @@ Answer concisely. You already know what they're working on — don't ask them to
 
 Today: ${xpToday} XP earned across ${sessionCountToday} session${sessionCountToday !== 1 ? 's' : ''}.${windowContext}
 User level: ${level} (${totalXp} XP total).
-Recent sessions: ${recentNames || 'none yet'}.
+Recent sessions: ${recentNames || 'none yet'}.${pastContext}
 
 Answer concisely.`;
     }
@@ -1473,19 +1660,40 @@ Answer concisely.`;
       { role: 'user', content: userContent }
     ];
 
-    const stream = await openai.chat.completions.create({
-      model: MENTOR_MODEL,
-      messages: messagesForApi,
-      stream: true
+    const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/mentor-chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ messages: messagesForApi }),
     });
 
-    let fullContent = '';
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`mentor-chat function error: ${errText}`);
+    }
 
-    for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta?.content || '';
-      if (delta) {
-        fullContent += delta;
-        [floatingWindow, fullWindow].forEach(w => w?.webContents.send('agent:chunk', { chatId, delta }));
+    let fullContent = '';
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      for (const line of chunk.split('\n')) {
+        if (!line.startsWith('data: ')) continue;
+        const raw = line.slice(6).trim();
+        if (raw === '[DONE]') continue;
+        try {
+          const parsed = JSON.parse(raw);
+          const delta = parsed.choices?.[0]?.delta?.content || '';
+          if (delta) {
+            fullContent += delta;
+            [floatingWindow, fullWindow].forEach(w => w?.webContents.send('agent:chunk', { chatId, delta }));
+          }
+        } catch { /* skip malformed lines */ }
       }
     }
 
@@ -1543,16 +1751,28 @@ ipcMain.handle('habits:list', async () => {
   try {
     const user = getCurrentUser();
     if (!user) return { success: false, error: 'Not authenticated' };
+
+    // Return local cache immediately — no waiting on network
     const cached = listHabitCache(user.id);
 
+    // Backfill completion history from streak data (one-time, idempotent)
     try {
-      await syncPendingHabits(user.id);
-      const habits = await refreshHabitCacheFromSupabase(user.id);
-      return { success: true, habits };
-    } catch (error) {
-      debugLog(`habits:list offline fallback: ${error.message}`);
-      return { success: true, habits: cached };
+      backfillHabitCompletions(user.id);
+    } catch (e) {
+      debugLog(`habits:list backfill failed: ${e.message}`);
     }
+
+    // Sync in background — UI will reflect changes on next open
+    void (async () => {
+      try {
+        await syncPendingHabits(user.id);
+        await refreshHabitCacheFromSupabase(user.id);
+      } catch (e) {
+        debugLog(`habits:list bg sync failed: ${e.message}`);
+      }
+    })();
+
+    return { success: true, habits: cached };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -1611,6 +1831,9 @@ ipcMain.handle('habits:complete', async (_event, habitId) => {
       updated_at: Date.now(),
     }, 'pending_upsert');
 
+    // Record in per-day history
+    recordHabitCompletion(user.id, habitId, todayStr);
+
     void syncPendingHabits(user.id).catch((e) => debugLog(`habits:complete sync failed: ${e.message}`));
     return { success: true, habit: updated };
   } catch (error) {
@@ -1633,10 +1856,15 @@ ipcMain.handle('habits:uncomplete', async (_event, habitId) => {
     const newStreak = Math.max(0, (habit.current_streak || 1) - 1);
     const updated = upsertHabitCache(user.id, {
       ...habit,
-      last_completed_date: null,
+      last_completed_date: newStreak > 0 ? (() => {
+        const d = new Date(); d.setDate(d.getDate() - 1); return d.toLocaleDateString('en-CA');
+      })() : null,
       current_streak: newStreak,
       updated_at: Date.now(),
     }, 'pending_upsert');
+
+    // Remove from per-day history
+    removeHabitCompletion(user.id, habitId, todayStr);
 
     void syncPendingHabits(user.id).catch((e) => debugLog(`habits:uncomplete sync failed: ${e.message}`));
     return { success: true, habit: updated };
@@ -1654,6 +1882,33 @@ ipcMain.handle('habits:delete', async (_event, habitId) => {
     markHabitCacheDeleted(user.id, habitId);
     void syncPendingHabits(user.id).catch((e) => debugLog(`habits:delete sync failed: ${e.message}`));
     return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('habits:getCompletions', async (_event, habitId, limitDays = 30) => {
+  try {
+    const user = getCurrentUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+    const dates = getHabitCompletionDates(user.id, habitId, limitDays);
+    return { success: true, dates };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Return all completions for all habits in the last N days (for chart)
+ipcMain.handle('habits:getAllCompletions', async (_event, limitDays = 30) => {
+  try {
+    const user = getCurrentUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+    const habits = listHabitCache(user.id);
+    const result = {};
+    for (const h of habits) {
+      result[h.id] = getHabitCompletionDates(user.id, h.id, limitDays);
+    }
+    return { success: true, completions: result };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -1782,6 +2037,18 @@ ipcMain.handle('tasks:add', async (_event, sessionId, text) => {
   }
 });
 
+ipcMain.handle('tasks:addStandalone', async (_event, text, xpReward) => {
+  try {
+    const user = getCurrentUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+    const task = createStandaloneTask(user.id, text, xpReward);
+    if (!task) return { success: false, error: 'empty text' };
+    return { success: true, task };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('tasks:toggle', async (_event, taskId) => {
   try {
     const user = getCurrentUser();
@@ -1874,6 +2141,15 @@ async function runDailyJobs(userId) {
   if (lastRun === todayStr) return; // already ran today
 
   debugLog(`runDailyJobs: running for ${userId} on ${todayStr}`);
+
+  // 1a. Expire habit streaks that were broken (daily missed yesterday, weekly missed this week)
+  const expiredHabitIds = expireHabitStreaks(userId);
+  if (expiredHabitIds.length > 0) {
+    debugLog(`runDailyJobs: expired ${expiredHabitIds.length} habit streak(s)`);
+    [floatingWindow, fullWindow].forEach(w =>
+      w?.webContents.send('habits:streaksExpired', { habitIds: expiredHabitIds })
+    );
+  }
 
   // 1. Reset daily quests
   const resetIds = resetDailyQuests(userId, todayStr);

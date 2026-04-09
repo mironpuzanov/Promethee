@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Brain } from 'lucide-react';
+import { X, Brain, Check, Circle } from 'lucide-react';
+import { PolarAngleAxis, PolarGrid, Radar, RadarChart, ResponsiveContainer } from 'recharts';
 import { getLevelInfo } from '../../../lib/xp';
-import homeBg from '../../../assets/home-bg.png';
+import homeBg from '../../../assets/home-bg-group1.png';
 import './CharacterPanel.css';
 
 interface User {
@@ -45,6 +46,13 @@ interface DailySignal {
   content: string;
   intensity: 'low' | 'med' | 'high';
   date: string;
+}
+
+interface StandaloneTask {
+  id: string;
+  text: string;
+  completed: number;
+  xp_reward?: number | null;
 }
 
 interface CharacterPanelProps {
@@ -102,144 +110,61 @@ const INTENSITY_STYLE: Record<DailySignal['intensity'], { dot: string; border: s
   high: { dot: 'var(--destructive)',           border: 'rgba(239,68,68,0.25)' },
 };
 
-function formatSkillValue(label: 'Consistency' | 'Willpower' | 'Deep runs', raw?: SkillsRaw): string {
-  if (!raw) return '—';
-  if (label === 'Willpower') return `${raw.totalMinutes}m`;
-  if (label === 'Consistency') return `${raw.streak}d`;
-  return String(raw.deepSessions);
+function buildRadarData(scores: SkillScores, raw?: SkillsRaw | null) {
+  return [
+    { skill: 'Willpower',   value: scores.rigueur, raw: raw ? `${raw.totalMinutes}m` : '—' },
+    { skill: 'Consistency', value: scores.volonte,  raw: raw ? `${raw.streak}d streak` : '—' },
+    { skill: 'Deep runs',   value: scores.courage,  raw: raw ? String(raw.deepSessions) : '—' },
+  ];
 }
 
-function TriangleChart({ rigueur, volonte, courage, raw }: SkillScores & { raw?: SkillsRaw | null }) {
-  const cx = 124, cy = 122, R = 64;
-
-  // Put Willpower on the dominant top axis so the shape reads around focus volume first.
-  const vertices = [
-    { angle: 270, label: 'Willpower',   value: rigueur },
-    { angle: 150, label: 'Consistency', value: volonte },
-    { angle: 30,  label: 'Deep runs',   value: courage },
-  ];
-
-  const toXY = (angleDeg: number, r: number) => {
-    const rad = (angleDeg * Math.PI) / 180;
-    return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
-  };
-
-  const toDisplayRadius = (score: number) => {
-    const t = Math.max(0, Math.min(score, 100)) / 100;
-    const minRadius = 16;
-    return minRadius + Math.pow(t, 0.62) * (R - minRadius);
-  };
-
-  const getLabelLayout = (label: 'Consistency' | 'Willpower' | 'Deep runs') => {
-    if (label === 'Willpower') {
-      return {
-        point: toXY(270, R + 38),
-        textAnchor: 'middle' as const,
-        titleDy: -8,
-        valueDy: 8,
-      };
-    }
-    if (label === 'Consistency') {
-      return {
-        point: toXY(150, R + 42),
-        textAnchor: 'end' as const,
-        titleDy: -2,
-        valueDy: 14,
-      };
-    }
-    return {
-      point: toXY(30, R + 42),
-      textAnchor: 'start' as const,
-      titleDy: -2,
-      valueDy: 14,
-    };
-  };
-
-  const bgPts = vertices.map(v => toXY(v.angle, R));
-  const midPts = vertices.map(v => toXY(v.angle, R * 0.62));
-  const innerPts = vertices.map(v => toXY(v.angle, toDisplayRadius(v.value)));
-
-  const toPath = (pts: { x: number; y: number }[]) =>
-    pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ') + ' Z';
+function SkillRadarChart({ rigueur, volonte, courage, raw }: SkillScores & { raw?: SkillsRaw | null }) {
+  const data = buildRadarData({ rigueur, volonte, courage }, raw);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-      <svg width={248} height={244} viewBox="0 0 248 244" style={{ overflow: 'visible' }}>
-        {/* Background triangle */}
-        <path
-          d={toPath(bgPts)}
-          fill="rgba(255,255,255,0.03)"
-          stroke="rgba(255,255,255,0.1)"
-          strokeWidth={1}
-        />
-        <path
-          d={toPath(midPts)}
-          fill="none"
-          stroke="rgba(255,255,255,0.06)"
-          strokeWidth={1}
-          strokeDasharray="3 5"
-        />
-        {vertices.map((v) => {
-          const axisEnd = toXY(v.angle, R);
-          return (
-            <line
-              key={`${v.label}-axis`}
-              x1={cx}
-              y1={cy}
-              x2={axisEnd.x}
-              y2={axisEnd.y}
-              stroke="rgba(255,255,255,0.06)"
-              strokeWidth={1}
-            />
-          );
-        })}
-
-        {/* Filled inner polygon */}
-        <motion.path
-          d={toPath(innerPts)}
-          fill="rgba(251,146,60,0.12)"
-          stroke="var(--accent-fire)"
-          strokeWidth={1.5}
-          strokeLinejoin="round"
-          initial={{ opacity: 0, scale: 0.4 }}
-          animate={{ opacity: 1, scale: 1 }}
-          style={{ transformOrigin: `${cx}px ${cy}px` }}
-          transition={{ duration: 0.7, ease: 'easeOut' }}
-        />
-
-        {/* Vertex dots + labels */}
-        {vertices.map((v) => {
-          const dot = toXY(v.angle, toDisplayRadius(v.value));
-          const labelLayout = getLabelLayout(v.label as 'Consistency' | 'Willpower' | 'Deep runs');
-          return (
-            <g key={v.label}>
-              <circle cx={dot.x} cy={dot.y} r={3} fill="var(--accent-fire)" />
-              <text
-                x={labelLayout.point.x}
-                y={labelLayout.point.y + labelLayout.titleDy}
-                textAnchor={labelLayout.textAnchor}
-                fontSize={9}
-                fill="var(--text-muted)"
-                fontFamily="inherit"
-                style={{ textTransform: 'uppercase', letterSpacing: '0.08em' }}
-              >
-                {v.label}
-              </text>
-              <text
-                x={labelLayout.point.x}
-                y={labelLayout.point.y + labelLayout.valueDy}
-                textAnchor={labelLayout.textAnchor}
-                fontSize={12}
-                fontWeight={500}
-                fill="var(--text-primary)"
-                fontFamily="inherit"
-              >
-                {formatSkillValue(v.label as 'Consistency' | 'Willpower' | 'Deep runs', raw || undefined)}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
+    <div style={{ width: '100%', height: 260, pointerEvents: 'none', userSelect: 'none' }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <RadarChart
+          data={data}
+          margin={{ top: 44, right: 64, bottom: 44, left: 64 }}
+        >
+          <PolarGrid
+            stroke="var(--border)"
+            gridType="polygon"
+          />
+          <PolarAngleAxis
+            dataKey="skill"
+            tick={({ x, y, textAnchor, index }: any) => {
+              const d = data[index];
+              const yNum = typeof y === 'number' ? y : 0;
+              const yOffset = index === 0 ? -20 : 4;
+              return (
+                <text
+                  x={x}
+                  y={yNum + yOffset}
+                  textAnchor={textAnchor}
+                  fontFamily="inherit"
+                >
+                  <tspan fontSize={12} fontWeight={500} fill="var(--text-primary)">
+                    {d.raw}
+                  </tspan>
+                  <tspan x={x} dy="1.6em" fontSize={9} fill="var(--text-muted)">
+                    {d.skill.toUpperCase()}
+                  </tspan>
+                </text>
+              );
+            }}
+          />
+          <Radar
+            dataKey="value"
+            fill="rgba(232,146,42,0.15)"
+            stroke="var(--accent-fire)"
+            strokeWidth={1.5}
+            dot={{ fill: 'var(--accent-fire)', r: 3, strokeWidth: 0 }}
+            activeDot={false}
+          />
+        </RadarChart>
+      </ResponsiveContainer>
     </div>
   );
 }
@@ -254,6 +179,9 @@ function CharacterPanel({ user }: CharacterPanelProps) {
   const [memoryLoaded, setMemoryLoaded] = useState(false);
   const [signal, setSignal] = useState<DailySignal | null>(null);
   const [signalDismissed, setSignalDismissed] = useState(false);
+  const [standaloneTasks, setStandaloneTasks] = useState<StandaloneTask[]>([]);
+  const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
+  const removeTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   useEffect(() => {
     window.promethee.db.getUserProfile().then((result: { success: boolean; profile?: UserProfile }) => {
@@ -293,7 +221,36 @@ function CharacterPanel({ user }: CharacterPanelProps) {
       setSignal(data);
       setSignalDismissed(localStorage.getItem(`dismissDailySignal:${data.date}`) === '1');
     });
+
+    // Load standalone tasks (no session attached)
+    window.promethee.tasks.listAll().then((r: { success: boolean; tasks?: StandaloneTask[] }) => {
+      if (r.success) {
+        setStandaloneTasks((r.tasks || []).filter((t) => !(t as any).session_id && !t.completed));
+      }
+    });
+
     return unsub;
+  }, []);
+
+  const onToggleTask = useCallback(async (taskId: string) => {
+    await window.promethee.tasks.toggle(taskId);
+    // Check if the task is now complete — if so, animate it out after a short delay
+    const r = await window.promethee.tasks.listAll() as { success: boolean; tasks?: StandaloneTask[] };
+    if (!r.success) return;
+    const all = (r.tasks || []).filter((t: any) => !t.session_id && !t.completed);
+    const toggled = all.find((t) => t.id === taskId);
+    if (toggled && toggled.completed) {
+      // Mark as "removing" so it shows checked briefly, then remove from list
+      setRemovingIds((prev) => new Set(prev).add(taskId));
+      const timer = setTimeout(() => {
+        setStandaloneTasks((prev) => prev.filter((t) => t.id !== taskId));
+        setRemovingIds((prev) => { const s = new Set(prev); s.delete(taskId); return s; });
+        removeTimers.current.delete(taskId);
+      }, 600);
+      removeTimers.current.set(taskId, timer);
+    } else {
+      setStandaloneTasks(all);
+    }
   }, []);
 
   const levelInfo = getLevelInfo(profile.total_xp || 0);
@@ -301,62 +258,40 @@ function CharacterPanel({ user }: CharacterPanelProps) {
 
   return (
     <motion.main
-      className="flex flex-col bg-background overflow-y-auto gap-8"
+      className="flex flex-col bg-background gap-4"
+      style={{ overflow: 'hidden', height: '100%' }}
       initial="hidden"
       animate="visible"
       variants={containerVariants}
     >
-      {/* Hero header — image with stats overlaid */}
+      {/* Hero header */}
       <motion.div
         variants={itemVariants}
-        style={{
-          position: 'relative',
-          height: 220,
-          flexShrink: 0,
-          overflow: 'hidden',
-          backgroundImage: `url(${homeBg})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center 60%',
-        }}
+        className="px-10"
+        style={{ paddingTop: 32, paddingBottom: 8, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}
       >
-        {/* Gradient: transparent top, dark bottom */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: 'linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.75) 100%)',
-        }} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <h1 style={{ margin: 0, fontSize: 26, fontWeight: 400, letterSpacing: '-0.02em', color: 'var(--foreground)' }}>{userName}</h1>
+          <p style={{ margin: 0, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'var(--text-secondary)' }}>
+            Level {level} · {tier}
+          </p>
+        </div>
 
-        {/* Stats overlaid at bottom-left */}
-        <div style={{
-          position: 'absolute', bottom: 0, left: 0, right: 0,
-          padding: '0 40px 20px',
-          color: 'var(--foreground)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 8,
-        }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 400, letterSpacing: '-0.02em' }}>{userName}</h1>
-            <p style={{ margin: 0, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'var(--text-secondary)' }}>
-              Level {level} · {tier}
-            </p>
+        {/* XP progress bar */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
+            <span>Progress to Level {level + 1}</span>
+            <span>{xpIntoLevel} / {xpForCurrentLevel} XP</span>
           </div>
-
-          {/* XP progress bar */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
-              <span>Progress to Level {level + 1}</span>
-              <span>{xpIntoLevel} / {xpForCurrentLevel} XP</span>
-            </div>
-            <div style={{ height: 3, background: 'rgba(255,255,255,0.15)', borderRadius: 2, overflow: 'hidden' }}>
-              <motion.div
-                style={{ height: '100%', background: 'var(--accent-fire)', borderRadius: 2 }}
-                initial={{ width: 0 }}
-                animate={{ width: `${xpProgress * 100}%` }}
-                transition={{ duration: 0.8, ease: 'easeOut' }}
-              />
-            </div>
-            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{totalXP} XP total</span>
+          <div style={{ height: 3, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
+            <motion.div
+              style={{ height: '100%', background: 'var(--accent-fire)', borderRadius: 2 }}
+              initial={{ width: 0 }}
+              animate={{ width: `${xpProgress * 100}%` }}
+              transition={{ duration: 0.8, ease: 'easeOut' }}
+            />
           </div>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{totalXP} XP total</span>
         </div>
       </motion.div>
 
@@ -368,7 +303,7 @@ function CharacterPanel({ user }: CharacterPanelProps) {
             initial="hidden"
             animate="visible"
             exit={{ opacity: 0 }}
-            style={{ paddingLeft: 40, paddingRight: 40 }}
+            style={{ paddingLeft: 40, paddingRight: 40, flexShrink: 0 }}
           >
             <div style={{
               position: 'relative',
@@ -425,8 +360,57 @@ function CharacterPanel({ user }: CharacterPanelProps) {
         )}
       </AnimatePresence>
 
+      {/* Standalone tasks */}
+      {standaloneTasks.length > 0 && (
+        <motion.div variants={itemVariants} className="px-10" style={{ flexShrink: 0 }}>
+          <div style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 12,
+            overflow: 'hidden',
+          }}>
+            <div style={{ padding: '12px 16px 6px', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-muted)', fontWeight: 500 }}>
+              Quests
+            </div>
+            <AnimatePresence initial={false}>
+              {standaloneTasks.map((task) => {
+                const done = Boolean(task.completed) || removingIds.has(task.id);
+                return (
+                  <motion.div
+                    key={task.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => onToggleTask(task.id)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggleTask(task.id); } }}
+                    initial={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0, paddingTop: 0, paddingBottom: 0, overflow: 'hidden' }}
+                    transition={{ duration: 0.35, ease: 'easeInOut' }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '8px 16px', cursor: 'pointer',
+                      borderTop: '1px solid var(--border)',
+                      opacity: done ? 0.45 : 1,
+                    }}
+                  >
+                    <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>
+                      {done ? <Check size={15} strokeWidth={2.5} /> : <Circle size={15} strokeWidth={1.75} />}
+                    </span>
+                    <span style={{ fontSize: 13, flex: 1, textDecoration: done ? 'line-through' : 'none', color: 'var(--foreground)' }}>
+                      {task.text}
+                    </span>
+                    {task.xp_reward ? (
+                      <span style={{ fontSize: 11, fontWeight: 600, color: '#fbbf24' }}>+{task.xp_reward} XP</span>
+                    ) : null}
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+          </div>
+        </motion.div>
+      )}
+
       {/* Memory preview (Supabase snapshots — same source as Memory tab) */}
-      <motion.div variants={itemVariants} className="px-10" style={{ marginTop: -12 }}>
+      <motion.div variants={itemVariants} className="px-10" style={{ flexShrink: 0 }}>
         <div style={{
           background: 'var(--surface)',
           border: '1px solid var(--border)',
@@ -454,15 +438,15 @@ function CharacterPanel({ user }: CharacterPanelProps) {
       </motion.div>
 
       {/* Skill triangle */}
-      <motion.div variants={itemVariants} className="flex flex-col gap-1 px-10">
+      <motion.div variants={itemVariants} className="flex flex-col gap-1 px-10" style={{ flex: 1, minHeight: 0, overflow: 'hidden', paddingBottom: 16 }}>
         <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground pb-1">Skills</p>
         <p className="text-xs text-muted-foreground pb-2" style={{ margin: 0, lineHeight: 1.45 }}>
           {skillsRaw
             ? `Last 30 days: ${skillsRaw.sessionCount != null ? skillsRaw.sessionCount : '—'} sessions · ${skillsRaw.totalMinutes ?? 0} min · ${skillsRaw.deepSessions ?? 0} deep (≥2h) · ${skillsRaw.streak ?? 0}d streak`
             : 'Loading…'}
         </p>
-        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 4, paddingBottom: 4 }}>
-          {skills ? <TriangleChart {...skills} raw={skillsRaw} /> : <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Loading…</p>}
+        <div style={{ paddingTop: 4, paddingBottom: 4 }}>
+          {skills ? <SkillRadarChart {...skills} raw={skillsRaw} /> : <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Loading…</p>}
         </div>
         <p className="text-xs text-muted-foreground pt-1" style={{ margin: 0, opacity: 0.75 }}>
           Scores scale to caps: 3 000 min · 30-day streak · 20 deep sessions

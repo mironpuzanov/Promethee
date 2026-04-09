@@ -98,7 +98,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 }
 
 export default function OnboardingScreen({ onAuthenticated }: OnboardingScreenProps) {
-  const [step, setStep] = useState<Step>('signin');
+  const [step, setStep] = useState<Step>('signup');
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -227,8 +227,9 @@ export default function OnboardingScreen({ onAuthenticated }: OnboardingScreenPr
     return (
       <Shell>
         <div>
-          <h1 style={{ fontSize: 30, fontWeight: 300, margin: 0, letterSpacing: '-0.03em' }}>Create account</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: '8px 0 0' }}>Join Promethee and start building seriously.</p>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Promethee</div>
+          <h1 style={{ fontSize: 30, fontWeight: 300, margin: 0, letterSpacing: '-0.03em' }}>Get started</h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: '8px 0 0' }}>Create your account and start building seriously.</p>
         </div>
 
         {error && <Err msg={error} />}
@@ -242,10 +243,16 @@ export default function OnboardingScreen({ onAuthenticated }: OnboardingScreenPr
           </button>
         </form>
 
-        <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
-          Already have an account?{' '}
-          <button onClick={() => go('signin')} style={btnLink}>Sign in</button>
-        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
+            Already have an account?{' '}
+            <button onClick={() => go('signin')} style={btnLink}>Sign in</button>
+          </p>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
+            Signed up with magic link?{' '}
+            <button onClick={() => go('magic-link')} style={btnLink}>Send magic link</button>
+          </p>
+        </div>
       </Shell>
     );
   }

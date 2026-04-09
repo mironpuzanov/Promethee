@@ -92,9 +92,6 @@ function AgentBubble({ activeSession, openTrigger = 0, toggleTrigger = 0 }: Agen
   const [streaming, setStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [needsApiKey, setNeedsApiKey] = useState(false);
-  const [apiKeyInput, setApiKeyInput] = useState('');
-  const [savingKey, setSavingKey] = useState(false);
   const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -145,8 +142,6 @@ function AgentBubble({ activeSession, openTrigger = 0, toggleTrigger = 0 }: Agen
   }, []);
 
   const initChat = useCallback(async () => {
-    const tokenResult = await window.promethee.agent.getToken();
-    if (!tokenResult.success) { setNeedsApiKey(true); return; }
     const result = await window.promethee.agent.getOrCreateChat(
       activeSession?.task || 'Quick chat',
       activeSession?.id || null,
@@ -157,20 +152,6 @@ function AgentBubble({ activeSession, openTrigger = 0, toggleTrigger = 0 }: Agen
     setChat(result.chat);
     setMessages(msgResult.success ? (msgResult.messages || []) : []);
   }, [activeSession?.id]);
-
-  const handleSaveApiKey = async () => {
-    if (!apiKeyInput.trim()) return;
-    setSavingKey(true);
-    const saved = await window.promethee.agent.setToken(apiKeyInput.trim());
-    if (saved.success !== false) {
-      setNeedsApiKey(false);
-      setApiKeyInput('');
-      await initChat();
-    } else {
-      setError('Failed to save key.');
-    }
-    setSavingKey(false);
-  };
 
   useEffect(() => { initChat(); }, [initChat]);
 
@@ -207,6 +188,10 @@ function AgentBubble({ activeSession, openTrigger = 0, toggleTrigger = 0 }: Agen
     void window.promethee.window.clearPendingScreenCapture();
     setScreenSnapQueued(false);
     setScreenCaptureError(null);
+    // Summarize chat in background when panel closes (if it has messages)
+    if (chatIdRef.current && messages.length >= 2) {
+      void window.promethee.agent.summarizeChat(chatIdRef.current);
+    }
   }, [open]);
 
   const chatIdRef = useRef<string | null>(null);
@@ -452,22 +437,6 @@ function AgentBubble({ activeSession, openTrigger = 0, toggleTrigger = 0 }: Agen
                     ))}
                   </div>
                 )}
-              </div>
-            ) : needsApiKey ? (
-              <div className="agent-setup">
-                <p className="agent-setup-label">Add your OpenAI API key to get started.</p>
-                <input
-                  type="password"
-                  className="agent-setup-input"
-                  placeholder="sk-..."
-                  value={apiKeyInput}
-                  onChange={e => setApiKeyInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleSaveApiKey()}
-                  autoFocus
-                />
-                <button className="agent-setup-save" onClick={handleSaveApiKey} disabled={!apiKeyInput.trim() || savingKey}>
-                  {savingKey ? 'Saving...' : 'Save key'}
-                </button>
               </div>
             ) : (
               <>

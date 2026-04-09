@@ -72,6 +72,10 @@ function ChatView({ chat, onBack }: { chat: Chat; onBack: () => void }) {
     window.promethee.agent.getMessages(chat.id).then((r: { success: boolean; messages?: Message[] }) => {
       if (r.success) setMessages(r.messages || []);
     });
+    // Summarize when leaving this chat
+    return () => {
+      void window.promethee.agent.summarizeChat(chat.id);
+    };
   }, [chat.id]);
 
   useEffect(() => {

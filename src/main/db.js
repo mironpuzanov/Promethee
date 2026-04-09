@@ -149,6 +149,18 @@ export function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_habits_cache_user
       ON habits_cache(user_id, deleted, created_at ASC);
 
+    CREATE TABLE IF NOT EXISTS habit_completions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      habit_id TEXT NOT NULL,
+      completed_date TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      UNIQUE(user_id, habit_id, completed_date)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_habit_completions_user
+      ON habit_completions(user_id, completed_date DESC);
+
     CREATE TABLE IF NOT EXISTS blocked_domains (
       id TEXT PRIMARY KEY,
       domain TEXT NOT NULL UNIQUE,
@@ -179,6 +191,73 @@ export function initializeDatabase() {
   }
   if (!colNames.includes('last_daily_job_date')) {
     db.exec(`ALTER TABLE user_profile ADD COLUMN last_daily_job_date TEXT`);
+  }
+  if (!colNames.includes('telegram_chat_id')) {
+    db.exec(`ALTER TABLE user_profile ADD COLUMN telegram_chat_id TEXT`);
+  }
+
+  // Migration: add summary column to agent_chats
+  const chatColCheck = db.prepare(`PRAGMA table_info(agent_chats)`).all();
+  const chatColNames = chatColCheck.map(c => c.name);
+  if (!chatColNames.includes('summary')) {
+    db.exec(`ALTER TABLE agent_chats ADD COLUMN summary TEXT`);
+  }
+
+  // Migration: make tasks.session_id nullable (SQLite requires table recreation)
+  // Detect by checking the notnull constraint on session_id column
+  const tasksInfo = db.prepare(`PRAGMA table_info(tasks)`).all();
+  const sessionIdCol = tasksInfo.find(c => c.name === 'session_id');
+  if (sessionIdCol && sessionIdCol.notnull === 1) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS tasks_new (
+        id TEXT PRIMARY KEY,
+        session_id TEXT REFERENCES sessions(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL,
+        text TEXT NOT NULL,
+        completed INTEGER NOT NULL DEFAULT 0,
+        position INTEGER NOT NULL DEFAULT 0,
+        xp_reward INTEGER,
+        created_at INTEGER NOT NULL
+      );
+      INSERT INTO tasks_new (id, session_id, user_id, text, completed, position, created_at)
+        SELECT id, session_id, user_id, text, completed, position, created_at FROM tasks;
+      DROP TABLE tasks;
+      ALTER TABLE tasks_new RENAME TO tasks;
+      CREATE INDEX IF NOT EXISTS idx_tasks_session ON tasks(session_id);
+      CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id, created_at DESC);
+    `);
+  } else {
+    // tasks table already nullable — ensure xp_reward column exists
+    const hasXpReward = tasksInfo.some(c => c.name === 'xp_reward');
+    if (!hasXpReward) {
+      db.exec(`ALTER TABLE tasks ADD COLUMN xp_reward INTEGER`);
+    }
+  }
+
+  // Migration: move quests into tasks (with xp_reward), then drop quests table
+  const tables = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='quests'`).all();
+  if (tables.length > 0) {
+    const questCount = db.prepare(`SELECT COUNT(*) as n FROM quests`).get();
+    if (questCount.n > 0) {
+      const now2 = Date.now();
+      const quests = db.prepare(`SELECT * FROM quests`).all();
+      const insertTask = db.prepare(`
+        INSERT OR IGNORE INTO tasks (id, session_id, user_id, text, completed, position, xp_reward, created_at)
+        VALUES (?, NULL, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const q of quests) {
+        insertTask.run(
+          q.id,
+          q.user_id,
+          q.title,
+          q.completed_at ? 1 : 0,
+          0,
+          q.xp_reward || 50,
+          q.created_at || now2
+        );
+      }
+    }
+    db.exec(`DROP TABLE quests`);
   }
 
   // Seed default preset blocked domains on first init (idempotent via UNIQUE constraint)
@@ -493,6 +572,32 @@ export function addAgentMessage(chatId, role, content) {
   return { id, chatId, role, content, createdAt: now };
 }
 
+export function updateChatSummary(chatId, summary) {
+  const database = getDb();
+  database.prepare(`UPDATE agent_chats SET summary = ? WHERE id = ?`).run(summary, chatId);
+}
+
+export function getUnsummarizedChats(userId) {
+  const database = getDb();
+  return database.prepare(`
+    SELECT ac.id FROM agent_chats ac
+    WHERE ac.user_id = ? AND ac.summary IS NULL
+      AND EXISTS (SELECT 1 FROM agent_messages am WHERE am.chat_id = ac.id)
+    ORDER BY ac.updated_at DESC
+    LIMIT 20
+  `).all(userId);
+}
+
+export function getRecentChatSummaries(userId, excludeChatId, limit = 3) {
+  const database = getDb();
+  return database.prepare(`
+    SELECT id, title, summary, updated_at FROM agent_chats
+    WHERE user_id = ? AND id != ? AND summary IS NOT NULL
+    ORDER BY updated_at DESC
+    LIMIT ?
+  `).all(userId, excludeChatId, limit);
+}
+
 // ── Quest functions ───────────────────────────────────────────────────────────
 
 export function getQuests(userId) {
@@ -553,6 +658,24 @@ export function createTask(sessionId, userId, text) {
     INSERT INTO tasks (id, session_id, user_id, text, completed, position, created_at)
     VALUES (?, ?, ?, ?, 0, ?, ?)
   `).run(id, sessionId, userId, trimmed, position, now);
+  return database.prepare(`SELECT * FROM tasks WHERE id = ?`).get(id);
+}
+
+export function createStandaloneTask(userId, text, xpReward) {
+  const database = getDb();
+  const trimmed = (text && String(text).trim()) || '';
+  if (!trimmed) return null;
+  const id = crypto.randomUUID();
+  const now = Date.now();
+  const row = database.prepare(`
+    SELECT COALESCE(MAX(position), -1) + 1 AS next FROM tasks WHERE session_id IS NULL AND user_id = ?
+  `).get(userId);
+  const position = row?.next ?? 0;
+  const xp = xpReward && Number(xpReward) > 0 ? Math.round(Number(xpReward)) : null;
+  database.prepare(`
+    INSERT INTO tasks (id, session_id, user_id, text, completed, position, xp_reward, created_at)
+    VALUES (?, NULL, ?, ?, 0, ?, ?, ?)
+  `).run(id, userId, trimmed, position, xp, now);
   return database.prepare(`SELECT * FROM tasks WHERE id = ?`).get(id);
 }
 
@@ -838,6 +961,141 @@ export function getPendingHabitCache(userId) {
     WHERE user_id = ? AND sync_state != 'synced'
     ORDER BY updated_at ASC
   `).all(userId);
+}
+
+// ── Habit completions (per-day history) ───────────────────────────────────────
+
+export function recordHabitCompletion(userId, habitId, completedDate) {
+  const database = getDb();
+  database.prepare(`
+    INSERT OR IGNORE INTO habit_completions (id, user_id, habit_id, completed_date, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(crypto.randomUUID(), userId, habitId, completedDate, Date.now());
+}
+
+export function removeHabitCompletion(userId, habitId, completedDate) {
+  const database = getDb();
+  database.prepare(`
+    DELETE FROM habit_completions WHERE user_id = ? AND habit_id = ? AND completed_date = ?
+  `).run(userId, habitId, completedDate);
+}
+
+/** Returns completed_date strings for a habit in the last N days (inclusive). */
+export function getHabitCompletionDates(userId, habitId, limitDays = 30) {
+  const database = getDb();
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - limitDays);
+  const cutoffStr = cutoff.toLocaleDateString('en-CA');
+  const rows = database.prepare(`
+    SELECT completed_date FROM habit_completions
+    WHERE user_id = ? AND habit_id = ? AND completed_date >= ?
+    ORDER BY completed_date DESC
+  `).all(userId, habitId, cutoffStr);
+  return rows.map(r => r.completed_date);
+}
+
+/**
+ * One-time backfill: for habits that have a streak but no completion records yet,
+ * seed habit_completions by walking back from last_completed_date by current_streak days.
+ * Idempotent — uses INSERT OR IGNORE so safe to call multiple times.
+ */
+export function backfillHabitCompletions(userId) {
+  const database = getDb();
+  const habits = database.prepare(`
+    SELECT * FROM habits_cache WHERE user_id = ? AND deleted = 0 AND last_completed_date IS NOT NULL AND current_streak > 0
+  `).all(userId);
+
+  const insert = database.prepare(`
+    INSERT OR IGNORE INTO habit_completions (id, user_id, habit_id, completed_date, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+
+  const insertMany = database.transaction((rows) => {
+    for (const row of rows) insert.run(row.id, row.userId, row.habitId, row.date, row.createdAt);
+  });
+
+  const rows = [];
+  for (const h of habits) {
+    // Check if already has any completion records
+    const existing = database.prepare(
+      `SELECT COUNT(*) as cnt FROM habit_completions WHERE user_id = ? AND habit_id = ?`
+    ).get(userId, h.id);
+    if (existing.cnt > 0) continue; // already seeded
+
+    const streak = Math.min(h.current_streak, 90); // cap at 90 days to avoid abuse
+    const base = new Date(h.last_completed_date + 'T12:00:00');
+    for (let i = 0; i < streak; i++) {
+      const d = new Date(base);
+      if (h.frequency === 'daily') {
+        d.setDate(base.getDate() - i);
+      } else {
+        // weekly: one per week going back
+        d.setDate(base.getDate() - i * 7);
+      }
+      rows.push({
+        id: crypto.randomUUID(),
+        userId,
+        habitId: h.id,
+        date: d.toLocaleDateString('en-CA'),
+        createdAt: Date.now(),
+      });
+    }
+  }
+
+  if (rows.length > 0) insertMany(rows);
+  return rows.length;
+}
+
+/**
+ * Expire streaks for habits that were not completed on time.
+ * - daily: streak resets if last_completed_date < yesterday
+ * - weekly: streak resets if last_completed_date is not in the current ISO week
+ * Returns array of habit ids that were reset.
+ */
+export function expireHabitStreaks(userId) {
+  const database = getDb();
+  const habits = database.prepare(`
+    SELECT * FROM habits_cache WHERE user_id = ? AND deleted = 0
+  `).all(userId);
+
+  const today = new Date();
+  const todayStr = today.toLocaleDateString('en-CA');
+
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toLocaleDateString('en-CA');
+
+  // ISO week start (Monday)
+  const weekStart = new Date(today);
+  const day = weekStart.getDay(); // 0=Sun
+  weekStart.setDate(weekStart.getDate() - ((day + 6) % 7)); // Monday
+  weekStart.setHours(0, 0, 0, 0);
+  const weekStartStr = weekStart.toLocaleDateString('en-CA');
+
+  const reset = [];
+  const stmt = database.prepare(`
+    UPDATE habits_cache SET current_streak = 0, updated_at = ? WHERE user_id = ? AND id = ?
+  `);
+
+  for (const h of habits) {
+    if (!h.last_completed_date || h.current_streak === 0) continue;
+    let shouldReset = false;
+
+    if (h.frequency === 'daily') {
+      // Missed yesterday and not completed today
+      shouldReset = h.last_completed_date < yesterdayStr && h.last_completed_date !== todayStr;
+    } else if (h.frequency === 'weekly') {
+      // Last completion was before this week started
+      shouldReset = h.last_completed_date < weekStartStr;
+    }
+
+    if (shouldReset) {
+      stmt.run(Date.now(), userId, h.id);
+      reset.push(h.id);
+    }
+  }
+
+  return reset;
 }
 
 // ── Blocked domains ────────────────────────────────────────────────────────────

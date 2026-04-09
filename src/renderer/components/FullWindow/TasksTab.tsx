@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Check, Circle, StickyNote } from 'lucide-react';
+import { Check, Circle, StickyNote, Plus } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -12,10 +12,11 @@ interface SessionRow {
 
 interface DbTask {
   id: string;
-  session_id: string;
+  session_id: string | null;
   text: string;
   completed: number;
   position: number;
+  xp_reward?: number | null;
   created_at: number;
 }
 
@@ -63,6 +64,10 @@ export default function TasksTab() {
   const [tasks, setTasks] = useState<DbTask[]>([]);
   const [notes, setNotes] = useState<DbNote[]>([]);
   const [loading, setLoading] = useState(true);
+  const [newTaskText, setNewTaskText] = useState('');
+  const [newTaskXp, setNewTaskXp] = useState('');
+  const [addingTask, setAddingTask] = useState(false);
+  const addInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     const [sessRes, taskRes, noteRes] = await Promise.all([
@@ -80,10 +85,13 @@ export default function TasksTab() {
     load();
   }, [load]);
 
+  // Tasks with no session (migrated quests) go into a special bucket
+  const STANDALONE_KEY = '__standalone__';
   const taskBySession = new Map<string, DbTask[]>();
   for (const t of tasks) {
-    if (!taskBySession.has(t.session_id)) taskBySession.set(t.session_id, []);
-    taskBySession.get(t.session_id)!.push(t);
+    const key = t.session_id || STANDALONE_KEY;
+    if (!taskBySession.has(key)) taskBySession.set(key, []);
+    taskBySession.get(key)!.push(t);
   }
   for (const arr of taskBySession.values()) {
     arr.sort((a, b) => a.position - b.position || a.created_at - b.created_at);
@@ -98,6 +106,7 @@ export default function TasksTab() {
     arr.sort((a, b) => a.created_at - b.created_at);
   }
 
+  const standaloneTasksExist = taskBySession.has(STANDALONE_KEY);
   const sessionsWithContent = sessions.filter(
     (s) => taskBySession.has(s.id) || noteBySession.has(s.id)
   );
@@ -106,6 +115,21 @@ export default function TasksTab() {
   const onToggle = async (taskId: string) => {
     const r = await window.promethee.tasks.toggle(taskId);
     if (r.success) await load();
+  };
+
+  const onAddStandalone = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const text = newTaskText.trim();
+    if (!text || addingTask) return;
+    setAddingTask(true);
+    const r = await (window.promethee.tasks as any).addStandalone(text, newTaskXp ? Number(newTaskXp) : undefined);
+    setAddingTask(false);
+    if (r.success) {
+      setNewTaskText('');
+      setNewTaskXp('');
+      await load();
+      addInputRef.current?.focus();
+    }
   };
 
   if (loading) {
@@ -119,8 +143,38 @@ export default function TasksTab() {
 
   return (
     <div className="flex flex-col bg-background px-10 py-10 overflow-y-auto gap-6">
-      <h2 className="text-2xl font-light text-foreground">Focus Log</h2>
-      {sessionsWithContent.length === 0 ? (
+      <div className="flex flex-col gap-3">
+        <h2 className="text-2xl font-light text-foreground">Focus Log</h2>
+        {/* Add standalone task / quest */}
+        <form onSubmit={onAddStandalone} className="flex gap-2 items-center">
+          <input
+            ref={addInputRef}
+            type="text"
+            value={newTaskText}
+            onChange={(e) => setNewTaskText(e.target.value)}
+            placeholder="New quest…"
+            className="flex-1 bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-ring transition-colors"
+          />
+          <input
+            type="number"
+            value={newTaskXp}
+            onChange={(e) => setNewTaskXp(e.target.value)}
+            placeholder="XP"
+            min={1}
+            max={9999}
+            className="w-16 bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-ring transition-colors"
+          />
+          <button
+            type="submit"
+            disabled={!newTaskText.trim() || addingTask}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm bg-accent text-accent-foreground hover:opacity-90 transition-opacity disabled:opacity-30"
+          >
+            <Plus size={14} />
+            Add
+          </button>
+        </form>
+      </div>
+      {sessionsWithContent.length === 0 && !standaloneTasksExist ? (
         <p className="text-sm text-muted-foreground">
           Tasks and notes from your focus sessions will appear here.
         </p>
@@ -131,6 +185,42 @@ export default function TasksTab() {
           animate="visible"
           variants={listVariants}
         >
+          {/* Standalone tasks (migrated quests — no session attached) */}
+          {standaloneTasksExist && (
+            <div className="flex flex-col gap-2 rounded-xl bg-card border border-border/60 overflow-hidden">
+              <div className="px-4 pt-3 pb-1">
+                <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Tasks</div>
+              </div>
+              <ul className="px-2 pb-3 flex flex-col gap-0.5">
+                {(taskBySession.get(STANDALONE_KEY) || []).map((task) => {
+                  const done = Boolean(task.completed);
+                  return (
+                    <li
+                      key={task.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={done}
+                      onClick={() => onToggle(task.id)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(task.id); } }}
+                      className="flex items-start gap-2 px-2 py-2 rounded-lg hover:bg-accent/50 transition-colors cursor-pointer text-left w-full"
+                    >
+                      <span className="flex-shrink-0 mt-0.5 text-muted-foreground pointer-events-none">
+                        {done ? <Check size={16} strokeWidth={2.5} /> : <Circle size={16} strokeWidth={2} />}
+                      </span>
+                      <span className={`text-sm flex-1 pointer-events-none ${done ? 'line-through opacity-40 text-muted-foreground' : 'text-foreground'}`}>
+                        {task.text}
+                      </span>
+                      {task.xp_reward ? (
+                        <span className="flex-shrink-0 text-xs font-semibold text-amber-400 pointer-events-none">
+                          +{task.xp_reward} XP
+                        </span>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
           {dayGroups.map((group) => (
             <div key={group.label} className="flex flex-col gap-4">
               <motion.div
@@ -185,6 +275,11 @@ export default function TasksTab() {
                               >
                                 {task.text}
                               </span>
+                              {task.xp_reward ? (
+                                <span className="flex-shrink-0 text-xs font-semibold text-amber-400 pointer-events-none">
+                                  +{task.xp_reward} XP
+                                </span>
+                              ) : null}
                             </li>
                           );
                         })}

@@ -13,10 +13,11 @@ interface Session {
 
 interface DbTask {
   id: string;
-  session_id: string;
+  session_id: string | null;
   text: string;
   completed: number;
   position: number;
+  xp_reward?: number | null;
 }
 
 interface DbNote {
@@ -101,8 +102,16 @@ function TaskChecklist({ session, focusAddFieldTrigger = 0, togglePanelTrigger =
   useEffect(() => { panelSizeRef.current = panelSize; }, [panelSize]);
 
   const loadTasks = useCallback(async () => {
-    const r = await window.promethee.tasks.list(session.id);
-    if (r.success) setTasks((r.tasks || []) as DbTask[]);
+    // Load session tasks + general (standalone) tasks together
+    const [sessionRes, allRes] = await Promise.all([
+      window.promethee.tasks.list(session.id),
+      window.promethee.tasks.listAll(),
+    ]);
+    const sessionTasks = sessionRes.success ? (sessionRes.tasks || []) as DbTask[] : [];
+    const standaloneTasks = allRes.success
+      ? ((allRes.tasks || []) as DbTask[]).filter((t) => !t.session_id)
+      : [];
+    setTasks([...sessionTasks, ...standaloneTasks]);
   }, [session.id]);
 
   const loadNotes = useCallback(async () => {
@@ -277,7 +286,7 @@ function TaskChecklist({ session, focusAddFieldTrigger = 0, togglePanelTrigger =
     }
   }, [draft]);
 
-  const totalCount = tasks.length + notes.length;
+  const totalCount = tasks.filter(t => !t.completed).length + notes.length;
 
   return (
     <div
@@ -364,6 +373,11 @@ function TaskChecklist({ session, focusAddFieldTrigger = 0, togglePanelTrigger =
                     <span className={`task-checklist__text${done ? ' task-checklist__text--done' : ''}`}>
                       {task.text}
                     </span>
+                    {task.xp_reward ? (
+                      <span style={{ fontSize: 10, fontWeight: 600, color: '#fbbf24', flexShrink: 0 }}>
+                        +{task.xp_reward} XP
+                      </span>
+                    ) : null}
                     <button
                       type="button"
                       className="task-checklist__delete"

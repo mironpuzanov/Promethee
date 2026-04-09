@@ -5,9 +5,9 @@
   transform: translateX(-50%);
   width: 560px;
   height: 52px;
-  background: var(--surface);
+  background: rgba(20, 17, 14, 0.72);
   backdrop-filter: blur(24px);
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 20px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
   display: flex;

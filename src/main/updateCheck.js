@@ -1,11 +1,10 @@
 import { app, shell } from 'electron';
 import fs from 'fs';
 import path from 'path';
+import { supabase } from '../lib/supabase.js';
 
-const GITHUB_OWNER = 'mironpuzanov';
-const GITHUB_REPO = 'Promethee';
-const RELEASES_API_URL = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
-const RELEASES_PAGE_URL = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases`;
+const UPDATE_CHANNEL = 'stable';
+const FALLBACK_RELEASES_PAGE_URL = 'https://promethee.app';
 
 let broadcastUpdateState = null;
 let cachedPreferences = null;
@@ -14,8 +13,8 @@ let updateState = {
   currentVersion: null,
   latestVersion: null,
   checkedAt: null,
-  releaseUrl: RELEASES_PAGE_URL,
-  downloadUrl: RELEASES_PAGE_URL,
+  releaseUrl: FALLBACK_RELEASES_PAGE_URL,
+  downloadUrl: FALLBACK_RELEASES_PAGE_URL,
   assetName: null,
   publishedAt: null,
   error: null,
@@ -89,6 +88,13 @@ export function pickReleaseAsset(assets = [], platform = process.platform) {
   return normalizedAssets[0] || null;
 }
 
+export function pickBestUpdateRow(rows = [], platform = process.platform) {
+  const normalizedRows = Array.isArray(rows) ? rows : [];
+  const platformMatches = normalizedRows.filter((row) => row?.platform === platform);
+  if (platformMatches.length > 0) return platformMatches[0];
+  return normalizedRows.find((row) => row?.platform === 'all') || normalizedRows[0] || null;
+}
+
 function emitUpdateState() {
   if (broadcastUpdateState) {
     broadcastUpdateState(getUpdateState());
@@ -139,30 +145,30 @@ export async function checkForAppUpdate({ force = false } = {}) {
   });
 
   try {
-    const response = await fetch(RELEASES_API_URL, {
-      headers: {
-        Accept: 'application/vnd.github+json',
-        'User-Agent': `Promethee/${app.getVersion()}`,
-      },
-    });
+    const { data, error } = await supabase
+      .from('app_updates')
+      .select('platform, channel, version, download_url, release_url, asset_name, published_at')
+      .eq('channel', UPDATE_CHANNEL)
+      .eq('active', true)
+      .in('platform', [process.platform, 'all'])
+      .order('published_at', { ascending: false });
 
-    if (!response.ok) {
-      if (response.status === 404) {
-        return setUpdateState({
-          status: 'error',
-          checkedAt: Date.now(),
-          error:
-            'No public GitHub release was found for Promethee yet. The repo is private and/or no release has been published.',
-        });
-      }
-      throw new Error(`GitHub returned ${response.status}`);
+    if (error) {
+      throw new Error(error.message || 'Supabase update manifest lookup failed');
     }
 
-    const release = await response.json();
-    const latestVersion = cleanVersion(release.tag_name || release.name || '');
-    const asset = pickReleaseAsset(release.assets, process.platform);
-    const releaseUrl = release.html_url || RELEASES_PAGE_URL;
-    const downloadUrl = asset?.browser_download_url || releaseUrl;
+    const release = pickBestUpdateRow(data, process.platform);
+    if (!release) {
+      return setUpdateState({
+        status: 'error',
+        checkedAt: Date.now(),
+        error: 'No active Supabase update manifest was found for this platform yet.',
+      });
+    }
+
+    const latestVersion = cleanVersion(release.version || '');
+    const releaseUrl = release.release_url || release.download_url || FALLBACK_RELEASES_PAGE_URL;
+    const downloadUrl = release.download_url || release.release_url || FALLBACK_RELEASES_PAGE_URL;
 
     return setUpdateState({
       status: compareVersions(latestVersion, app.getVersion()) > 0 ? 'available' : 'up-to-date',
@@ -170,7 +176,7 @@ export async function checkForAppUpdate({ force = false } = {}) {
       checkedAt: Date.now(),
       releaseUrl,
       downloadUrl,
-      assetName: asset?.name || null,
+      assetName: release.asset_name || null,
       publishedAt: release.published_at || null,
       error: null,
     });
@@ -203,7 +209,7 @@ export function clearSkippedUpdateVersion() {
 
 export async function openUpdateDownload() {
   const { downloadUrl, releaseUrl } = getUpdateState();
-  const target = downloadUrl || releaseUrl || RELEASES_PAGE_URL;
+  const target = downloadUrl || releaseUrl || FALLBACK_RELEASES_PAGE_URL;
   await shell.openExternal(target);
   return { success: true, url: target };
 }

@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ShortcutField } from './ShortcutField';
+import { MVP_MODE } from '../../../config/mvp';
+import { useTheme } from '@/hooks/useTheme';
 
 interface User {
   id: string;
@@ -79,6 +81,7 @@ interface BlockedDomain {
 }
 
 function SettingsTab({ user, setUser }: SettingsTabProps) {
+  const [theme, setTheme] = useTheme();
   const [displayName, setDisplayName] = useState(user?.user_metadata?.display_name || '');
   const [avatarPreview, setAvatarPreview] = useState<string>(user?.user_metadata?.avatar_url || '');
   const [pendingFile, setPendingFile] = useState<{ buffer: ArrayBuffer; mimeType: string } | null>(null);
@@ -99,6 +102,11 @@ function SettingsTab({ user, setUser }: SettingsTabProps) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordStatus, setPasswordStatus] = useState<{ success?: string; error?: string }>({});
   const [passwordLoading, setPasswordLoading] = useState(false);
+
+  // Screen recording permission state
+  type ScreenRecordingStatus = 'loading' | 'granted' | 'acknowledged' | 'snoozed' | 'rejected' | 'not-set';
+  const [screenRecordingStatus, setScreenRecordingStatus] = useState<ScreenRecordingStatus>('loading');
+  const [screenRecordingProbing, setScreenRecordingProbing] = useState(false);
 
   const [focusShortcuts, setFocusShortcuts] = useState({
     focusOpenMentor: '',
@@ -135,6 +143,46 @@ function SettingsTab({ user, setUser }: SettingsTabProps) {
     const unsub = window.promethee.blocker.onStatus((data) => setBlockerStatus(data.state));
     return unsub;
   }, []);
+
+  useEffect(() => {
+    const loadStatus = async () => {
+      // Check if active-win is actually working first
+      const probe = await window.promethee.onboarding.probeScreenRecording();
+      if (probe.ok) {
+        setScreenRecordingStatus('granted');
+        return;
+      }
+      // Not working — check what state we're in
+      const r = await window.promethee.onboarding.getScreenRecordingStatus?.();
+      setScreenRecordingStatus((r?.status as ScreenRecordingStatus) ?? 'not-set');
+    };
+    loadStatus();
+  }, []);
+
+  const handleScreenRecordingAllow = async () => {
+    // Reset any prior state so the prompt can fire, then open Settings
+    await window.promethee.onboarding.resetScreenRecording?.();
+    setScreenRecordingStatus('not-set');
+    await window.promethee.window.openExternal(
+      'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'
+    );
+  };
+
+  const handleScreenRecordingCheck = async () => {
+    setScreenRecordingProbing(true);
+    const probe = await window.promethee.onboarding.probeScreenRecording();
+    setScreenRecordingProbing(false);
+    if (probe.ok) {
+      setScreenRecordingStatus('granted');
+    } else {
+      setScreenRecordingStatus('acknowledged');
+    }
+  };
+
+  const handleScreenRecordingReset = async () => {
+    await window.promethee.onboarding.resetScreenRecording?.();
+    setScreenRecordingStatus('not-set');
+  };
 
   const handleInstallHelper = async () => {
     setInstallerLoading(true);
@@ -350,6 +398,41 @@ function SettingsTab({ user, setUser }: SettingsTabProps) {
     <div className="flex flex-col bg-background px-10 py-10 overflow-y-auto gap-10 h-full">
       <h2 className="text-2xl font-light text-foreground">Settings</h2>
 
+      {/* Appearance */}
+      <Section title="Appearance">
+        <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm text-foreground">Theme</span>
+            <span className="text-xs text-muted-foreground">Choose between dark and light interface</span>
+          </div>
+          <div className="flex items-center gap-1 p-1 rounded-lg border border-border bg-muted">
+            {(['dark', 'light'] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTheme(t)}
+                style={{
+                  padding: '5px 14px',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 500,
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'background 0.15s, color 0.15s',
+                  background: theme === t ? 'var(--card)' : 'transparent',
+                  color: theme === t ? 'var(--foreground)' : 'var(--muted-foreground)',
+                  boxShadow: theme === t ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
+                }}
+              >
+                {t === 'dark' ? 'Dark' : 'Light'}
+              </button>
+            ))}
+          </div>
+        </div>
+      </Section>
+
+      <div className="border-t border-border" />
+
       {/* Profile */}
       <Section title="Profile">
         <form onSubmit={handleProfileSave} className="flex flex-col gap-4">
@@ -450,7 +533,7 @@ function SettingsTab({ user, setUser }: SettingsTabProps) {
                 <p className="text-xs text-muted-foreground">You are on the latest released build.</p>
               )}
               {updateState.status === 'checking' && (
-                <p className="text-xs text-muted-foreground">Checking GitHub Releases…</p>
+                <p className="text-xs text-muted-foreground">Checking Promethee update manifest…</p>
               )}
               {updateState.status === 'development' && (
                 <p className="text-xs text-muted-foreground">
@@ -510,10 +593,10 @@ function SettingsTab({ user, setUser }: SettingsTabProps) {
         </div>
       </Section>
 
-      <div className="border-t border-border" />
+      {!MVP_MODE && <div className="border-t border-border" />}
 
-      {/* Website Blocker */}
-      <Section title="Website blocker">
+      {/* Website Blocker — hidden in MVP_MODE */}
+      {!MVP_MODE && <Section title="Website blocker">
         <p className="text-xs text-muted-foreground -mt-1 max-w-xl">
           Blocks distracting websites system-wide during focus sessions — Safari, Chrome, Arc, Firefox, all covered.
           Takes a few seconds to take effect after session starts (DNS cache).
@@ -659,6 +742,70 @@ function SettingsTab({ user, setUser }: SettingsTabProps) {
             </button>
           </>
         )}
+      </Section>}
+
+      <div className="border-t border-border" />
+
+      {/* Permissions */}
+      <Section title="Permissions">
+        <div className="flex flex-col rounded-xl border border-border/60 bg-card px-4 py-4 gap-3">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col gap-1">
+              <p className="text-sm font-medium text-foreground">Screen Recording</p>
+              <p className="text-xs text-muted-foreground max-w-sm">
+                Reads which app is in front to track focus time. Window titles only — no video.
+              </p>
+              {screenRecordingStatus === 'granted' && (
+                <p className="text-xs text-green-500 mt-0.5">Granted — tracking is active</p>
+              )}
+              {screenRecordingStatus === 'acknowledged' && (
+                <p className="text-xs text-yellow-500 mt-0.5">Enabled in Settings — quit and reopen Promethee to apply</p>
+              )}
+              {screenRecordingStatus === 'snoozed' && (
+                <p className="text-xs text-muted-foreground mt-0.5">Reminder snoozed</p>
+              )}
+              {screenRecordingStatus === 'rejected' && (
+                <p className="text-xs text-muted-foreground mt-0.5">Not allowed</p>
+              )}
+              {screenRecordingStatus === 'not-set' && (
+                <p className="text-xs text-muted-foreground mt-0.5">Not yet allowed</p>
+              )}
+              {screenRecordingStatus === 'loading' && (
+                <p className="text-xs text-muted-foreground mt-0.5">Checking…</p>
+              )}
+            </div>
+
+            <div className="flex flex-col items-end gap-2 flex-shrink-0">
+              {/* Main action button */}
+              {screenRecordingStatus === 'granted' ? (
+                <button
+                  type="button"
+                  onClick={handleScreenRecordingReset}
+                  className="px-3 py-1.5 rounded-lg text-xs border border-border text-muted-foreground hover:text-foreground hover:border-ring transition-colors"
+                >
+                  Reset
+                </button>
+              ) : screenRecordingStatus === 'acknowledged' ? (
+                <button
+                  type="button"
+                  onClick={handleScreenRecordingCheck}
+                  disabled={screenRecordingProbing}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-accent text-accent-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
+                >
+                  {screenRecordingProbing ? 'Checking…' : 'I\'ve restarted — check now'}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleScreenRecordingAllow}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-accent text-accent-foreground hover:opacity-90 transition-opacity"
+                >
+                  Allow in Settings
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
       </Section>
 
       <div className="border-t border-border" />

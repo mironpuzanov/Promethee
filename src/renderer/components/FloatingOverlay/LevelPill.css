@@ -4,15 +4,17 @@
   left: 50%;
   transform: translateX(-50%);
   height: 32px;
-  background: var(--surface);
+  background: rgba(20, 17, 14, 0.72);
   backdrop-filter: blur(24px);
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 20px;
   padding: 0 16px;
   display: flex;
   align-items: center;
   gap: 12px;
   -webkit-app-region: drag;
+  /* needed for float animation positioning */
+  overflow: visible;
 }
 
 .level-text {
@@ -21,20 +23,60 @@
   font-weight: 400;
 }
 
-.xp-dots {
-  display: flex;
-  gap: 4px;
-}
-
-.dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--text-faint);
-  display: inline-block;
+/* XP progress bar */
+.level-pill__bar-track {
+  width: 64px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
   flex-shrink: 0;
+  position: relative;
 }
 
-.dot.filled {
+.level-pill__bar-fill {
+  height: 100%;
+  border-radius: 0;
   background: var(--accent-fire);
+  transition: width 0.6s ease;
+}
+
+/* Segment dividers — rendered on top of fill */
+.level-pill__bar-divider {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+
+/* Live session XP counter */
+.level-pill__session-xp {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-fire);
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.9;
+}
+
+/* +10 XP float-up animation */
+.level-pill__xp-float {
+  position: absolute;
+  left: 50%;
+  top: -2px;
+  transform: translateX(-50%);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-fire);
+  pointer-events: none;
+  white-space: nowrap;
+  animation: xp-float-up 1.2s ease-out forwards;
+}
+
+@keyframes xp-float-up {
+  0%   { opacity: 1;   transform: translateX(-50%) translateY(0);     }
+  20%  { opacity: 1;   transform: translateX(-50%) translateY(-6px);  }
+  100% { opacity: 0;   transform: translateX(-50%) translateY(-28px); }
 }

@@ -2,7 +2,12 @@ import React, { useState, useEffect } from 'react';
 import FloatingOverlay from './components/FloatingOverlay';
 import FullWindow from './components/FullWindow';
 import OnboardingScreen from './components/OnboardingScreen';
+import PermissionsOnboardingScreen from './components/PermissionsOnboardingScreen';
+import { initTheme } from '@/hooks/useTheme';
 import './App.css';
+
+// Apply saved theme before first render to avoid flash
+initTheme();
 
 interface User {
   id: string;
@@ -14,6 +19,7 @@ function App() {
   const [mode, setMode] = useState('floating');
   const [user, setUser] = useState<User | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const [permsOnboardingSeen, setPermsOnboardingSeen] = useState<boolean | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -31,6 +37,17 @@ function App() {
         setAuthChecked(true);
       });
 
+      // Check if permissions onboarding has been seen
+      if ((window.promethee as any).onboarding) {
+        (window.promethee as any).onboarding.permsSeen().then((seen: boolean) => {
+          setPermsOnboardingSeen(seen);
+        }).catch(() => {
+          setPermsOnboardingSeen(true); // fail open — don't block the app
+        });
+      } else {
+        setPermsOnboardingSeen(true);
+      }
+
       // Listen for deep link auth callback (promethee://auth/callback)
       const removeSuccess = window.promethee.auth.onAuthSuccess((authenticatedUser: User) => {
         setUser(authenticatedUser);
@@ -41,6 +58,7 @@ function App() {
       return () => { removeSuccess(); removeSignedOut(); };
     } else {
       setAuthChecked(true);
+      setPermsOnboardingSeen(true);
     }
   }, []);
 
@@ -49,7 +67,11 @@ function App() {
 
   // Full window: gate on auth
   if (mode === 'full') {
-    if (!user) return <OnboardingScreen onAuthenticated={setUser} />;
+    if (!user) return <OnboardingScreen onAuthenticated={(u) => { setUser(u); setPermsOnboardingSeen((prev) => prev === true ? true : false); }} />;
+    if (permsOnboardingSeen === null) return null; // still loading
+    if (!permsOnboardingSeen) {
+      return <PermissionsOnboardingScreen onDone={() => setPermsOnboardingSeen(true)} />;
+    }
     return <FullWindow user={user} setUser={setUser} />;
   }
 

@@ -3,9 +3,9 @@
   bottom: 24px;
   left: 24px;
   z-index: 250; /* above task checklist (99) + mentor bubble (100); stop must always receive clicks */
-  background: var(--surface);
+  background: rgba(20, 17, 14, 0.72);
   backdrop-filter: blur(24px);
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 14px;
   padding: 16px 20px;
   display: flex;
@@ -57,7 +57,7 @@
 .timer-pill-time {
   font-size: 13px;
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -159,7 +159,7 @@
   box-sizing: border-box;
   background: transparent;
   border: none;
-  color: #444;
+  color: rgba(255, 255, 255, 0.45);
   font-size: 14px;
   cursor: pointer;
   display: flex;

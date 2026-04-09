@@ -48,6 +48,7 @@ Useful commands:
 ```bash
 npm test
 npm run make
+npm run publish:update -- --help
 ```
 
 Notes:
@@ -64,6 +65,7 @@ Notes:
 - [DESIGN.md](./DESIGN.md): design system and visual direction
 - [docs/product-spec.md](./docs/product-spec.md): product strategy and wedge
 - [docs/roadmap.md](./docs/roadmap.md): rollout roadmap and status updates
+- [docs/app-updates.md](./docs/app-updates.md): how the Supabase-based app update prompt works and how to publish a new version
 - [docs/website-blocker-v1.md](./docs/website-blocker-v1.md): concrete investigation and recommended V1 for website blocking
 
 ## Reality Check

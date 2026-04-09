@@ -114,12 +114,11 @@ declare global {
         delete: (noteId: string) => Promise<{ success: boolean; error?: string }>;
       };
       agent: {
-        getToken: () => Promise<{ success: boolean; token?: string; error?: string }>;
-        setToken: (key: string) => Promise<{ success: boolean; error?: string }>;
         getChats: () => Promise<{ success: boolean; chats?: any[]; error?: string }>;
         getOrCreateChat: (title: string, sessionId: string | null, systemPrompt: string) => Promise<{ success: boolean; chat?: any; error?: string }>;
         createChat: (title: string, sessionId: string | null, systemPrompt: string) => Promise<{ success: boolean; chat?: any; error?: string }>;
         getMessages: (chatId: string) => Promise<{ success: boolean; messages?: any[]; error?: string }>;
+        summarizeChat: (chatId: string) => Promise<{ success: boolean; error?: string }>;
         sendMessage: (chatId: string, content: string, messages: any[]) => Promise<{ success: boolean; error?: string }>;
         sendMessageWithImages: (chatId: string, content: string, images: string[], messages: any[]) => Promise<{ success: boolean; error?: string }>;
         onChunk: (callback: (data: { chatId: string; delta: string }) => void) => () => void;

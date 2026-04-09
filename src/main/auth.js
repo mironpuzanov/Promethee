@@ -94,31 +94,79 @@ export async function getUser() {
   if (stored) {
     try {
       const { access_token, refresh_token } = JSON.parse(stored);
-      const { data, error } = await supabase.auth.setSession({
-        access_token,
-        refresh_token
-      });
+      try {
+        const { data, error } = await supabase.auth.setSession({
+          access_token,
+          refresh_token
+        });
 
-      if (error) {
-        await keytar.deletePassword(SERVICE_NAME, ACCOUNT_NAME);
+        if (error) {
+          // Only wipe the keychain for genuine auth rejections (invalid/expired token).
+          // Network failures, DNS errors, and timeouts should NOT delete the stored
+          // tokens — the user is still authenticated, just temporarily offline.
+          const isAuthRejection = error.status === 400 || error.status === 401
+            || error.message?.toLowerCase().includes('invalid')
+            || error.message?.toLowerCase().includes('expired')
+            || error.message?.toLowerCase().includes('not found');
+          if (isAuthRejection) {
+            debugLog(`Session restore: auth rejection (${error.status} ${error.message}) — clearing keychain`);
+            await keytar.deletePassword(SERVICE_NAME, ACCOUNT_NAME);
+          } else {
+            debugLog(`Session restore: transient error (${error.status} ${error.message}) — keeping keychain`);
+          }
+          return null;
+        }
+
+        if (data.user) {
+          currentUser = data.user;
+          // If Supabase refreshed the token, persist the new one back to keychain
+          if (data.session?.access_token && data.session.access_token !== access_token) {
+            debugLog('Session token was refreshed — updating keychain');
+            await keytar.setPassword(SERVICE_NAME, ACCOUNT_NAME, JSON.stringify({
+              access_token: data.session.access_token,
+              refresh_token: data.session.refresh_token || refresh_token,
+            }));
+          }
+          const displayName = data.user.user_metadata?.display_name || data.user.email;
+          createOrUpdateUserProfile(data.user.id, data.user.email, displayName);
+          // Ensure Supabase profile exists (needed for FK on sessions table).
+          // Run in background — a failure here must NOT wipe the session.
+          syncUserProfileToSupabase(data.user.id, data.user.email, displayName).catch((e) => {
+            debugLog(`syncUserProfileToSupabase failed (non-fatal): ${e.message}`);
+          });
+          return currentUser;
+        }
+      } catch (err) {
+        debugLog(`Session restore threw transient error (${err?.message || err}) — keeping keychain`);
         return null;
       }
-
-      if (data.user) {
-        currentUser = data.user;
-        const displayName = data.user.user_metadata?.display_name || data.user.email;
-        createOrUpdateUserProfile(data.user.id, data.user.email, displayName);
-        // Ensure Supabase profile exists (needed for FK on sessions table)
-        await syncUserProfileToSupabase(data.user.id, data.user.email, displayName);
-        return currentUser;
-      }
     } catch (err) {
-      console.error('Failed to restore session:', err);
+      // JSON parse error or similar — the stored value is corrupted, safe to delete.
+      console.error('Failed to parse stored session:', err);
       await keytar.deletePassword(SERVICE_NAME, ACCOUNT_NAME);
     }
   }
 
   return null;
+}
+
+export async function getAccessToken() {
+  // getSession() returns the current in-memory token and auto-refreshes if expired.
+  // This is the authoritative source — always up to date.
+  const { data, error } = await supabase.auth.getSession();
+  if (error || !data?.session?.access_token) {
+    // Session gone — try restoring from keychain once
+    const stored = await keytar.getPassword(SERVICE_NAME, ACCOUNT_NAME);
+    if (!stored) return null;
+    try {
+      const { access_token, refresh_token } = JSON.parse(stored);
+      const { data: refreshed } = await supabase.auth.setSession({ access_token, refresh_token });
+      return refreshed?.session?.access_token || null;
+    } catch {
+      return null;
+    }
+  }
+  return data.session.access_token;
 }
 
 export async function setSession(accessToken, refreshToken) {

@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Trash2, CheckCircle2, Circle, ChevronDown, Flame } from 'lucide-react';
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+} from 'recharts';
 
 type Frequency = 'daily' | 'weekly';
 
@@ -38,8 +41,45 @@ function todayStr(): string {
   return new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD local
 }
 
+function dateStrOffset(offsetDays: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return d.toLocaleDateString('en-CA');
+}
+
+function shortDay(dateStr: string): string {
+  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' });
+}
+
+/** Build last-7-day completion data from actual habit_completions history. */
+function buildChartData(
+  habits: Habit[],
+  completions: Record<string, string[]>
+): { day: string; daily: number; weekly: number }[] {
+  // Build lookup: habitId -> Set of completed dates
+  const completionSets: Record<string, Set<string>> = {};
+  for (const [habitId, dates] of Object.entries(completions)) {
+    completionSets[habitId] = new Set(dates);
+  }
+
+  return Array.from({ length: 7 }, (_, i) => {
+    const offset = -(6 - i);
+    const dateStr = dateStrOffset(offset);
+    let daily = 0;
+    let weekly = 0;
+    for (const h of habits) {
+      const set = completionSets[h.id];
+      if (!set?.has(dateStr)) continue;
+      if (h.frequency === 'daily') daily++;
+      else weekly++;
+    }
+    return { day: shortDay(dateStr), daily, weekly };
+  });
+}
+
 export default function HabitsTab() {
   const [habits, setHabits] = useState<Habit[]>([]);
+  const [completions, setCompletions] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [formTitle, setFormTitle] = useState('');
@@ -47,12 +87,21 @@ export default function HabitsTab() {
   const [submitting, setSubmitting] = useState(false);
 
   const load = useCallback(async () => {
-    const result = await window.promethee.habits.list();
-    if (result.success) setHabits(result.habits || []);
+    const [habitRes, completionRes] = await Promise.all([
+      window.promethee.habits.list(),
+      (window.promethee.habits as any).getAllCompletions?.(30).catch(() => ({ success: false })),
+    ]);
+    if (habitRes.success) setHabits(habitRes.habits || []);
+    if (completionRes?.success) setCompletions(completionRes.completions || {});
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    // Reload when streaks are expired by daily jobs
+    const remove = (window.promethee.habits as any).onStreaksExpired(() => load());
+    return remove;
+  }, [load]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,15 +120,22 @@ export default function HabitsTab() {
   const handleToggle = async (habit: Habit) => {
     const today = todayStr();
     if (habit.last_completed_date === today) {
-      // Uncomplete
       const result = await window.promethee.habits.uncomplete(habit.id);
       if (result.success && result.habit) {
         setHabits(prev => prev.map(h => h.id === habit.id ? result.habit : h));
+        setCompletions(prev => ({
+          ...prev,
+          [habit.id]: (prev[habit.id] || []).filter(d => d !== today),
+        }));
       }
     } else {
       const result = await window.promethee.habits.complete(habit.id);
       if (result.success && result.habit) {
         setHabits(prev => prev.map(h => h.id === habit.id ? result.habit : h));
+        setCompletions(prev => ({
+          ...prev,
+          [habit.id]: [...new Set([...(prev[habit.id] || []), today])],
+        }));
       }
     }
   };
@@ -207,6 +263,11 @@ export default function HabitsTab() {
         )}
       </AnimatePresence>
 
+      {/* Completion chart — only shown when there are habits */}
+      {!loading && habits.length > 0 && (
+        <HabitsChart habits={habits} completions={completions} />
+      )}
+
       {/* Habit list */}
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
@@ -301,6 +362,122 @@ export default function HabitsTab() {
           ))}
         </motion.div>
       )}
+    </div>
+  );
+}
+
+function HabitsChart({ habits, completions }: { habits: Habit[]; completions: Record<string, string[]> }) {
+  const data = buildChartData(habits, completions);
+  const hasDailyHabits = habits.some(h => h.frequency === 'daily');
+  const hasWeeklyHabits = habits.some(h => h.frequency === 'weekly');
+  const totalToday = habits.filter(h => h.last_completed_date === todayStr()).length;
+  const totalHabits = habits.length;
+
+  return (
+    <div
+      style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 14,
+        padding: '18px 20px 14px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--foreground)' }}>Last 7 days</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+            {totalToday} of {totalHabits} done today
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 14 }}>
+          {hasDailyHabits && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(251,191,36,0.9)', display: 'inline-block' }} />
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Daily</span>
+            </div>
+          )}
+          {hasWeeklyHabits && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(139,92,246,0.9)', display: 'inline-block' }} />
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Weekly</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <ResponsiveContainer width="100%" height={120}>
+        <AreaChart data={data} margin={{ left: -28, right: 0, top: 4, bottom: 0 }}>
+          <defs>
+            <linearGradient id="fillDaily" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="rgba(251,191,36,0.9)" stopOpacity={0.5} />
+              <stop offset="95%" stopColor="rgba(251,191,36,0.9)" stopOpacity={0.02} />
+            </linearGradient>
+            <linearGradient id="fillWeekly" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="rgba(139,92,246,0.9)" stopOpacity={0.5} />
+              <stop offset="95%" stopColor="rgba(139,92,246,0.9)" stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid vertical={false} stroke="var(--border)" strokeOpacity={0.5} />
+          <YAxis
+            allowDecimals={false}
+            domain={[0, 'dataMax + 1']}
+            tick={{ fontSize: 10, fill: 'var(--text-muted)', fontFamily: 'inherit' }}
+            tickLine={false}
+            axisLine={false}
+            width={28}
+          />
+          <XAxis
+            dataKey="day"
+            tickLine={false}
+            axisLine={false}
+            tick={{ fontSize: 11, fill: 'var(--text-muted)', fontFamily: 'inherit' }}
+            tickMargin={6}
+          />
+          <Tooltip
+            contentStyle={{
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 8,
+              fontSize: 12,
+              color: 'var(--foreground)',
+              fontFamily: 'inherit',
+            }}
+            itemStyle={{ color: 'var(--text-secondary)' }}
+            cursor={{ stroke: 'var(--border)', strokeWidth: 1 }}
+          />
+          {hasDailyHabits && (
+            <Area
+              dataKey="daily"
+              name="Daily"
+              type="monotone"
+              fill="url(#fillDaily)"
+              stroke="rgba(251,191,36,0.9)"
+              strokeWidth={1.5}
+              fillOpacity={1}
+              stackId="a"
+              dot={false}
+              activeDot={{ r: 3, fill: 'rgba(251,191,36,0.9)', strokeWidth: 0 }}
+            />
+          )}
+          {hasWeeklyHabits && (
+            <Area
+              dataKey="weekly"
+              name="Weekly"
+              type="monotone"
+              fill="url(#fillWeekly)"
+              stroke="rgba(139,92,246,0.9)"
+              strokeWidth={1.5}
+              fillOpacity={1}
+              stackId="a"
+              dot={false}
+              activeDot={{ r: 3, fill: 'rgba(139,92,246,0.9)', strokeWidth: 0 }}
+            />
+          )}
+        </AreaChart>
+      </ResponsiveContainer>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { overlaySetFocusSessionActive } from '../../lib/overlayMouseBridge';
 import LevelPill from './LevelPill';
 import TimerCard from './TimerCard';
@@ -23,18 +23,23 @@ function ActiveSession({ session, onEnd, focusAddFieldTrigger = 0, toggleTaskPan
   const [elapsed, setElapsed] = useState(0);
   const [xpSoFar, setXpSoFar] = useState(0);
   const [minimized, setMinimized] = useState(true);
+  const rafRef = useRef<number>(0);
+  const lastSecRef = useRef(-1);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const elapsedSeconds = Math.floor((now - session.startedAt) / 1000);
-      setElapsed(elapsedSeconds);
-      const xp = elapsedSeconds < 60 ? 0 : Math.floor(elapsedSeconds / 60) * 10;
-      setXpSoFar(xp);
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [session]);
+    const tick = () => {
+      const elapsedSeconds = Math.floor((Date.now() - session.startedAt) / 1000);
+      // Only update state when the second actually changes — avoids unnecessary renders
+      if (elapsedSeconds !== lastSecRef.current) {
+        lastSecRef.current = elapsedSeconds;
+        setElapsed(elapsedSeconds);
+        setXpSoFar(elapsedSeconds < 60 ? 0 : Math.floor(elapsedSeconds / 60) * 10);
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [session.startedAt]);
 
   useEffect(() => {
     overlaySetFocusSessionActive(true);
@@ -55,7 +60,7 @@ function ActiveSession({ session, onEnd, focusAddFieldTrigger = 0, toggleTaskPan
         focusAddFieldTrigger={focusAddFieldTrigger}
         togglePanelTrigger={toggleTaskPanelTrigger}
       />
-      <LevelPill />
+      <LevelPill xpSoFar={xpSoFar} />
       <TimerCard
         elapsed={formatTime(elapsed)}
         elapsedSeconds={elapsed}

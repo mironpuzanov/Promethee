@@ -3,6 +3,7 @@ import {
   Home, ScrollText, Sword, CheckSquare, MessageCircle, LogOut, Users, Trophy, Settings, Brain, ListChecks
 } from 'lucide-react';
 import { UserProfileSidebar } from '../ui/menu';
+import { MVP_MODE, MVP_NAV } from '../../../config/mvp';
 
 interface User {
   id: string;
@@ -55,8 +56,13 @@ function Sidebar({ activeTab, setActiveTab, user }: SidebarProps) {
     onClick: () => window.promethee.auth.signOut(),
   };
 
+  // Filter nav items by MVP_NAV when MVP_MODE is on
+  const visibleItems = MVP_MODE
+    ? navItems.filter((item) => (MVP_NAV as readonly string[]).includes(item.id))
+    : navItems;
+
   // Build nav items, replacing 'community' with the expandable group for UserProfileSidebar
-  const flatItems = navItems.flatMap((item) => {
+  const flatItems = visibleItems.flatMap((item) => {
     if (item.id === 'community') {
       // Always include the group header; children shown conditionally
       const headerItem = {

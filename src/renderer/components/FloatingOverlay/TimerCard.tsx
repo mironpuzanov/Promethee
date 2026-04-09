@@ -18,6 +18,8 @@ const CYCLE = 600;
 function TimerCard({ elapsed, elapsedSeconds, task, xpSoFar, onStop, minimized, onToggleMinimize }: TimerCardProps) {
   const progress = (elapsedSeconds % CYCLE) / CYCLE;
   const dashOffset = CIRCUMFERENCE - progress * CIRCUMFERENCE;
+  // Suppress transition on cycle reset so the ring jumps instantly rather than animating backward
+  const ringTransition = elapsedSeconds % CYCLE <= 1 ? 'none' : 'stroke-dashoffset 1s linear';
 
   const handleStop = (e: React.SyntheticEvent) => {
     e.preventDefault();
@@ -42,7 +44,7 @@ function TimerCard({ elapsed, elapsedSeconds, task, xpSoFar, onStop, minimized, 
                 strokeDashoffset={dashOffset}
                 strokeLinecap="round"
                 transform="rotate(-90 36 36)"
-                style={{ transition: 'stroke-dashoffset 1s linear' }}
+                style={{ transition: ringTransition }}
               />
             </svg>
           </span>
@@ -69,7 +71,7 @@ function TimerCard({ elapsed, elapsedSeconds, task, xpSoFar, onStop, minimized, 
             strokeDashoffset={dashOffset}
             strokeLinecap="round"
             transform="rotate(-90 36 36)"
-            style={{ transition: 'stroke-dashoffset 1s linear' }}
+            style={{ transition: ringTransition }}
           />
         </svg>
       </div>

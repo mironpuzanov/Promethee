@@ -2,16 +2,40 @@
 # Build and sign the PrometheeBlockerHelper binary.
 # Output: ./app.promethee.blocker-helper
 #
-# Uses ad-hoc signing by default so no Apple cert is required.
-# Set APPLE_SIGNING_IDENTITY env var to sign with a real cert for notarization:
-#   APPLE_SIGNING_IDENTITY="Apple Distribution: ..." bash build.sh
+# Prefers APPLE_SIGNING_IDENTITY when provided. Otherwise it auto-detects a local
+# signing identity in this order: Developer ID Application, Apple Development, ad-hoc.
+# Example override:
+#   APPLE_SIGNING_IDENTITY="Developer ID Application: ..." bash build.sh
 
 set -e
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 HELPER_ID="app.promethee.blocker-helper"
 BINARY_OUT="$DIR/$HELPER_ID"
-IDENTITY="${APPLE_SIGNING_IDENTITY:--}"  # default: ad-hoc
+
+detect_identity() {
+  if [ -n "${APPLE_SIGNING_IDENTITY:-}" ]; then
+    printf '%s\n' "$APPLE_SIGNING_IDENTITY"
+    return
+  fi
+
+  IDENTITIES="$(security find-identity -v -p codesigning 2>/dev/null || true)"
+  FOUND="$(printf '%s\n' "$IDENTITIES" | sed -n 's/.*"\(Developer ID Application:[^"]*\)".*/\1/p' | head -n 1)"
+  if [ -n "$FOUND" ]; then
+    printf '%s\n' "$FOUND"
+    return
+  fi
+
+  FOUND="$(printf '%s\n' "$IDENTITIES" | sed -n 's/.*"\(Apple Development:[^"]*\)".*/\1/p' | head -n 1)"
+  if [ -n "$FOUND" ]; then
+    printf '%s\n' "$FOUND"
+    return
+  fi
+
+  printf '%s\n' '-'
+}
+
+IDENTITY="$(detect_identity)"
 
 echo "Building PrometheeBlockerHelper..."
 swiftc -O -o "$BINARY_OUT" "$DIR/main.swift"

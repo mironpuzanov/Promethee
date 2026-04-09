@@ -98,7 +98,8 @@ function RightPanel() {
       if (result.success && result.sessions) {
         const totalSeconds = result.sessions.reduce((sum, s) => sum + (s.duration_seconds || 0), 0);
         const totalXP = result.sessions.reduce((sum, s) => sum + (s.xp_earned || 0), 0);
-        const hours = (totalSeconds / 3600).toFixed(1);
+        const totalMins = Math.round(totalSeconds / 60);
+        const hours = totalMins < 60 ? `${totalMins}m` : `${(totalSeconds / 3600).toFixed(1)}h`;
         setTodayStats((prev) => ({ ...prev, hours, xp: totalXP, rank: null }));
       }
     });
@@ -246,7 +247,7 @@ function RightPanel() {
                 <Clock size={12} />
                 <span className="text-xs">Time</span>
               </div>
-              <span className="text-lg font-medium text-foreground">{todayStats.hours}h</span>
+              <span className="text-lg font-medium text-foreground">{todayStats.hours}</span>
             </div>
             <div className="flex flex-col gap-1 bg-card rounded-lg p-3">
               <div className="flex items-center gap-1.5 text-muted-foreground">
