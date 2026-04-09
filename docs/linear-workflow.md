@@ -8,98 +8,84 @@ Claude references this file whenever touching Linear, git, or the release proces
 ## The Process (end to end)
 
 ```
-Issue in Linear → branch → code → commit → close issue → release if ready
+Issue in Linear → In Progress → code → commit (with ID) → Ready for Release → release → Done + milestone
 ```
 
-### 1. Pick an issue
+---
 
-All work starts from a Linear issue. If something isn't in Linear, create it first.
+## 1. Every piece of work starts as a Linear issue
 
-Issues live in the **Promethee-app** team at: https://linear.app/promethee-app
+If it doesn't have an issue, create one first. No exceptions.
 
-### 2. Branch
+Issues live in the **Promethee-app** team: https://linear.app/promethee-app
 
-Use the branch name Linear generates — shown on every issue under "Git branch name":
+---
+
+## 2. Labels — always apply at least one
+
+Labels are how you filter by type. Claude applies these automatically when creating or closing issues.
+
+| Label | Use for |
+|-------|---------|
+| `Bug` | Something broken that used to work (or never worked) |
+| `Crash / Blocker` | App crash or feature completely unusable — always Urgent priority |
+| `UX` | Visual, interaction, or user flow issues |
+| `Feature` | New functionality |
+| `Improvement` | Enhancement to existing feature |
+| `Technical Debt` | Internal code quality, tooling, infra |
+| `Performance` | Speed, memory, startup time |
+
+Multiple labels are fine. A transparent modal is both `Bug` and `UX`.
+
+---
+
+## 3. Priorities
+
+| Priority | Meaning |
+|----------|---------|
+| Urgent | Blocks users or first-launch experience — ship ASAP |
+| High | Ship in the next release |
+| Medium | Ship when convenient |
+| Low | Nice to have |
+
+`Crash / Blocker` label → always Urgent.
+
+---
+
+## 4. Statuses
 
 ```
-yeamiron/pro-8-focus-session-doesnt-start-reliably-on-first-launch
+Backlog → In Progress → In Review → Ready for Release → Done
 ```
+
+| Status | Meaning |
+|--------|---------|
+| Backlog | Not started |
+| In Progress | Being worked on right now |
+| In Review | Code written, being reviewed |
+| Ready for Release | Merged to main, waiting for next release |
+| Done | Shipped to users (released) |
+
+**Claude updates status automatically:**
+- Starting work → `In Progress`
+- Code merged to main → `Ready for Release`
+- Release cut → `Done`
+
+---
+
+## 5. Branches
+
+Use the branch name Linear generates (shown on every issue):
 
 ```bash
 git checkout -b yeamiron/pro-8-focus-session-doesnt-start-reliably-on-first-launch
 ```
 
-### 3. Code + commit
-
-Commit messages must reference the Linear issue ID so commits auto-link in Linear:
-
-```bash
-git commit -m "fix(focus): resolve initialization race condition on first launch
-
-PRO-8"
-```
-
-The `PRO-8` at the end links the commit to the issue in Linear automatically.
-
-### 4. Close the issue
-
-When the fix is merged to main, mark the issue **Done** in Linear.
-Claude should do this after merging — don't leave issues open after the code ships.
-
-### 5. Release
-
-After one or more issues are done, bump the version and ship:
-
-```bash
-# Edit package.json version, then:
-rm -rf out && bash scripts/release.sh --notes "What changed"
-```
-
-See [release-flow.md](./release-flow.md) for the full release process.
-
 ---
 
-## Issue priorities
+## 6. Commits
 
-| Priority | Meaning |
-|----------|---------|
-| Urgent | Blocks users, ship ASAP |
-| High | Ship in the next release |
-| Medium | Ship when convenient |
-| Low | Nice to have |
-
----
-
-## Issue statuses
-
-| Status | Meaning |
-|--------|---------|
-| Backlog | Not started |
-| In Progress | Being worked on |
-| In Review | PR open or being reviewed |
-| Done | Merged to main, not yet released |
-
-Claude should update the status when starting work (`In Progress`) and when done (`Done`).
-
-## Release milestones
-
-Every issue that ships in a release must be attached to a milestone (e.g. `v1.1.5`).
-This is the single source of truth for what's fixed but unreleased vs already shipped.
-
-**Milestone lifecycle:**
-- Create the milestone when the release version is decided (at version bump time)
-- Attach all `Done` issues for that release to the milestone
-- Milestone description = "Released." once the DMG is published
-
-**Claude does this automatically** when bumping the version and closing issues.
-
-Current milestones:
-- `v1.1.4` — Released (PRO-6, PRO-12)
-- `v1.1.5` — Released (PRO-8, PRO-13, PRO-17)
-
----
-
-## Commit message format
+Every commit must reference the Linear issue ID:
 
 ```
 type(scope): short description
@@ -111,7 +97,7 @@ Types: `fix`, `feat`, `refactor`, `style`, `chore`, `docs`
 
 Examples:
 ```
-fix(focus): resolve init race condition on first launch
+fix(session): resolve startup race condition on first launch
 
 PRO-8
 ```
@@ -120,42 +106,59 @@ feat(onboarding): sequential permissions flow with step-by-step UI
 
 PRO-6
 ```
-```
-style(light-mode): full visual polish pass across all screens
-
-PRO-5
-```
 
 ---
 
-## What goes in Linear
+## 7. Closing issues
 
-- Every bug found in testing
-- Every feature or improvement
-- Every design change
-- Every release (as a comment or milestone)
+When code is merged to main, Claude will:
+1. Set status → `Ready for Release`
+2. Add a GitHub commit link as an attachment on the issue
+3. Update the issue description with root cause + fix summary
 
-If it takes more than 5 minutes to build, it gets a Linear issue.
-
----
-
-## What Claude does automatically
-
-When working on any task, Claude will:
-
-1. **Check Linear** for the relevant issue before starting
-2. **Update status to In Progress** when starting work
-3. **Reference the issue ID** in every commit message
-4. **Mark Done** after the fix is merged
-5. **Never commit or push** without explicit instruction from Miron
+When a release is cut, Claude will:
+1. Set status → `Done`
+2. Attach all issues to the release milestone
 
 ---
 
-## MCP setup
+## 8. Release milestones
 
-Linear is connected via MCP. Claude can read and write issues directly.
+Every issue that ships must be attached to a version milestone (e.g. `v1.1.5`).
+This is the source of truth for what's in each release.
 
-If Linear tools are unavailable, run:
+**Milestone lifecycle:**
+1. Version bumped in `package.json` → create milestone `vX.X.X`
+2. Attach all `Ready for Release` issues to it
+3. Cut the release → move all to `Done`, update milestone description to "Released."
+
+**View releases:** Open the project "Engineering | Desktop App" → switch to Milestones view.
+
+Current milestones:
+- `v1.1.4` — Released (PRO-6, PRO-12)
+- `v1.1.5` — Released (PRO-8, PRO-13, PRO-17)
+- `v1.1.6` — In progress (PRO-20)
+
+---
+
+## 9. What Claude does automatically
+
+| Trigger | Claude does |
+|---------|-------------|
+| Starting work on an issue | Sets status → `In Progress` |
+| Code merged to main | Sets status → `Ready for Release`, attaches commit link |
+| Version bumped | Creates milestone, attaches all `Ready for Release` issues |
+| Release cut | Moves issues → `Done`, updates milestone description |
+| New issue created | Applies correct labels, sets priority |
+| Never | Commits or pushes without explicit instruction from Miron |
+
+---
+
+## 10. MCP setup
+
+Linear is connected via MCP. Claude reads and writes issues, labels, milestones, comments, and attachments directly.
+
+If Linear tools are unavailable:
 ```bash
 claude mcp add --transport http linear-server https://mcp.linear.app/mcp
 ```
