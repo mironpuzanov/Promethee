@@ -217,30 +217,50 @@ function FullWindow({ user, setUser }: FullWindowProps) {
     <div className={`full-window${isHome ? '' : ' no-right-panel'}`}>
       <div className="titlebar-drag" />
       {showUpdatePrompt && (
-        <div className="pointer-events-none fixed top-14 left-1/2 z-[120] -translate-x-1/2">
-          <div className="pointer-events-auto flex items-center gap-3 rounded-2xl border border-border/70 bg-background/95 px-4 py-3 shadow-[0_18px_48px_rgba(0,0,0,0.38)] backdrop-blur-md">
-            <div className="flex flex-col">
-              <span className="text-sm text-foreground">Promethee v{updateState.latestVersion} is available</span>
-              <span className="text-xs text-muted-foreground">
-                Download the latest build from GitHub and replace the app in Applications.
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  void window.promethee.update.openDownload();
-                }}
-                className="rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground transition-opacity hover:opacity-90"
-              >
-                Download update
-              </button>
+        <div className="pointer-events-none fixed top-14 left-1/2 z-[120] -translate-x-1/2 w-[420px]">
+          <div className="pointer-events-auto rounded-2xl border border-border/70 bg-background/95 shadow-[0_18px_48px_rgba(0,0,0,0.38)] backdrop-blur-md overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border/50">
+              <div>
+                <div className="text-sm font-medium text-foreground">
+                  Promethee v{updateState.latestVersion} is available
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  You're on v{updateState.currentVersion}
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => setDismissedUpdateVersion(updateState.latestVersion || null)}
-                className="rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground transition-colors hover:border-ring hover:text-foreground"
+                className="text-muted-foreground/50 hover:text-muted-foreground transition-colors text-lg leading-none"
               >
-                Later
+                ×
+              </button>
+            </div>
+            {/* Steps */}
+            <div className="px-5 py-3 flex flex-col gap-2">
+              {[
+                'Download the new version below',
+                'Quit Promethee (⌘Q)',
+                'Open the downloaded DMG and drag Promethee to Applications',
+                'Reopen Promethee',
+              ].map((step, i) => (
+                <div key={i} className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-accent/20 text-[10px] font-semibold text-accent">
+                    {i + 1}
+                  </span>
+                  <span className="text-xs text-muted-foreground leading-relaxed">{step}</span>
+                </div>
+              ))}
+            </div>
+            {/* Action */}
+            <div className="px-5 pb-4 pt-1">
+              <button
+                type="button"
+                onClick={() => void window.promethee.update.openDownload()}
+                className="w-full rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground transition-opacity hover:opacity-90"
+              >
+                Download v{updateState.latestVersion}
               </button>
             </div>
           </div>
