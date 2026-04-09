@@ -125,7 +125,15 @@ export async function getUser() {
   }
 
   // Try to restore session from keychain
-  const stored = await keytar.getPassword(SERVICE_NAME, ACCOUNT_NAME);
+  let stored = null;
+  try {
+    stored = await keytar.getPassword(SERVICE_NAME, ACCOUNT_NAME);
+  } catch (keychainErr) {
+    // Keychain access denied (e.g. after update with changed signing identity).
+    // Keep the flag file so the user sees "Restore session" on next user-initiated attempt.
+    debugLog(`Keychain read failed (access denied?): ${keychainErr.message} — keeping flag, showing restore prompt`);
+    return null;
+  }
 
   if (stored) {
     try {

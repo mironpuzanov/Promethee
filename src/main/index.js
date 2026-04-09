@@ -251,13 +251,22 @@ const createFullWindow = ({ sessionComplete = false } = {}) => {
   }
 
   // Show once the page is ready — avoids blank flash
-  fullWindow.webContents.once('did-finish-load', () => {
-    fullWindow?.show();
-    fullWindow?.focus();
-    // Ensure dock icon is visible (panel-type floating window can suppress it)
+  let windowShown = false;
+  const showFullWindow = () => {
+    if (windowShown || !fullWindow || fullWindow.isDestroyed()) return;
+    windowShown = true;
+    fullWindow.show();
+    fullWindow.focus();
     if (process.platform === 'darwin' && app.dock) {
       app.dock.show();
     }
+  };
+  fullWindow.webContents.once('did-finish-load', showFullWindow);
+  // Fallback: show after 3s even if did-finish-load never fires (stalled renderer)
+  setTimeout(showFullWindow, 3000);
+  fullWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    debugLog(`fullWindow failed to load: ${errorCode} ${errorDescription}`);
+    showFullWindow();
   });
 
   // Hide overlay while dashboard is open, restore it when dashboard closes
@@ -714,8 +723,12 @@ ipcMain.on('set-focusable-false', () => {
 // IPC Handlers
 ipcMain.handle('session:start', async (event, task, roomId = null) => {
   try {
-    // Use in-memory user — avoids an async Supabase round-trip on every session start
-    const user = getCurrentUser();
+    // Use in-memory user — avoids an async Supabase round-trip on every session start.
+    // Fall back to getUser() on first launch when async init may not have completed yet.
+    let user = getCurrentUser();
+    if (!user) {
+      user = await getUser();
+    }
     if (!user) {
       throw new Error('User not authenticated');
     }

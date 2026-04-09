@@ -21,6 +21,10 @@
 Read BUILD.md and implement everything in it.
 Work directory: /Users/mironpuzanov/Promethee/
 
+## Issue tracking & workflow
+Read docs/linear-workflow.md before starting any task.
+All work must be tracked in Linear. Reference issue IDs in every commit message.
+
 ## Skill routing
 
 When the user's request matches an available skill, ALWAYS invoke it using the Skill
