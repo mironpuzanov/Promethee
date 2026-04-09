@@ -281,8 +281,13 @@ contextBridge.exposeInMainWorld('promethee', {
     permsSeen: () => ipcRenderer.invoke('onboarding:permsSeen'),
     permsMarkSeen: () => ipcRenderer.invoke('onboarding:permsMarkSeen'),
     probeScreenRecording: () => ipcRenderer.invoke('onboarding:probeScreenRecording'),
+    probeAccessibility: () => ipcRenderer.invoke('onboarding:probeAccessibility'),
     getScreenRecordingStatus: () => ipcRenderer.invoke('onboarding:getScreenRecordingStatus'),
     resetScreenRecording: () => ipcRenderer.invoke('onboarding:resetScreenRecording'),
+    hasStoredSession: () => ipcRenderer.invoke('onboarding:hasStoredSession'),
+    restoreSession: () => ipcRenderer.invoke('onboarding:restoreSession'),
+    markScreenRecordingAcknowledged: () => ipcRenderer.invoke('onboarding:markScreenRecordingAcknowledged'),
+    relaunchApp: () => ipcRenderer.invoke('onboarding:relaunchApp'),
   },
 
   // App updates

@@ -22,7 +22,7 @@ const __dirname = path.dirname(__filename);
 
 // Import modules
 import { startSession, endSessionAndSync, getActiveSession, flushPendingSyncs } from './session.js';
-import { signIn, signUp, signOut, sendMagicLink, getUser, getAccessToken, setSession, getCurrentUser, updateProfile, updatePassword, uploadAvatar } from './auth.js';
+import { signIn, signUp, signOut, sendMagicLink, getUser, getAccessToken, setSession, getCurrentUser, updateProfile, updatePassword, uploadAvatar, hasStoredSession } from './auth.js';
 import { setupPowerMonitoring } from './power.js';
 import { setupLeaderboardPolling, stopLeaderboardPolling, getLeaderboard } from './leaderboard.js';
 import { setupPresence, stopPresence, sendHeartbeat, removePresence, postToLiveFeed, getPresenceCount, getRooms, getRoomPresence } from './presence.js';
@@ -604,6 +604,59 @@ ipcMain.handle('onboarding:permsMarkSeen', () => {
   } catch (e) {
     return { success: false, error: e.message };
   }
+});
+
+// Check whether a stored session flag exists (non-keychain, safe to read without dialog)
+ipcMain.handle('onboarding:hasStoredSession', () => {
+  return hasStoredSession();
+});
+
+// Restore session from keychain — user-initiated, so the macOS dialog has context
+ipcMain.handle('onboarding:restoreSession', async () => {
+  try {
+    const user = await getUser();
+    if (user) {
+      startTrackingWithPermissionPrompt(user.id);
+      scheduleDailyJobs(user.id);
+      setTimeout(() => backfillChatSummaries(user.id), 5000);
+      return { success: true, user };
+    }
+    return { success: false, error: 'No stored session found' };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+// Probe Accessibility permission (active-win with screenRecordingPermission disabled)
+ipcMain.handle('onboarding:probeAccessibility', async () => {
+  try {
+    const { default: activeWin } = await import('active-win');
+    // Disable screen recording probe — we only want to test Accessibility here
+    const win = await activeWin({ screenRecordingPermission: false, accessibilityPermission: true });
+    return { ok: !!(win && win.owner) };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+// Mark screen recording as acknowledged (user went to Settings) — syncs state so native dialog doesn't re-fire
+ipcMain.handle('onboarding:markScreenRecordingAcknowledged', () => {
+  try {
+    const stateFile = path.join(app.getPath('userData'), 'permission-prompts.json');
+    let state = {};
+    try { state = JSON.parse(fs.readFileSync(stateFile, 'utf8')); } catch { /* fresh */ }
+    state.screenRecordingAcknowledged = true;
+    fs.writeFileSync(stateFile, JSON.stringify(state));
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+// Relaunch the app — required after Screen Recording is granted (TCC needs full restart)
+ipcMain.handle('onboarding:relaunchApp', () => {
+  app.relaunch();
+  app.quit();
 });
 
 ipcMain.handle('shortcuts:get', () => {

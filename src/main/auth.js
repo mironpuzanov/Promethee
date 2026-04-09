@@ -2,6 +2,8 @@ import { supabase } from '../lib/supabase.js';
 import keytar from 'keytar';
 import { createOrUpdateUserProfile } from './db.js';
 import fs from 'fs';
+import path from 'path';
+import { app } from 'electron';
 
 const debugLog = (msg) => {
   const logPath = '/tmp/promethee-debug.log';
@@ -12,6 +14,32 @@ const debugLog = (msg) => {
 
 const SERVICE_NAME = 'Promethee';
 const ACCOUNT_NAME = 'session_tokens';
+
+// Non-secret flag file — presence means "keychain likely has tokens, show restore button"
+// Written on every successful setSession, deleted on signOut.
+function hasSessionFlagPath() {
+  return path.join(app.getPath('userData'), 'has-session.json');
+}
+
+export function hasStoredSession() {
+  try {
+    return fs.existsSync(hasSessionFlagPath());
+  } catch {
+    return false;
+  }
+}
+
+function writeSessionFlag() {
+  try {
+    fs.writeFileSync(hasSessionFlagPath(), JSON.stringify({ ts: Date.now() }));
+  } catch { /* non-fatal */ }
+}
+
+function deleteSessionFlag() {
+  try {
+    fs.unlinkSync(hasSessionFlagPath());
+  } catch { /* already gone */ }
+}
 
 let currentUser = null;
 
@@ -76,8 +104,9 @@ export async function signOut() {
     throw error;
   }
 
-  // Clear keychain
+  // Clear keychain and session flag
   await keytar.deletePassword(SERVICE_NAME, ACCOUNT_NAME);
+  deleteSessionFlag();
 
   currentUser = null;
   return { success: true };
@@ -86,6 +115,13 @@ export async function signOut() {
 export async function getUser() {
   if (currentUser) {
     return currentUser;
+  }
+
+  // Skip keychain entirely if the flag file is absent — new install, nothing stored.
+  // This prevents the macOS keychain dialog from firing against a blank screen.
+  if (!hasStoredSession()) {
+    debugLog('No has-session flag — skipping keychain read (new install)');
+    return null;
   }
 
   // Try to restore session from keychain
@@ -111,6 +147,7 @@ export async function getUser() {
           if (isAuthRejection) {
             debugLog(`Session restore: auth rejection (${error.status} ${error.message}) — clearing keychain`);
             await keytar.deletePassword(SERVICE_NAME, ACCOUNT_NAME);
+            deleteSessionFlag();
           } else {
             debugLog(`Session restore: transient error (${error.status} ${error.message}) — keeping keychain`);
           }
@@ -144,6 +181,7 @@ export async function getUser() {
       // JSON parse error or similar — the stored value is corrupted, safe to delete.
       console.error('Failed to parse stored session:', err);
       await keytar.deletePassword(SERVICE_NAME, ACCOUNT_NAME);
+      deleteSessionFlag();
     }
   }
 
@@ -176,6 +214,7 @@ export async function setSession(accessToken, refreshToken) {
       access_token: accessToken,
       refresh_token: refreshToken
     }));
+    writeSessionFlag(); // mark that keychain has tokens — used to skip cold-start dialog
     debugLog('Session saved to keychain successfully');
   } catch (keychainErr) {
     debugLog(`KEYCHAIN SAVE FAILED: ${keychainErr.message}`);
