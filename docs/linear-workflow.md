@@ -77,9 +77,25 @@ See [release-flow.md](./release-flow.md) for the full release process.
 | Backlog | Not started |
 | In Progress | Being worked on |
 | In Review | PR open or being reviewed |
-| Done | Merged to main |
+| Done | Merged to main, not yet released |
 
 Claude should update the status when starting work (`In Progress`) and when done (`Done`).
+
+## Release milestones
+
+Every issue that ships in a release must be attached to a milestone (e.g. `v1.1.5`).
+This is the single source of truth for what's fixed but unreleased vs already shipped.
+
+**Milestone lifecycle:**
+- Create the milestone when the release version is decided (at version bump time)
+- Attach all `Done` issues for that release to the milestone
+- Milestone description = "Released." once the DMG is published
+
+**Claude does this automatically** when bumping the version and closing issues.
+
+Current milestones:
+- `v1.1.4` — Released (PRO-6, PRO-12)
+- `v1.1.5` — Released (PRO-8, PRO-13, PRO-17)
 
 ---
 
