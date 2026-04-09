@@ -2,99 +2,165 @@
 
 How to ship a new version of Promethee to beta users.
 
+## TL;DR
+
+```bash
+# 1. Bump version in package.json
+# 2. Run:
+rm -rf out && bash scripts/release.sh --notes "What changed in this release"
+```
+
+That's the whole thing. The script handles build, sign, notarize, DMG, upload, and manifest.
+
+---
+
 ## Steps
 
 ### 1. Bump the version
 
-In `package.json`, increment `"version"`:
+Edit `package.json`:
 
 ```json
-"version": "1.1.1"
+"version": "1.2.0"
 ```
 
-### 2. Package and notarize
+Use semver: patch (`1.1.x`) for bug fixes, minor (`1.x.0`) for new features.
+
+### 2. Run the release script
 
 ```bash
-npm run make
+rm -rf out && bash scripts/release.sh --notes "What changed in this release"
 ```
 
-This produces a macOS app bundle and DMG in `out/`.
-
-Current DMG output is typically:
-
-```
-out/make/Promethee.dmg
-```
-
-Signing behavior today:
-
-- Forge auto-selects a signing identity from the machine:
-  - `APPLE_SIGNING_IDENTITY` if set
-  - otherwise `Developer ID Application`
-  - otherwise `Apple Development`
-  - otherwise ad-hoc
-- notarization uses:
-  - `APPLE_APP_PASSWORD` for the app-specific password
-  - optionally `APPLE_ID`
-  - optionally `APPLE_TEAM_ID`
-
-If `APPLE_ID` and `APPLE_TEAM_ID` are not set, Forge falls back to the values already configured in the repo. `APPLE_APP_PASSWORD` is the important required env var for notarization.
-
-### 3. Create a GitHub Release and upload the DMG
+### Flags
 
 ```bash
-gh release create v1.1.1 out/make/Promethee.dmg \
-  --title "Promethee 1.1.1" \
-  --notes "What changed in this release"
+# Override version (defaults to package.json)
+bash scripts/release.sh --version 1.2.0 --notes "..."
+
+# Skip build if you already have a signed+notarized .app in out/
+bash scripts/release.sh --skip-build --notes "..."
 ```
 
-The download URL will be:
+---
+
+## What the script does
+
+| Step | What happens | Time |
+|------|-------------|------|
+| 1/4 | `npm run package`: Vite build → electron-packager → inject native modules → codesign | ~10 min |
+| 2/4 | Create DMG with drag-to-Applications layout | ~30 sec |
+| 3/4 | Notarize DMG + staple | ~2 min |
+| 4/4 | Upload DMG to GitHub Releases, publish Supabase update manifest | ~1 min |
+
+Total: ~15 min on first run.
+
+> **Note:** Notarization is done on the DMG only, not the `.app`. The `.app` is signed but not stapled — stapling before copying into the DMG breaks the codesign seal.
+
+---
+
+## Required env
+
+Set in `.env` (auto-loaded):
 
 ```
-https://github.com/mironpuzanov/Promethee/releases/download/v1.1.1/Promethee.dmg
+APPLE_APP_PASSWORD=...
+SUPABASE_SERVICE_ROLE_KEY=...
 ```
 
-> Note: Supabase Storage has a 50MB object limit on the free tier — the DMG is ~120MB so it won't fit. GitHub Releases has no meaningful size limit and is free.
+Optional (has defaults):
+```
+APPLE_ID=mironpuzanov@icloud.com
+APPLE_TEAM_ID=69V9FN6864
+```
 
-### 4. Publish the update manifest
+---
 
+## Signing
+
+Forge auto-selects a signing identity from the keychain:
+1. `APPLE_SIGNING_IDENTITY` env var (if set)
+2. `Developer ID Application: ...` (preferred for distribution)
+3. `Apple Development: ...` (dev only — notarization will fail)
+4. Ad-hoc `-` (no notarization)
+
+You need a **Developer ID Application** cert for proper distribution.
+
+The re-seal step in `afterCompleteHook` (which adds the blocker helper after signing) explicitly passes
+`--entitlements` to preserve `com.apple.security.cs.allow-jit`. Without this, V8 cannot JIT compile
+and Electron crashes at startup before any app code runs.
+
+---
+
+## Architecture: arm64 only (Apple Silicon)
+
+Currently building for `arm64` only — M1/M2/M3/M4 Macs.
+
+**To add Intel (x64) support:**
+- Change `arch` in `forge.config.js` from `arm64` to `x64` (or `universal` for a fat binary that runs on both)
+- `universal` doubles the DMG size (~250MB) but one file works everywhere
+- Native modules (`better-sqlite3`, `active-win`, `keytar`) must be compiled for both architectures — run `npm rebuild` with the target arch, or use `electron-rebuild` with `--arch x64`
+- The blocker helper binary also needs to be a universal binary or you ship two DMGs
+
+For now: arm64 only is fine. Add Intel when you have Intel beta users.
+
+---
+
+## Output files
+
+```
+out/Promethee-darwin-arm64/Promethee.app    ← signed (not stapled)
+out/make/Promethee-<version>.dmg            ← signed + notarized + stapled, drag-to-Applications layout
+```
+
+GitHub Release download URL:
+```
+https://github.com/mironpuzanov/Promethee/releases/download/v<version>/Promethee-<version>.dmg
+```
+
+> The GitHub repo is private. Beta users need to be added as repo collaborators, or the DMG should be hosted on a public S3/R2 bucket or a separate public `promethee-releases` repo.
+
+> Supabase Storage has a 50MB free-tier limit. The DMG is ~130MB, so binaries go to GitHub Releases. Supabase only stores the update manifest row.
+
+---
+
+## How native modules work in the packaged app
+
+`better-sqlite3`, `active-win`, and `keytar` are native Node modules — they have compiled `.node` binaries that can't be inside an asar archive.
+
+The forge pipeline handles this in two stages:
+
+1. **`afterCopyHook`** (fires before asar packing): copies the full module directories from the project's `node_modules/` into `buildPath/node_modules/` so they exist in the source tree
+2. **`asar.unpack` glob**: when `asarApp()` packs the source, it matches `node_modules/{better-sqlite3,active-win,keytar,...}/**` and extracts those directories to `app.asar.unpacked/node_modules/`
+
+Electron transparently redirects `require('better-sqlite3')` to `app.asar.unpacked/node_modules/better-sqlite3`.
+
+Verify after a build:
 ```bash
-SUPABASE_SERVICE_ROLE_KEY=<your-key> npm run publish:update -- \
-  --platform darwin \
-  --version 1.1.1 \
-  --download-url https://github.com/mironpuzanov/Promethee/releases/download/v1.1.1/Promethee.dmg \
-  --release-url https://github.com/mironpuzanov/Promethee/releases/tag/v1.1.1 \
-  --notes "What changed in this release"
+ls out/Promethee-darwin-arm64/Promethee.app/Contents/Resources/app.asar.unpacked/node_modules/
+# Should show: active-win  better-sqlite3  keytar
 ```
 
-This deactivates the previous active row and inserts the new one in `app_updates`.
+---
 
-### 5. Users see the update
+## How update delivery works
 
-In packaged builds, Promethee checks the Supabase update manifest once shortly after launch, then every 12 hours after that. Users can also manually check from Settings.
+In packaged builds (`app.isPackaged === true`), the app:
+1. Checks Supabase for a newer version on launch
+2. Rechecks every 12 hours while running
+3. When a newer version is found, shows a banner: "Promethee vX.X.X is available"
+4. Clicking the banner opens the DMG download URL in the browser
 
-When a newer version is detected, a banner appears in the full window: "Promethee v1.1.1 is available".
+No silent downloads. No auto-install. Manual reinstall for now — good enough for beta.
 
-Clicking it opens the DMG URL in the browser. User downloads, installs, done.
+Update check does NOT run in dev (`npm start`) — only in packaged builds.
 
-## What this is NOT
-
-- No silent background download
-- No auto-install or `quitAndInstall`
-- No delta patching
-
-Manual download and reinstall for now. Good enough for beta.
-
-## Scripts
-
-| Script | What it does |
-|--------|-------------|
-| `npm run make` | Build signed + notarized DMG |
-| `npm run publish:update` | Push new version row to Supabase |
+---
 
 ## Related files
 
-- [scripts/publish-app-update.mjs](../scripts/publish-app-update.mjs) — the publish script
+- [forge.config.js](../forge.config.js) — build config: signing, asar unpacking, native module injection, blocker helper, entitlements re-seal
+- [scripts/release.sh](../scripts/release.sh) — end-to-end release automation
+- [scripts/publish-app-update.mjs](../scripts/publish-app-update.mjs) — Supabase manifest publisher
 - [src/main/updateCheck.js](../src/main/updateCheck.js) — in-app update check logic
-- [supabase/migrations/20260408000001_app_updates.sql](../supabase/migrations/20260408000001_app_updates.sql) — table schema
-- [docs/app-updates.md](./app-updates.md) — deeper technical reference
+- [docs/app-updates.md](./app-updates.md) — update system technical reference
