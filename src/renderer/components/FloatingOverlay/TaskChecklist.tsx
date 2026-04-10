@@ -401,7 +401,7 @@ function TaskChecklist({ session, focusAddFieldTrigger = 0, togglePanelTrigger =
               )}
               {notes.map((note) => (
                 <div key={note.id} className="task-checklist__row task-checklist__row--note">
-                  <div className="task-checklist__note-card">
+                  <div className="task-checklist__note-body">
                     <div className="task-checklist__text task-checklist__text--note task-checklist__markdown">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
                         {toNoteMarkdown(note.text)}
@@ -409,16 +409,16 @@ function TaskChecklist({ session, focusAddFieldTrigger = 0, togglePanelTrigger =
                     </div>
                     <div className="task-checklist__note-footer">
                       <span className="task-checklist__note-time">{formatTime(note.created_at)}</span>
+                      <button
+                        type="button"
+                        className="task-checklist__delete"
+                        onClick={() => onDeleteNote(note.id)}
+                        aria-label="Delete note"
+                      >
+                        <Trash2 size={12} />
+                      </button>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    className="task-checklist__delete"
-                    onClick={() => onDeleteNote(note.id)}
-                    aria-label="Delete note"
-                  >
-                    <Trash2 size={14} />
-                  </button>
                 </div>
               ))}
             </div>
@@ -433,7 +433,7 @@ function TaskChecklist({ session, focusAddFieldTrigger = 0, togglePanelTrigger =
               setDraft(e.target.value);
               const el = e.currentTarget;
               el.style.height = '0px';
-              el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+              el.style.height = `${Math.max(34, Math.min(el.scrollHeight, 120))}px`;
             }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {

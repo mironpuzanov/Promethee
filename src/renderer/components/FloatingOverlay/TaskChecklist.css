@@ -275,18 +275,12 @@
 .task-checklist__row--note {
   cursor: default;
   align-items: flex-start;
-  gap: 10px;
   min-width: 0;
 }
 
-.task-checklist__note-card {
+.task-checklist__note-body {
   flex: 1;
   min-width: 0;
-  max-width: 100%;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
   overflow: hidden;
 }
 
@@ -298,8 +292,9 @@
 
 .task-checklist__note-footer {
   display: flex;
-  justify-content: flex-end;
-  margin-top: 8px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 3px;
 }
 
 .task-checklist__note-time {
