@@ -16,7 +16,7 @@ const STYLES = `
     padding: 9px 16px;
     border-radius: 10px;
     background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.10);
+    border: 1px solid rgba(232, 146, 42, 0.45);
     color: rgba(255, 255, 255, 0.65);
     font-size: 13px;
     font-weight: 400;
@@ -29,7 +29,7 @@ const STYLES = `
 
   .sfb-btn:hover {
     background: rgba(255, 255, 255, 0.09);
-    border-color: rgba(255, 255, 255, 0.18);
+    border-color: rgba(232, 146, 42, 0.70);
     color: rgba(255, 255, 255, 0.90);
   }
 

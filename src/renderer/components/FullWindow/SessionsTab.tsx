@@ -128,7 +128,7 @@ function ListView({ sessions, tasksBySession, notesBySession, chatsBySession, on
           style={{
             display: 'flex', alignItems: 'center', gap: 6,
             background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.10)',
+            border: '1px solid rgba(232, 146, 42, 0.45)',
             borderRadius: 999,
             color: 'rgba(255, 255, 255, 0.65)',
             fontSize: 13, fontWeight: 400,
@@ -140,13 +140,13 @@ function ListView({ sessions, tasksBySession, notesBySession, chatsBySession, on
           onMouseEnter={e => {
             const b = e.currentTarget as HTMLButtonElement;
             b.style.background = 'rgba(255,255,255,0.09)';
-            b.style.borderColor = 'rgba(255,255,255,0.18)';
+            b.style.borderColor = 'rgba(232,146,42,0.70)';
             b.style.color = 'rgba(255,255,255,0.90)';
           }}
           onMouseLeave={e => {
             const b = e.currentTarget as HTMLButtonElement;
             b.style.background = 'rgba(255,255,255,0.05)';
-            b.style.borderColor = 'rgba(255,255,255,0.10)';
+            b.style.borderColor = 'rgba(232,146,42,0.45)';
             b.style.color = 'rgba(255,255,255,0.65)';
           }}
         >
