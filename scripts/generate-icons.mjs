@@ -76,9 +76,9 @@ async function generateAppIcon() {
 
 async function generateTrayIcons() {
   const svgBuf = fs.readFileSync(LOGO_NOIR);
-  // 22×22 pt canvas (Apple HIG max for menu bar), 20pt content — fills the bar properly
-  const CANVAS_1X = 22, CANVAS_2X = 44;
-  const LOGO_1X = 20, LOGO_2X = 40;
+  // 18×18 pt canvas (macOS standard), 16pt logo — correct visual weight in menu bar
+  const CANVAS_1X = 18, CANVAS_2X = 36;
+  const LOGO_1X = 16, LOGO_2X = 32;
 
   const logo1x = await sharp(svgBuf)
     .resize(LOGO_1X, LOGO_1X, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
