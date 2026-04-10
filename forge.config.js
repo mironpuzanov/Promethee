@@ -200,6 +200,8 @@ module.exports = {
     executableName: 'Promethee',
     icon: 'src/assets/icon',
     appBundleId: APP_BUNDLE_ID,
+    // Icons must be real files on disk (not inside asar) so nativeImage.createFromPath works reliably.
+    extraResource: ['src/assets'],
     afterCopy: [afterCopyHook],
     afterComplete: [afterCompleteHook],
     osxSign: USE_REAL_SIGNING

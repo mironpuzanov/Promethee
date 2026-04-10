@@ -293,10 +293,14 @@ const createFullWindow = ({ sessionComplete = false } = {}) => {
   });
 };
 
+const getAssetsPath = () => app.isPackaged
+  ? path.join(process.resourcesPath, 'assets')          // extraResources → Contents/Resources/assets/
+  : path.resolve(__dirname, '../../src/assets');         // dev: project root/src/assets
+
 const createTray = () => {
-  // __dirname = .vite/build/ in dev — resolve up to project root
-  const trayIconPath = path.resolve(__dirname, '../../src/assets/tray-icon.png');
-  const trayIcon2xPath = path.resolve(__dirname, '../../src/assets/tray-icon@2x.png');
+  const assetsPath = getAssetsPath();
+  const trayIconPath = path.join(assetsPath, 'tray-icon.png');
+  const trayIcon2xPath = path.join(assetsPath, 'tray-icon@2x.png');
   let icon;
   if (fs.existsSync(trayIconPath)) {
     icon = nativeImage.createEmpty();
@@ -438,10 +442,9 @@ app.whenReady().then(async () => {
   // This ensures vibrancy renders with dark material and text/colors stay correct.
   nativeTheme.themeSource = 'dark';
 
-  // Set dock icon — __dirname is .vite/build/ in dev, so go up to project root
   if (process.platform === 'darwin') {
     try {
-      const iconPath = path.resolve(__dirname, '../../src/assets/icon.png');
+      const iconPath = path.join(getAssetsPath(), 'icon.png');
       if (app.dock && fs.existsSync(iconPath)) {
         app.dock.setIcon(nativeImage.createFromPath(iconPath));
       }
