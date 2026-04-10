@@ -4,6 +4,7 @@ import { X, Brain, Check, Circle } from 'lucide-react';
 import { PolarAngleAxis, PolarGrid, Radar, RadarChart, ResponsiveContainer } from 'recharts';
 import { getLevelInfo } from '../../../lib/xp';
 import homeBg from '../../../assets/home-bg-group1.png';
+import OnboardingChallenges from './OnboardingChallenges';
 import './CharacterPanel.css';
 
 interface User {
@@ -294,6 +295,9 @@ function CharacterPanel({ user }: CharacterPanelProps) {
           <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{totalXP} XP total</span>
         </div>
       </motion.div>
+
+      {/* Onboarding Challenges */}
+      <OnboardingChallenges />
 
       {/* Daily Signal */}
       <AnimatePresence>

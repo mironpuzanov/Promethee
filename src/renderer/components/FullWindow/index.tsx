@@ -137,7 +137,13 @@ interface FullWindowProps {
 }
 
 function FullWindow({ user, setUser }: FullWindowProps) {
-  const [activeTab, setActiveTab] = useState('home');
+  const [activeTab, setActiveTabRaw] = useState('home');
+  const setActiveTab = (tab: string) => {
+    if (tab === 'leaderboard') {
+      localStorage.setItem('onboarding:leaderboard_visited', '1');
+    }
+    setActiveTabRaw(tab);
+  };
   const [completedSession, setCompletedSession] = useState<{
     task: string;
     durationSeconds: number;
