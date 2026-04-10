@@ -70,15 +70,14 @@ function ChallengeCard({ challenge }: ChallengeCardProps) {
   return (
     <div
       style={{
-        background: done ? 'rgba(255,255,255,0.03)' : 'var(--surface)',
-        border: '1px solid var(--border)',
+        background: 'var(--surface)',
+        border: `1px solid ${done ? 'rgba(34,197,94,0.25)' : 'var(--border)'}`,
         borderRadius: 12,
         padding: '12px 12px 10px',
         display: 'flex',
         flexDirection: 'column',
         gap: 6,
-        opacity: done ? 0.65 : 1,
-        transition: 'opacity 0.4s, background 0.4s',
+        transition: 'border-color 0.3s',
       }}
     >
       {/* XP badge */}
@@ -86,8 +85,8 @@ function ChallengeCard({ challenge }: ChallengeCardProps) {
         alignSelf: 'flex-start',
         fontSize: 9,
         fontWeight: 700,
-        background: 'rgba(232,146,42,0.12)',
-        color: 'var(--accent-fire)',
+        background: done ? 'rgba(34,197,94,0.18)' : 'rgba(232,146,42,0.12)',
+        color: done ? '#4ade80' : 'var(--accent-fire)',
         borderRadius: 6,
         padding: '2px 6px',
         letterSpacing: '0.06em',
@@ -100,7 +99,7 @@ function ChallengeCard({ challenge }: ChallengeCardProps) {
         margin: 0,
         fontSize: 12,
         fontWeight: 600,
-        color: 'var(--foreground)',
+        color: done ? 'var(--text-secondary)' : 'var(--foreground)',
         lineHeight: 1.3,
       }}>
         {title}
@@ -125,8 +124,9 @@ function ChallengeCard({ challenge }: ChallengeCardProps) {
             alignItems: 'center',
             gap: 4,
             fontSize: 10,
-            fontWeight: 600,
-            color: '#22c55e',
+            fontWeight: 700,
+            color: '#4ade80',
+            letterSpacing: '0.02em',
           }}>
             <Check size={11} strokeWidth={2.5} />
             Done

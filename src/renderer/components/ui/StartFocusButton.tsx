@@ -33,43 +33,12 @@ const STYLES = `
     fill: currentColor;
     margin-right: 7px;
     flex-shrink: 0;
-    opacity: 0.7;
-    animation: sfb-flicker 3s ease-in-out infinite;
-  }
-
-  @keyframes sfb-flicker {
-    0%, 100% { opacity: 0.5; }
-    50%       { opacity: 0.9; }
+    opacity: 0.6;
   }
 
   .sfb-letter {
     display: inline-block;
-    animation: sfb-wave 3s ease-in-out infinite;
   }
-
-  @keyframes sfb-wave {
-    0%, 100% { opacity: 0.55; }
-    50%       { opacity: 0.85; }
-  }
-
-  .sfb-letter:nth-child(1)  { animation-delay: 0s; }
-  .sfb-letter:nth-child(2)  { animation-delay: 0.05s; }
-  .sfb-letter:nth-child(3)  { animation-delay: 0.10s; }
-  .sfb-letter:nth-child(4)  { animation-delay: 0.15s; }
-  .sfb-letter:nth-child(5)  { animation-delay: 0.20s; }
-  .sfb-letter:nth-child(6)  { animation-delay: 0.25s; }
-  .sfb-letter:nth-child(7)  { animation-delay: 0.30s; }
-  .sfb-letter:nth-child(8)  { animation-delay: 0.35s; }
-  .sfb-letter:nth-child(9)  { animation-delay: 0.40s; }
-  .sfb-letter:nth-child(10) { animation-delay: 0.45s; }
-  .sfb-letter:nth-child(11) { animation-delay: 0.50s; }
-  .sfb-letter:nth-child(12) { animation-delay: 0.55s; }
-  .sfb-letter:nth-child(13) { animation-delay: 0.60s; }
-  .sfb-letter:nth-child(14) { animation-delay: 0.65s; }
-  .sfb-letter:nth-child(15) { animation-delay: 0.70s; }
-  .sfb-letter:nth-child(16) { animation-delay: 0.75s; }
-  .sfb-letter:nth-child(17) { animation-delay: 0.80s; }
-  .sfb-letter:nth-child(18) { animation-delay: 0.85s; }
 
   /* Hover — simple fire accent, no glow mess */
   .sfb-btn:hover {
@@ -79,11 +48,9 @@ const STYLES = `
   }
   .sfb-btn:hover .sfb-spark {
     opacity: 1;
-    animation: none;
   }
   .sfb-btn:hover .sfb-letter {
     opacity: 1;
-    animation: none;
   }
 
   /* Active */
