@@ -8,16 +8,27 @@ export default function CoachTab() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    window.promethee.coach.getOrCreate()
-      .then((r: { success: boolean; chat?: Chat; error?: string }) => {
-        if (r.success && r.chat) setChat(r.chat);
-        else setError(r.error || 'Unknown error');
+    try {
+      const api = (window.promethee as any).coach;
+      if (!api?.getOrCreate) {
+        setError('Restart the app to activate Mentor AI (preload needs a refresh).');
         setLoading(false);
-      })
-      .catch((e: Error) => {
-        setError(e?.message || 'Could not connect to Mentor AI');
-        setLoading(false);
-      });
+        return;
+      }
+      api.getOrCreate()
+        .then((r: { success: boolean; chat?: Chat; error?: string }) => {
+          if (r.success && r.chat) setChat(r.chat);
+          else setError(r.error || 'Could not load Mentor AI');
+          setLoading(false);
+        })
+        .catch((e: Error) => {
+          setError(e?.message || 'Could not connect to Mentor AI');
+          setLoading(false);
+        });
+    } catch (e: unknown) {
+      setError((e as Error)?.message || 'Mentor AI unavailable — restart the app');
+      setLoading(false);
+    }
   }, []);
 
   if (loading) {

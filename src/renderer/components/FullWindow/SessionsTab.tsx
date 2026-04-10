@@ -433,6 +433,7 @@ export default function SessionsTab() {
               chat={nav.chat}
               onBack={() => setNav(nav.prev)}
               backLabel={nav.prev.view === 'detail' ? (nav.prev.session.task || 'Session') : 'Sessions'}
+              disableScreenCapture
             />
           </motion.div>
         )}

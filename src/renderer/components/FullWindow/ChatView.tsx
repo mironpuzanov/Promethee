@@ -156,15 +156,20 @@ export function ChatView({ chat, onBack, backLabel, disableScreenCapture = false
     setStreaming(true);
     setAttachError(null);
     setChatError(null);
-    if (!disableScreenCapture && liveScreenEveryMessage) {
-      const cap = await window.promethee.window.captureScreen();
-      if (!cap.success) { setAttachError(cap.error || 'Could not capture screen.'); setStreaming(false); return; }
+    try {
+      if (!disableScreenCapture && liveScreenEveryMessage) {
+        const cap = await window.promethee.window.captureScreen();
+        if (!cap.success) { setAttachError(cap.error || 'Could not capture screen.'); setStreaming(false); return; }
+      }
+      setInput('');
+      const history = messages;
+      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'user', content, createdAt: Date.now() }]);
+      if (!liveScreenEveryMessage) setScreenshotAttached(false);
+      await window.promethee.agent.sendMessageWithImages(chat.id, content, [], history);
+    } catch (e: unknown) {
+      setStreaming(false);
+      setChatError((e as Error)?.message || 'Failed to send — try again.');
     }
-    setInput('');
-    const history = messages;
-    setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'user', content, createdAt: Date.now() }]);
-    if (!liveScreenEveryMessage) setScreenshotAttached(false);
-    await window.promethee.agent.sendMessageWithImages(chat.id, content, [], history);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
