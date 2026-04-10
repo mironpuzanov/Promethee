@@ -225,6 +225,7 @@ function RightPanel() {
               <div className="right-panel-streak__body">
                 <span className="right-panel-streak__label">Streak</span>
                 <span className="right-panel-streak__value">{todayStats.streak} day{todayStats.streak === 1 ? '' : 's'}</span>
+                <span className="right-panel-streak__hint">≥ 10 min sessions only</span>
               </div>
             </div>
           )}
