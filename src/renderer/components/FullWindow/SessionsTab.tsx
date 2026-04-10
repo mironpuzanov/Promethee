@@ -103,13 +103,12 @@ interface ListViewProps {
   tasksBySession: Map<string, Task[]>;
   notesBySession: Map<string, Note[]>;
   chatsBySession: Map<string, Chat[]>;
-  orphanChats: Chat[];
   onSelectSession: (s: Session) => void;
   onSelectChat: (c: Chat) => void;
   loading: boolean;
 }
 
-function ListView({ sessions, tasksBySession, notesBySession, chatsBySession, orphanChats, onSelectSession, onSelectChat, loading }: ListViewProps) {
+function ListView({ sessions, tasksBySession, notesBySession, chatsBySession, onSelectSession, onSelectChat, loading }: ListViewProps) {
   const groups = groupByDay(sessions, s => s.started_at);
 
   if (loading) {
@@ -118,7 +117,7 @@ function ListView({ sessions, tasksBySession, notesBySession, chatsBySession, or
     );
   }
 
-  const isEmpty = sessions.length === 0 && orphanChats.length === 0;
+  const isEmpty = sessions.length === 0;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', padding: '40px', gap: 32, height: '100%', overflowY: 'auto' }}>
@@ -128,36 +127,6 @@ function ListView({ sessions, tasksBySession, notesBySession, chatsBySession, or
         <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
           No sessions yet. Start a focus session from the overlay to begin.
         </p>
-      )}
-
-      {/* Orphan (non-session) chats */}
-      {orphanChats.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500, padding: '0 4px 2px' }}>
-            Conversations
-          </div>
-          {orphanChats.map(chat => (
-            <button
-              key={chat.id}
-              type="button"
-              onClick={() => onSelectChat(chat)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
-                background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10,
-                cursor: 'pointer', textAlign: 'left', transition: 'background 0.15s',
-                width: '100%',
-              }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'var(--accent)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'var(--card)')}
-            >
-              <MessageCircle size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-              <span style={{ fontSize: 13, color: 'var(--text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {chat.title}
-              </span>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>{formatTime(chat.created_at)}</span>
-            </button>
-          ))}
-        </div>
       )}
 
       {/* Sessions grouped by day */}
@@ -414,8 +383,6 @@ export default function SessionsTab() {
     chatsBySession.get(c.session_id)!.push(c);
   }
 
-  const orphanChats = chats.filter(c => !c.session_id);
-
   const onToggleTask = async (taskId: string) => {
     await window.promethee.tasks.toggle(taskId);
     await load();
@@ -435,7 +402,6 @@ export default function SessionsTab() {
               tasksBySession={tasksBySession}
               notesBySession={notesBySession}
               chatsBySession={chatsBySession}
-              orphanChats={orphanChats}
               loading={loading}
               onSelectSession={s => setNav({ view: 'detail', session: s })}
               onSelectChat={c => setNav({ view: 'chat', chat: c, prev: { view: 'list' } })}

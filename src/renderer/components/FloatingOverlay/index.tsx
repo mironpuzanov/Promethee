@@ -6,7 +6,6 @@ import AgentBubble from './AgentBubble';
 import RoomsPanel from './RoomsPanel';
 import { useAudio } from '../../hooks/useAudio';
 import { overlayInstallPointerSync } from '../../lib/overlayMouseBridge';
-import { MVP_MODE } from '../../../config/mvp';
 import './FloatingOverlay.css';
 
 interface User {
@@ -160,7 +159,7 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
           toggleTaskPanelTrigger={taskToggleTrigger}
         />
         <AgentBubble activeSession={activeSession} openTrigger={agentOpenTrigger} toggleTrigger={agentToggleTrigger} />
-        {!MVP_MODE && blockerState === 'active' && (
+        {blockerState === 'active' && (
           <div
             style={{ position: 'fixed', bottom: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, pointerEvents: 'none' }}
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-sm border border-white/10 text-white/60 text-[11px] promethee-mouse-ignore"

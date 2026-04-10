@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ShortcutField } from './ShortcutField';
-import { MVP_MODE } from '../../../config/mvp';
 
 interface User {
   id: string;
@@ -561,10 +560,10 @@ function SettingsTab({ user, setUser }: SettingsTabProps) {
         </div>
       </Section>
 
-      {!MVP_MODE && <div className="border-t border-border" />}
+      <div className="border-t border-border" />
 
-      {/* Website Blocker — hidden in MVP_MODE */}
-      {!MVP_MODE && <Section title="Website blocker">
+      {/* Website Blocker */}
+      <Section title="Website blocker">
         <p className="text-xs text-muted-foreground -mt-1 max-w-xl">
           Blocks distracting websites system-wide during focus sessions — Safari, Chrome, Arc, Firefox, all covered.
           Takes a few seconds to take effect after session starts (DNS cache).
@@ -710,7 +709,7 @@ function SettingsTab({ user, setUser }: SettingsTabProps) {
             </button>
           </>
         )}
-      </Section>}
+      </Section>
 
       <div className="border-t border-border" />
 

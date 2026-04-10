@@ -571,7 +571,7 @@ export function getOrCreateCoachChat(userId) {
   `).get(userId);
   if (existing) return existing;
 
-  const id = require('crypto').randomUUID();
+  const id = crypto.randomUUID();
   const now = Date.now();
   database.prepare(`
     INSERT INTO agent_chats (id, user_id, title, session_id, system_prompt, created_at, updated_at, sync_state)

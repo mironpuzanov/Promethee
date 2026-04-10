@@ -37,6 +37,7 @@ interface ChatViewProps {
 
 export function ChatView({ chat, onBack, backLabel }: ChatViewProps) {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(true);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
@@ -49,12 +50,14 @@ export function ChatView({ chat, onBack, backLabel }: ChatViewProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
+    setLoadingMessages(true);
     void window.promethee.window.clearPendingScreenCapture();
     setScreenshotAttached(false);
     setAttachError(null);
     window.promethee.agent.getMessages(chat.id).then((r: { success: boolean; messages?: Message[] }) => {
       if (r.success) setMessages(r.messages || []);
-    });
+      setLoadingMessages(false);
+    }).catch(() => setLoadingMessages(false));
     return () => { void window.promethee.agent.summarizeChat(chat.id); };
   }, [chat.id]);
 
@@ -166,7 +169,12 @@ export function ChatView({ chat, onBack, backLabel }: ChatViewProps) {
 
       {/* Messages */}
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {messages.length === 0 && !streaming && (
+        {loadingMessages && (
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', marginTop: 40 }}>
+            Loading…
+          </p>
+        )}
+        {!loadingMessages && messages.length === 0 && !streaming && (
           <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', marginTop: 40 }}>
             Start the conversation — ask anything.
           </p>
