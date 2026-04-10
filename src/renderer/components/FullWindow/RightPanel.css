@@ -188,15 +188,16 @@
 
 .right-panel-streak__value {
   color: var(--text-primary);
-  font-size: 22px;
+  font-size: 15px;
   font-weight: 600;
   line-height: 1;
 }
 
 .right-panel-streak__unit {
-  color: var(--text-muted);
-  font-size: 12px;
+  color: var(--text-primary);
+  font-size: 14px;
   font-weight: 400;
+  opacity: 0.75;
 }
 
 .right-panel-streak__hint {
