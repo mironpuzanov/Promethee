@@ -42,14 +42,14 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
   const activeSessionRef = useRef<Session | null>(null);
   const handleEndSessionRef = useRef<() => Promise<void>>(async () => {});
 
-  // Audio: start dashboard ambient only when user is authenticated and idle.
-  // Do NOT play on mount before we know the user is present — avoids audio
-  // with no visible UI on first launch (PRO-14).
+  // Audio: start dashboard ambient when idle. Defer by 3s on mount so that
+  // if the full window fails to appear (first launch edge case, PRO-14) the
+  // user isn't hit with unexplained music before any UI is visible.
   useEffect(() => {
-    if (user && !activeSession) {
-      transitionTo('dashboard');
-    }
-  }, [user]);
+    if (activeSession) return;
+    const t = setTimeout(() => transitionTo('dashboard'), 3000);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => overlayInstallPointerSync(), []);
 
