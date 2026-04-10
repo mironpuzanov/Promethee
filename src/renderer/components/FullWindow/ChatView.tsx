@@ -33,18 +33,38 @@ interface ChatViewProps {
   chat: Chat;
   onBack?: () => void;
   backLabel?: string;
+  disableScreenCapture?: boolean;
 }
 
-export function ChatView({ chat, onBack, backLabel }: ChatViewProps) {
+function friendlyAiError(raw?: string): string {
+  if (!raw) return "Something went wrong — couldn't get a response. Try again.";
+  const lower = raw.toLowerCase();
+  if (lower.includes('rate limit') || lower.includes('429') || lower.includes('quota'))
+    return "We've hit our AI rate limit. Try again in a moment — we're on it.";
+  if (lower.includes('context_length') || lower.includes('too long') || lower.includes('max tokens'))
+    return 'This conversation is too long. Start a new chat to continue.';
+  if (lower.includes('network') || lower.includes('fetch') || lower.includes('econnrefused') || lower.includes('failed to fetch'))
+    return "Can't reach the AI service — check your connection and try again.";
+  if (lower.includes('unauthorized') || lower.includes('401') || lower.includes('forbidden') || lower.includes('403'))
+    return 'Session expired. Sign out and sign back in.';
+  if (lower.includes('500') || lower.includes('internal server'))
+    return "The AI service is having issues right now. We're aware — try again shortly.";
+  return "Something went wrong — couldn't get a response. Try again.";
+}
+
+export function ChatView({ chat, onBack, backLabel, disableScreenCapture = false }: ChatViewProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(true);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   const [screenshotAttached, setScreenshotAttached] = useState(false);
-  const [liveScreenEveryMessage, setLiveScreenEveryMessage] = useState(getMentorLiveScreenEveryMessage);
+  const [liveScreenEveryMessage, setLiveScreenEveryMessage] = useState(
+    disableScreenCapture ? false : getMentorLiveScreenEveryMessage
+  );
   const [capturingScreen, setCapturingScreen] = useState(false);
   const [attachError, setAttachError] = useState<string | null>(null);
+  const [chatError, setChatError] = useState<string | null>(null);
   const streamingContentRef = useRef('');
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -89,17 +109,18 @@ export function ChatView({ chat, onBack, backLabel }: ChatViewProps) {
     });
     const removeEnd = window.promethee.agent.onStreamEnd(({ chatId, message }: { chatId: string; message: Message }) => {
       if (chatId === chat.id) {
-        setMessages(prev => [...prev, message]);
+        if (message?.id) setMessages(prev => [...prev, message]);
         setStreamingContent('');
         streamingContentRef.current = '';
         setStreaming(false);
       }
     });
-    const removeError = window.promethee.agent.onStreamError(({ chatId }: { chatId: string }) => {
+    const removeError = window.promethee.agent.onStreamError(({ chatId, error: err }: { chatId: string; error?: string }) => {
       if (chatId === chat.id) {
         setStreamingContent('');
         streamingContentRef.current = '';
         setStreaming(false);
+        setChatError(friendlyAiError(err));
       }
     });
     return () => { removeChunk(); removeEnd(); removeError(); };
@@ -134,7 +155,8 @@ export function ChatView({ chat, onBack, backLabel }: ChatViewProps) {
     const content = input.trim();
     setStreaming(true);
     setAttachError(null);
-    if (liveScreenEveryMessage) {
+    setChatError(null);
+    if (!disableScreenCapture && liveScreenEveryMessage) {
       const cap = await window.promethee.window.captureScreen();
       if (!cap.success) { setAttachError(cap.error || 'Could not capture screen.'); setStreaming(false); return; }
     }
@@ -219,12 +241,20 @@ export function ChatView({ chat, onBack, backLabel }: ChatViewProps) {
 
       {/* Input */}
       <div style={{ padding: '12px 24px 20px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
-        <div className="mentor-live-screen-row">
-          <span className="mentor-live-screen-label">Include what's on your screen with every message</span>
-          <button type="button" role="switch" aria-checked={liveScreenEveryMessage} className="mentor-live-screen-switch" onClick={toggleLiveScreen} disabled={streaming}>
-            <span className="mentor-live-screen-switch-thumb" aria-hidden />
-          </button>
-        </div>
+        {!disableScreenCapture && (
+          <div className="mentor-live-screen-row">
+            <span className="mentor-live-screen-label">Include what's on your screen with every message</span>
+            <button type="button" role="switch" aria-checked={liveScreenEveryMessage} className="mentor-live-screen-switch" onClick={toggleLiveScreen} disabled={streaming}>
+              <span className="mentor-live-screen-switch-thumb" aria-hidden />
+            </button>
+          </div>
+        )}
+        {chatError && (
+          <div className="mentor-screen-chip mentor-screen-chip--error" role="alert" style={{ marginBottom: 6 }}>
+            <span style={{ flex: 1, minWidth: 0 }}>{chatError}</span>
+            <button type="button" className="mentor-screen-chip-remove" aria-label="Dismiss error" onClick={() => setChatError(null)}><X size={14} strokeWidth={2} /></button>
+          </div>
+        )}
         {attachError && (
           <div className="mentor-screen-chip mentor-screen-chip--error" role="alert">
             <span style={{ flex: 1, minWidth: 0 }}>{attachError}</span>
@@ -241,14 +271,16 @@ export function ChatView({ chat, onBack, backLabel }: ChatViewProps) {
           </div>
         )}
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-          <button
-            type="button" onClick={handleAttachScreen}
-            disabled={streaming || capturingScreen || liveScreenEveryMessage}
-            title={liveScreenEveryMessage ? 'Turn off "every message" to queue a single capture' : screenshotAttached ? 'Remove queued desktop snapshot' : capturingScreen ? 'Capturing…' : 'Include desktop on next message'}
-            className={`mentor-chat-attach${screenshotAttached ? ' mentor-chat-attach--active' : ''}`}
-          >
-            <Monitor size={15} />
-          </button>
+          {!disableScreenCapture && (
+            <button
+              type="button" onClick={handleAttachScreen}
+              disabled={streaming || capturingScreen || liveScreenEveryMessage}
+              title={liveScreenEveryMessage ? 'Turn off "every message" to queue a single capture' : screenshotAttached ? 'Remove queued desktop snapshot' : capturingScreen ? 'Capturing…' : 'Include desktop on next message'}
+              className={`mentor-chat-attach${screenshotAttached ? ' mentor-chat-attach--active' : ''}`}
+            >
+              <Monitor size={15} />
+            </button>
+          )}
           <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder="Ask your mentor anything..." disabled={streaming} rows={1} className="mentor-chat-textarea" />
           <button type="button" onClick={handleSend} disabled={!input.trim() || streaming} className="mentor-chat-send">
             <Send size={15} />

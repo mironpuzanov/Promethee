@@ -1,4 +1,20 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+
+function friendlyAiError(raw?: string): string {
+  if (!raw) return "Something went wrong — couldn't get a response. Try again.";
+  const lower = raw.toLowerCase();
+  if (lower.includes('rate limit') || lower.includes('429') || lower.includes('quota'))
+    return "AI rate limit hit. Try again in a moment — we're on it.";
+  if (lower.includes('context_length') || lower.includes('too long') || lower.includes('max tokens'))
+    return 'Conversation too long. Start a new chat to continue.';
+  if (lower.includes('network') || lower.includes('fetch') || lower.includes('econnrefused') || lower.includes('failed to fetch'))
+    return "Can't reach the AI service — check your connection.";
+  if (lower.includes('unauthorized') || lower.includes('401') || lower.includes('forbidden') || lower.includes('403'))
+    return 'Session expired. Sign out and back in.';
+  if (lower.includes('500') || lower.includes('internal server'))
+    return "AI service is having issues. We're aware — try again shortly.";
+  return "Something went wrong — couldn't get a response. Try again.";
+}
 import { motion, AnimatePresence } from 'framer-motion';
 import { Monitor, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -214,7 +230,7 @@ function AgentBubble({ activeSession, openTrigger = 0, toggleTrigger = 0 }: Agen
     });
     const removeError = window.promethee.agent.onStreamError(({ chatId, error: err }: { chatId: string; error: string }) => {
       if (chatId === chatIdRef.current) {
-        setError(err);
+        setError(friendlyAiError(err));
         setStreamingContent('');
         streamingContentRef.current = '';
         setStreaming(false);

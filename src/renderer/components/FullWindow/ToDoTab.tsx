@@ -96,7 +96,7 @@ export default function ToDoTab() {
             onChange={e => setNewXp(e.target.value)}
             placeholder="XP"
             min={1}
-            max={50}
+            max={100}
             style={{
               width: 60, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10,
               padding: '8px 10px', fontSize: 13, color: 'var(--text-primary)',
@@ -159,23 +159,22 @@ export default function ToDoTab() {
 
 function TaskRow({ task, onToggle, onDelete }: { task: Task; onToggle: (id: string) => void; onDelete: (id: string) => void }) {
   const done = Boolean(task.completed);
-  // Discounted XP for display (0.1x, min 1, cap at 50)
-  const displayXp = task.xp_reward
-    ? Math.max(1, Math.round(Math.min(50, task.xp_reward) * 0.1))
-    : null;
+  // Anti-cheat: standalone tasks earn 10% of declared XP (min 1, cap 100)
+  const declaredXp = task.xp_reward ? Math.min(100, task.xp_reward) : null;
+  const earnedXp = declaredXp ? Math.max(1, Math.round(declaredXp * 0.1)) : null;
 
   return (
     <motion.div
       variants={rowVariants}
       exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-      style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 10px', borderRadius: 10, transition: 'background 0.12s', position: 'relative' }}
+      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 10, transition: 'background 0.12s', position: 'relative' }}
       onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
     >
       <button
         type="button"
         onClick={() => onToggle(task.id)}
-        style={{ flexShrink: 0, marginTop: 2, background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: done ? 'var(--accent-fire)' : 'var(--text-muted)', transition: 'color 0.15s', display: 'flex' }}
+        style={{ flexShrink: 0, background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: done ? 'var(--accent-fire)' : 'var(--text-muted)', transition: 'color 0.15s', display: 'flex' }}
       >
         {done ? <Check size={16} strokeWidth={2.5} /> : <Circle size={16} strokeWidth={1.5} />}
       </button>
@@ -185,15 +184,16 @@ function TaskRow({ task, onToggle, onDelete }: { task: Task; onToggle: (id: stri
       >
         {task.text}
       </span>
-      {displayXp && (
-        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent-fire)', flexShrink: 0, opacity: done ? 0.4 : 1 }}>
-          +{displayXp} XP <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 9 }}>×0.1</span>
+      {declaredXp && earnedXp && (
+        <span style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0, opacity: done ? 0.4 : 1 }}>
+          <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--accent-fire)' }}>+{earnedXp} XP</span>
+          <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 400 }}>({declaredXp}×0.1)</span>
         </span>
       )}
       <button
         type="button"
         onClick={() => onDelete(task.id)}
-        style={{ flexShrink: 0, background: 'none', border: 'none', padding: 2, cursor: 'pointer', color: 'var(--text-muted)', opacity: 0, transition: 'opacity 0.12s, color 0.12s', display: 'flex', borderRadius: 4 }}
+        style={{ flexShrink: 0, background: 'none', border: 'none', padding: 2, cursor: 'pointer', color: 'var(--text-muted)', opacity: 0, transition: 'opacity 0.12s, color 0.12s', display: 'flex', alignItems: 'center', borderRadius: 4 }}
         className="todo-delete-btn"
         aria-label="Delete task"
         onMouseEnter={e => (e.currentTarget.style.color = 'rgba(248,113,113,0.9)')}

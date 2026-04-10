@@ -461,21 +461,15 @@ function CharacterPanel({ user }: CharacterPanelProps) {
                       {task.text}
                     </span>
                     {task.xp_reward ? (() => {
-                      // Standalone tasks: declared XP is capped at 50 and awarded at 10%
                       const isUserTask = !task.session_id;
                       const displayXp = isUserTask
-                        ? Math.max(1, Math.round(Math.min(50, task.xp_reward) * 0.1))
-                        : Math.min(50, task.xp_reward);
+                        ? Math.max(1, Math.round(Math.min(100, task.xp_reward) * 0.1))
+                        : Math.min(100, task.xp_reward);
                       return (
                         <motion.span
                           animate={done ? { scale: [1, 1.3, 1], opacity: [1, 1, 0] } : { scale: 1, opacity: 1 }}
                           transition={done ? { duration: 0.5, times: [0, 0.4, 1] } : { duration: 0 }}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 3,
-                            flexShrink: 0,
-                          }}
+                          style={{ flexShrink: 0 }}
                         >
                           <span style={{
                             fontSize: 9,
@@ -486,13 +480,6 @@ function CharacterPanel({ user }: CharacterPanelProps) {
                             padding: '2px 6px',
                             letterSpacing: '0.06em',
                           }}>+{displayXp} XP</span>
-                          {isUserTask && (
-                            <span style={{
-                              fontSize: 8,
-                              color: 'rgba(255,255,255,0.25)',
-                              letterSpacing: '0.04em',
-                            }}>×0.1</span>
-                          )}
                         </motion.span>
                       );
                     })() : null}

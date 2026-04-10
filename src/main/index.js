@@ -2523,14 +2523,17 @@ ipcMain.handle('tasks:toggle', async (_event, taskId) => {
     const task = toggleTask(taskId, user.id);
     if (!task) return { success: false, error: 'Task not found' };
 
-    // Award or revoke XP on toggle
-    // Anti-cheat: standalone (user-created) tasks get 10% XP, declared value capped at 50.
-    // Session tasks (created inside a focus session) get full XP up to 50.
-    const declaredXp = task.xp_reward || 25;
+    // Award or revoke XP on toggle.
+    // Anti-cheat: standalone (user-created) tasks get 10% of declared XP (min 1, cap 100).
+    // Session tasks get full declared XP (cap 100).
+    // If no XP was set (null/0), award nothing.
+    const declaredXp = task.xp_reward || 0;
     const isUserTask = task.session_id == null;
-    const actualReward = isUserTask
-      ? Math.max(1, Math.round(Math.min(50, declaredXp) * 0.1))
-      : Math.min(50, declaredXp);
+    const actualReward = declaredXp === 0
+      ? 0
+      : isUserTask
+        ? Math.max(1, Math.round(Math.min(100, declaredXp) * 0.1))
+        : Math.min(100, declaredXp);
 
     let xpEarned = 0;
     if (task.completed) {

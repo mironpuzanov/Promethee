@@ -575,7 +575,7 @@ export function getOrCreateCoachChat(userId) {
   const now = Date.now();
   database.prepare(`
     INSERT INTO agent_chats (id, user_id, title, session_id, system_prompt, created_at, updated_at, sync_state)
-    VALUES (?, ?, '__coach__', NULL, NULL, ?, ?, 'pending_upsert')
+    VALUES (?, ?, '__coach__', NULL, '', ?, ?, 'pending_upsert')
   `).run(id, userId, now, now);
   return database.prepare(`SELECT * FROM agent_chats WHERE id = ?`).get(id);
 }
@@ -713,8 +713,7 @@ export function createStandaloneTask(userId, text, xpReward) {
     SELECT COALESCE(MAX(position), -1) + 1 AS next FROM tasks WHERE session_id IS NULL AND user_id = ?
   `).get(userId);
   const position = row?.next ?? 0;
-  // Cap declared XP at 50 — actual awarded XP is further discounted at toggle time
-  const xp = xpReward && Number(xpReward) > 0 ? Math.min(50, Math.round(Number(xpReward))) : null;
+  const xp = xpReward && Number(xpReward) > 0 ? Math.min(100, Math.round(Number(xpReward))) : null;
   database.prepare(`
     INSERT INTO tasks (id, session_id, user_id, text, completed, position, xp_reward, created_at, sync_state)
     VALUES (?, NULL, ?, ?, 0, ?, ?, ?, 'pending_upsert')
