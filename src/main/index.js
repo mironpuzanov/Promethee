@@ -960,11 +960,19 @@ async function syncPendingAgentChats(userId) {
   const { supabase } = await import('../lib/supabase.js');
 
   for (const chat of pending) {
+    // Only include session_id if that session has been synced to Supabase (has synced_at).
+    // If the session hasn't synced yet, set null to avoid FK violation.
+    let resolvedSessionId = null;
+    if (chat.session_id) {
+      const session = getSessionById(chat.session_id);
+      resolvedSessionId = session?.synced_at ? chat.session_id : null;
+    }
+
     const payload = {
       id: chat.id,
       user_id: userId,
       title: chat.title,
-      session_id: chat.session_id || null,
+      session_id: resolvedSessionId,
       system_prompt: chat.system_prompt || '',
       summary: chat.summary || null,
       created_at: chat.created_at,
@@ -1010,10 +1018,16 @@ async function syncPendingTasks(userId) {
       setTaskSyncState(task.id, 'synced');
       continue;
     }
+    // Only include session_id if that session is synced to Supabase
+    let taskSessionId = null;
+    if (task.session_id) {
+      const sess = getSessionById(task.session_id);
+      taskSessionId = sess?.synced_at ? task.session_id : null;
+    }
     const { error } = await supabase.from('tasks').upsert({
       id: task.id,
       user_id: userId,
-      session_id: task.session_id || null,
+      session_id: taskSessionId,
       text: task.text,
       completed: task.completed === 1,
       position: task.position ?? 0,
@@ -1042,10 +1056,16 @@ async function syncPendingNotes(userId) {
       setNoteSyncState(note.id, 'synced');
       continue;
     }
+    // Only include session_id if that session is synced to Supabase
+    let noteSessionId = null;
+    if (note.session_id) {
+      const sess = getSessionById(note.session_id);
+      noteSessionId = sess?.synced_at ? note.session_id : null;
+    }
     const { error } = await supabase.from('session_notes').upsert({
       id: note.id,
       user_id: userId,
-      session_id: note.session_id || null,
+      session_id: noteSessionId,
       text: note.text,
       created_at: note.created_at,
       deleted: note.deleted === 1,
