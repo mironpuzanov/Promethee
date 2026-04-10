@@ -293,7 +293,7 @@ export function ChatView({ chat, onBack, backLabel, disableScreenCapture = false
           )}
           <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder="Ask your mentor anything..." disabled={streaming} rows={1} className="mentor-chat-textarea" />
           <button type="button" onClick={handleSend} disabled={!input.trim() || streaming} className="mentor-chat-send">
-            <ArrowUp size={15} strokeWidth={2.5} />
+            <ArrowUp size={16} strokeWidth={2.5} />
           </button>
         </div>
       </div>
