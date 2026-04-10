@@ -137,13 +137,12 @@ function RightPanel() {
 
   return (
     <motion.aside
-      className="h-full bg-background border-l border-border overflow-y-auto"
+      className="flex h-full flex-col bg-background border-l border-border"
       initial="hidden"
       animate="visible"
       variants={containerVariants}
     >
-      {/* Content — natural height so empty space below exposes the draggable aside background */}
-      <div className="px-4 py-5 flex flex-col gap-6">
+      <div className="flex-1 overflow-y-auto px-4 py-5 flex flex-col gap-6">
         {/* Active Quests */}
       {activeQuests.length > 0 && (
         <>
@@ -278,7 +277,7 @@ function RightPanel() {
         )}
       </div>
 
-      {/* Music toggle — pinned bottom right */}
+      {/* Music toggle — pinned to bottom right via flex layout */}
       <motion.div
         variants={itemVariants}
         className="flex items-center justify-end px-4 py-3 border-t border-border"
