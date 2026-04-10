@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import PresencePill from './PresencePill';
 import './IdleBar.css';
 
@@ -21,6 +21,43 @@ interface IdleBarProps {
 function IdleBar({ user, onStartSession, onOpenRooms, autoFocusInput, onAutoFocusConsumed, onOpenMentor, onSessionStartIntent }: IdleBarProps) {
   const [showTaskInput, setShowTaskInput] = useState(false);
   const [task, setTask] = useState('');
+
+  // Bar drag state — JS pointer events, no webkit-app-region (that moves the whole window)
+  const barRef = useRef<HTMLDivElement>(null);
+  const [barPos, setBarPos] = useState<{ left: number; top: number } | null>(null);
+  const dragState = useRef<{ startX: number; startY: number; initLeft: number; initTop: number } | null>(null);
+
+  const handleHandlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const bar = barRef.current;
+    if (!bar) return;
+    const rect = bar.getBoundingClientRect();
+    dragState.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initLeft: rect.left + rect.width / 2, // center X (because translateX(-50%))
+      initTop: rect.top,
+    };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handleHandlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragState.current) return;
+    const dx = e.clientX - dragState.current.startX;
+    const dy = e.clientY - dragState.current.startY;
+    const barW = barRef.current?.offsetWidth ?? 560;
+    const barH = barRef.current?.offsetHeight ?? 52;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    setBarPos({
+      left: Math.max(barW / 2, Math.min(w - barW / 2, dragState.current.initLeft + dx)),
+      top: Math.max(0, Math.min(h - barH, dragState.current.initTop + dy)),
+    });
+  };
+
+  const handleHandlePointerUp = () => {
+    dragState.current = null;
+  };
 
   // When dashboard sends "start focus session", auto-open the task input
   useEffect(() => {
@@ -45,8 +82,9 @@ function IdleBar({ user, onStartSession, onOpenRooms, autoFocusInput, onAutoFocu
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && task.trim()) {
+      // Don't call dismissInput() — the parent will unmount us when activeSession is set,
+      // avoiding the blink of "collapsed bar" between input dismiss and active session render.
       onStartSession(task, null);
-      dismissInput();
     } else if (e.key === 'Escape') {
       dismissInput();
     }
@@ -60,10 +98,20 @@ function IdleBar({ user, onStartSession, onOpenRooms, autoFocusInput, onAutoFocu
     return (user.user_metadata?.display_name || user.email || '').charAt(0).toUpperCase();
   };
 
+  const barStyle = barPos
+    ? { left: barPos.left, top: barPos.top, transform: 'translateX(-50%)' }
+    : undefined;
+
   return (
-    <div className="idle-bar promethee-mouse-target">
-      {/* Visible drag handle — left edge, makes it obvious the bar is draggable */}
-      <div className="idle-bar__drag-handle" aria-hidden="true">
+    <div ref={barRef} className="idle-bar promethee-mouse-target" style={barStyle}>
+      {/* Visible drag handle — JS pointer-event drag, NOT webkit-app-region (that moves the whole window) */}
+      <div
+        className="idle-bar__drag-handle"
+        aria-hidden="true"
+        onPointerDown={handleHandlePointerDown}
+        onPointerMove={handleHandlePointerMove}
+        onPointerUp={handleHandlePointerUp}
+      >
         <svg width="6" height="14" viewBox="0 0 6 14" fill="none">
           <circle cx="1.5" cy="2"  r="1.2" fill="currentColor"/>
           <circle cx="4.5" cy="2"  r="1.2" fill="currentColor"/>

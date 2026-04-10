@@ -22,10 +22,11 @@
   cursor: default;
 }
 
-/* ── Grip handle — the ONLY draggable zone on the idle bar ────── */
+/* ── Grip handle — JS pointer-event drag (no webkit-app-region, that moves the whole window) */
 .idle-bar__drag-handle {
-  -webkit-app-region: drag;
   cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
   display: flex;
   align-items: center;
   justify-content: center;
