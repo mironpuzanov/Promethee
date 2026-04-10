@@ -177,7 +177,10 @@ function FullWindow({ user, setUser }: FullWindowProps) {
     if (tab === 'leaderboard') {
       localStorage.setItem('onboarding:leaderboard_visited', '1');
     }
-    if (tab === 'coach') setUnreadCoach(0);
+    if (tab === 'coach') {
+      setUnreadCoach(0);
+      (window.promethee as any).coach?.clearUnread?.().catch(() => {});
+    }
     activeTabRef.current = tab;
     setActiveTabRaw(tab);
   };
@@ -197,6 +200,13 @@ function FullWindow({ user, setUser }: FullWindowProps) {
   });
   const [dismissedUpdateVersion, setDismissedUpdateVersion] = useState<string | null>(null);
   const [unreadCoach, setUnreadCoach] = useState(0);
+
+  // Seed unread count from DB on mount so badge survives app restarts
+  useEffect(() => {
+    (window.promethee as any).coach?.getUnread?.().then((count: number) => {
+      if (count > 0) setUnreadCoach(count);
+    }).catch(() => {});
+  }, []);
 
   // Listen for proactive coach messages; show badge when not on coach tab
   useEffect(() => {

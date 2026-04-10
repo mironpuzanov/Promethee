@@ -1743,6 +1743,26 @@ ipcMain.handle('coach:getOrCreate', async () => {
   }
 });
 
+ipcMain.handle('coach:getUnread', async () => {
+  try {
+    const user = await getUser();
+    if (!user) return 0;
+    return getCoachUnread(user.id);
+  } catch {
+    return 0;
+  }
+});
+
+ipcMain.handle('coach:clearUnread', async () => {
+  try {
+    const user = await getUser();
+    if (!user) return;
+    clearCoachUnread(user.id);
+  } catch {
+    // non-critical
+  }
+});
+
 /**
  * Fire-and-forget: ask the AI coach to send a message about a completed session.
  * Called after session:end, never blocks the user.
@@ -1823,6 +1843,8 @@ Write a brief coaching message to the user about this session. Be specific and p
 
     if (!fullContent) return;
     const saved = addAgentMessage(chat.id, 'assistant', fullContent);
+    // Persist unread count so badge survives app restarts
+    incrementCoachUnread(user.id);
     // Notify renderer so it can show unread badge and stream the message if user has the chat open
     [floatingWindow, fullWindow].forEach(w => {
       w?.webContents.send('coach:newMessage', { chatId: chat.id, message: saved });

@@ -224,6 +224,8 @@ contextBridge.exposeInMainWorld('promethee', {
   // Persistent AI coach
   coach: {
     getOrCreate: () => ipcRenderer.invoke('coach:getOrCreate'),
+    getUnread: () => ipcRenderer.invoke('coach:getUnread'),
+    clearUnread: () => ipcRenderer.invoke('coach:clearUnread'),
     onNewMessage: (callback) => {
       const listener = (_event, data) => callback(data);
       ipcRenderer.on('coach:newMessage', listener);
