@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
-import { Check, ChevronDown, Circle, FileText, ListChecks, StickyNote, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, Circle, ListChecks, StickyNote, Trash2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { overlaySuppressHitTest, overlayRestoreClickThrough } from '../../lib/overlayMouseBridge';
@@ -148,11 +148,6 @@ function TaskChecklist({ session, focusAddFieldTrigger = 0, togglePanelTrigger =
     if (r.success) await loadTasks();
   };
 
-  const onDeleteNote = async (noteId: string) => {
-    const r = await window.promethee.notes.delete(noteId);
-    if (r.success) await loadNotes();
-  };
-
   const onAdd = async (e?: React.FormEvent | React.KeyboardEvent) => {
     e?.preventDefault();
     const t = draft.trim();
@@ -279,11 +274,12 @@ function TaskChecklist({ session, focusAddFieldTrigger = 0, togglePanelTrigger =
   // Clear draft when switching tabs
   useEffect(() => { setDraft(''); }, [tab]);
 
-  // Reset textarea height when draft is cleared
+  // Keep textarea height consistent — use same formula for both clear and grow
   useLayoutEffect(() => {
-    if (draft === '' && addInputRef.current) {
-      addInputRef.current.style.height = '';
-    }
+    const el = addInputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.max(34, Math.min(el.scrollHeight, 120))}px`;
   }, [draft]);
 
   const incompleteTasks = tasks.filter(t => !t.completed);
@@ -409,14 +405,6 @@ function TaskChecklist({ session, focusAddFieldTrigger = 0, togglePanelTrigger =
                     </div>
                     <div className="task-checklist__note-footer">
                       <span className="task-checklist__note-time">{formatTime(note.created_at)}</span>
-                      <button
-                        type="button"
-                        className="task-checklist__delete"
-                        onClick={() => onDeleteNote(note.id)}
-                        aria-label="Delete note"
-                      >
-                        <Trash2 size={12} />
-                      </button>
                     </div>
                   </div>
                 </div>
@@ -428,12 +416,8 @@ function TaskChecklist({ session, focusAddFieldTrigger = 0, togglePanelTrigger =
             ref={addInputRef as React.RefObject<HTMLTextAreaElement>}
             className="task-checklist__input"
             value={draft}
-            rows={1}
             onChange={(e) => {
               setDraft(e.target.value);
-              const el = e.currentTarget;
-              el.style.height = 'auto';
-              el.style.height = `${Math.max(34, Math.min(el.scrollHeight, 120))}px`;
             }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {

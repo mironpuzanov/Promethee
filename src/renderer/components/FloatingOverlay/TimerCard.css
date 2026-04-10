@@ -3,7 +3,7 @@
   bottom: 24px;
   left: 24px;
   z-index: 250; /* above task checklist (99) + mentor bubble (100); stop must always receive clicks */
-  background: rgba(18, 15, 12, 0.90);
+  background: rgba(14, 11, 9, 0.97);
   backdrop-filter: blur(24px);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 14px;
