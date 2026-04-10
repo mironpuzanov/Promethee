@@ -11,31 +11,41 @@ const STYLES = `
     position: relative;
     display: flex;
     align-items: center;
-    justify-content: center;
     width: 100%;
-    padding: 9px 16px;
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(232, 146, 42, 0.45);
-    color: rgba(255, 255, 255, 0.90);
+    padding: 10px 12px;
+    border-radius: 6px;
+    background: transparent;
+    border: none;
+    color: var(--accent-fire, #e8922a);
     font-size: 13px;
-    font-weight: 400;
+    font-weight: 500;
     letter-spacing: 0.01em;
     cursor: pointer;
     user-select: none;
-    transition: background 0.18s, border-color 0.18s, color 0.18s;
+    transition: background 0.15s, color 0.15s;
     font-family: inherit;
+    text-align: left;
+    gap: 12px;
   }
 
   .sfb-btn:hover {
-    background: rgba(255, 255, 255, 0.09);
-    border-color: rgba(232, 146, 42, 0.70);
-    color: rgba(255, 255, 255, 0.90);
+    background: rgba(232, 146, 42, 0.08);
+    color: var(--accent-fire, #e8922a);
   }
 
   .sfb-btn:active {
-    background: rgba(255, 255, 255, 0.12);
+    background: rgba(232, 146, 42, 0.12);
     transform: scale(0.98);
+  }
+
+  .sfb-icon {
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    opacity: 0.9;
   }
 `;
 
@@ -57,13 +67,13 @@ export default function StartFocusButton({ onClick, label = 'Start focus session
       className={`sfb-btn${className ? ` ${className}` : ''}`}
       onClick={onClick}
     >
-      <span aria-label={label}>
-        {Array.from(label).map((ch, i) => (
-          <span key={i} className="sfb-letter" aria-hidden="true">
-            {ch === ' ' ? '\u00A0' : ch}
-          </span>
-        ))}
+      {/* Play icon — matches nav item icon sizing */}
+      <span className="sfb-icon" aria-hidden="true">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3.5 2.5L12 7.5L3.5 12.5V2.5Z" fill="currentColor" />
+        </svg>
       </span>
+      <span>{label}</span>
     </button>
   );
 }
