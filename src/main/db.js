@@ -195,6 +195,9 @@ export function initializeDatabase() {
   if (!colNames.includes('telegram_chat_id')) {
     db.exec(`ALTER TABLE user_profile ADD COLUMN telegram_chat_id TEXT`);
   }
+  if (!colNames.includes('coach_unread')) {
+    db.exec(`ALTER TABLE user_profile ADD COLUMN coach_unread INTEGER DEFAULT 0`);
+  }
 
   // Migration: add summary column to agent_chats
   const chatColCheck = db.prepare(`PRAGMA table_info(agent_chats)`).all();
@@ -428,6 +431,22 @@ export function getUserProfile(userId) {
   `);
 
   return stmt.get(userId);
+}
+
+export function getCoachUnread(userId) {
+  const database = getDb();
+  const row = database.prepare(`SELECT coach_unread FROM user_profile WHERE id = ?`).get(userId);
+  return row?.coach_unread ?? 0;
+}
+
+export function incrementCoachUnread(userId) {
+  const database = getDb();
+  database.prepare(`UPDATE user_profile SET coach_unread = COALESCE(coach_unread, 0) + 1 WHERE id = ?`).run(userId);
+}
+
+export function clearCoachUnread(userId) {
+  const database = getDb();
+  database.prepare(`UPDATE user_profile SET coach_unread = 0 WHERE id = ?`).run(userId);
 }
 
 export function createOrUpdateUserProfile(userId, email, displayName) {
