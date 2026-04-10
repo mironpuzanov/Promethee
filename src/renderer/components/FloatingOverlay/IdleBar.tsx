@@ -60,20 +60,7 @@ function IdleBar({ user, onStartSession, onOpenRooms, autoFocusInput, onAutoFocu
 
   return (
     <div className="idle-bar promethee-mouse-target">
-      <button
-        className="mentor-button"
-        onClick={onOpenMentor}
-        onMouseEnter={e => {
-          e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.20)';
-          e.currentTarget.style.color = 'rgba(255,255,255,0.95)';
-        }}
-        onMouseLeave={e => {
-          e.currentTarget.style.background = 'transparent';
-          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)';
-          e.currentTarget.style.color = 'rgba(255,255,255,0.70)';
-        }}
-      >
+      <button className="mentor-button" onClick={onOpenMentor}>
         Mentor
       </button>
 

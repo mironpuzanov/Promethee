@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft, Check, Circle, StickyNote, MessageCircle, Zap, Clock, Plus,
+  ArrowLeft, Check, Circle, StickyNote, MessageCircle, Zap, Clock, Plus, Play,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -121,7 +121,35 @@ function ListView({ sessions, tasksBySession, notesBySession, chatsBySession, on
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', padding: '40px', gap: 32, height: '100%', overflowY: 'auto' }}>
-      <h2 style={{ fontSize: 24, fontWeight: 300, color: 'var(--foreground)', margin: 0 }}>Sessions</h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <h2 style={{ fontSize: 24, fontWeight: 300, color: 'var(--foreground)', margin: 0 }}>Sessions</h2>
+        <button
+          onClick={() => (window.promethee as any).window.startFocusSession?.()}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: 'rgba(232, 146, 42, 0.12)',
+            border: '1px solid rgba(232, 146, 42, 0.30)',
+            borderRadius: 999,
+            color: 'var(--accent-fire)',
+            fontSize: 13, fontWeight: 500,
+            padding: '7px 14px',
+            cursor: 'pointer',
+            transition: 'background 0.15s, border-color 0.15s',
+            flexShrink: 0,
+          }}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLButtonElement).style.background = 'rgba(232,146,42,0.20)';
+            (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(232,146,42,0.50)';
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLButtonElement).style.background = 'rgba(232,146,42,0.12)';
+            (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(232,146,42,0.30)';
+          }}
+        >
+          <Play size={12} fill="currentColor" />
+          Start Focus Session
+        </button>
+      </div>
 
       {isEmpty && (
         <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>

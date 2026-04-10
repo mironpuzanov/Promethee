@@ -5,11 +5,13 @@
   transform: translateX(-50%);
   width: 560px;
   height: 52px;
-  background: rgba(20, 17, 14, 0.72);
-  backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  /* Opaque enough to stay legible on any background — light or dark wallpaper */
+  background: rgba(14, 11, 9, 0.92);
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 20px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255,255,255,0.05);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -21,10 +23,10 @@
 
 .mentor-button {
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 999px;
   padding: 6px 14px;
-  color: rgba(255, 255, 255, 0.70);
+  color: rgba(255, 255, 255, 0.65);
   font-family: 'Geist', sans-serif;
   font-size: 13px;
   font-weight: 500;
@@ -34,43 +36,57 @@
   gap: 6px;
   -webkit-app-region: no-drag;
   transition: background 0.15s, border-color 0.15s, color 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .mentor-button:hover {
-  transform: scale(1.02);
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.90);
 }
 
 .mentor-button:active {
   transform: scale(0.98);
 }
 
+/* ── Start button — accent orange pill ──────────────────────────── */
 .start-button {
   flex: 1;
-  background: transparent;
-  border: none;
-  color: #888;
+  background: rgba(232, 146, 42, 0.12);
+  border: 1px solid rgba(232, 146, 42, 0.30);
+  border-radius: 999px;
+  color: var(--accent-fire);
   font-family: 'Geist', sans-serif;
   font-size: 13px;
-  font-weight: 400;
+  font-weight: 500;
   cursor: pointer;
   text-align: center;
   -webkit-app-region: no-drag;
-  transition: color 0.2s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  padding: 5px 14px;
+  margin: 0 8px;
 }
 
 .start-button:hover {
-  color: var(--text-secondary);
+  background: rgba(232, 146, 42, 0.20);
+  border-color: rgba(232, 146, 42, 0.50);
+  color: #f0a84a;
+}
+
+.start-button:active {
+  transform: scale(0.98);
 }
 
 .start-circle {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  border: 1.5px solid currentColor;
+  background: currentColor;
   display: inline-block;
   flex-shrink: 0;
 }
@@ -79,24 +95,26 @@
   flex: 1;
   background: transparent;
   border: none;
-  color: var(--text-primary);
+  color: rgba(255, 255, 255, 0.90);
   font-family: 'Geist', sans-serif;
   font-size: 13px;
   font-weight: 400;
   outline: none;
   text-align: center;
   -webkit-app-region: no-drag;
+  margin: 0 8px;
 }
 
 .task-input::placeholder {
-  color: #888;
+  color: rgba(255, 255, 255, 0.35);
 }
 
 .user-controls {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   -webkit-app-region: no-drag;
+  flex-shrink: 0;
 }
 
 .user-avatar {
@@ -107,23 +125,26 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-primary);
+  color: #fff;
   font-size: 11px;
   font-weight: 600;
 }
 
+/* Dashboard / home button — clearly visible on the dark pill */
 .menu-button {
   background: transparent;
   border: none;
-  color: #555;
+  color: rgba(255, 255, 255, 0.50);
   cursor: pointer;
   padding: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: color 0.2s;
+  border-radius: 6px;
 }
 
 .menu-button:hover {
-  color: #888;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.07);
 }
