@@ -48,9 +48,13 @@ export async function endSessionAndSync() {
   const endedAt = Date.now();
   const durationSeconds = Math.floor((endedAt - activeSession.startedAt) / 1000);
 
-  // Update streak first — we need the current streak value for the multiplier
+  // Update streak first — we need the current streak value for the multiplier.
+  // Only sessions ≥ 10 minutes count toward the daily streak.
+  const STREAK_MIN_SECONDS = 600; // 10 minutes
   const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD local
-  const currentStreak = updateStreak(activeSession.userId, todayStr);
+  const currentStreak = durationSeconds >= STREAK_MIN_SECONDS
+    ? updateStreak(activeSession.userId, todayStr)
+    : (getUserProfile(activeSession.userId)?.current_streak || 0);
 
   // Calculate XP: 10 XP per minute base, minimum 60s for any XP
   const baseXp = durationSeconds < 60 ? 0 : Math.floor(durationSeconds / 60) * 10;

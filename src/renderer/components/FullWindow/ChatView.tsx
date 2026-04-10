@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
-import { ArrowLeft, Monitor, Send, X } from 'lucide-react';
+import { ArrowLeft, ArrowUp, Monitor, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getMentorLiveScreenEveryMessage, setMentorLiveScreenEveryMessage } from '../../lib/mentorLiveScreenPref';
@@ -71,14 +71,19 @@ export function ChatView({ chat, onBack, backLabel, disableScreenCapture = false
 
   useEffect(() => {
     setLoadingMessages(true);
-    void window.promethee.window.clearPendingScreenCapture();
+    void window.promethee.window.clearPendingScreenCapture?.();
     setScreenshotAttached(false);
     setAttachError(null);
-    window.promethee.agent.getMessages(chat.id).then((r: { success: boolean; messages?: Message[] }) => {
+    console.log('[ChatView] loading messages for chat:', chat.id);
+    window.promethee.agent.getMessages(chat.id).then((r: { success: boolean; messages?: Message[]; error?: string }) => {
+      console.log('[ChatView] getMessages result:', r.success, r.messages?.length ?? r.error);
       if (r.success) setMessages(r.messages || []);
       setLoadingMessages(false);
-    }).catch(() => setLoadingMessages(false));
-    return () => { void window.promethee.agent.summarizeChat(chat.id); };
+    }).catch((e: unknown) => {
+      console.error('[ChatView] getMessages threw:', e);
+      setLoadingMessages(false);
+    });
+    return () => { void window.promethee.agent.summarizeChat?.(chat.id); };
   }, [chat.id]);
 
   useEffect(() => {
@@ -218,7 +223,7 @@ export function ChatView({ chat, onBack, backLabel, disableScreenCapture = false
               {msg.role === 'user' ? (
                 <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
               ) : (
-                <ReactMarkdown remarkPlugins={[remarkGfm]} className="mentor-markdown">{msg.content}</ReactMarkdown>
+                <div className="mentor-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown></div>
               )}
             </div>
             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
@@ -236,7 +241,7 @@ export function ChatView({ chat, onBack, backLabel, disableScreenCapture = false
         {streaming && streamingContent && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
             <div style={{ maxWidth: '72%', padding: '10px 14px', borderRadius: '14px 14px 14px 4px', fontSize: 13, lineHeight: 1.6, background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border)', wordBreak: 'break-word' }}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]} className="mentor-markdown">{streamingContent}</ReactMarkdown>
+              <div className="mentor-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingContent}</ReactMarkdown></div>
               <span style={{ display: 'inline-block', width: 6, height: 12, background: 'var(--text-secondary)', marginLeft: 2, verticalAlign: 'middle', borderRadius: 1, animation: 'blink 1s step-end infinite' }} />
             </div>
           </div>
@@ -288,7 +293,7 @@ export function ChatView({ chat, onBack, backLabel, disableScreenCapture = false
           )}
           <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder="Ask your mentor anything..." disabled={streaming} rows={1} className="mentor-chat-textarea" />
           <button type="button" onClick={handleSend} disabled={!input.trim() || streaming} className="mentor-chat-send">
-            <Send size={15} />
+            <ArrowUp size={15} strokeWidth={2.5} />
           </button>
         </div>
       </div>

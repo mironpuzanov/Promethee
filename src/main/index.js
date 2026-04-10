@@ -92,11 +92,14 @@ async function backfillChatSummaries(userId) {
         let summary = '';
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
+        let lineBuffer = '';
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          const chunk = decoder.decode(value, { stream: true });
-          for (const line of chunk.split('\n')) {
+          lineBuffer += decoder.decode(value, { stream: true });
+          const lines = lineBuffer.split('\n');
+          lineBuffer = lines.pop() ?? '';
+          for (const line of lines) {
             if (!line.startsWith('data: ')) continue;
             const raw = line.slice(6).trim();
             if (raw === '[DONE]') continue;
@@ -1768,14 +1771,19 @@ User profile:
 Recent sessions:
 ${sessionList || '(none yet)'}
 
+Streak rule: only focus sessions of 10 minutes or more count toward the daily streak.
+
 Your style: specific, warm, never generic. Keep messages under 3 sentences. Never start with "Great job" or "Well done" — be more insightful. Reference what they actually did.`;
 
     const durationMin = Math.round((sessionData.durationSeconds || 0) / 60);
+    const streakCountedMsg = durationMin >= 10
+      ? `Current streak: ${sessionData.currentStreak} day${sessionData.currentStreak !== 1 ? 's' : ''} (this session counted — ≥10 min)`
+      : `Current streak: ${sessionData.currentStreak} day${sessionData.currentStreak !== 1 ? 's' : ''} (this session did NOT count toward streak — under 10 min)`;
     const triggerPrompt = `The user just completed a focus session:
 Task: "${sessionData.task || 'Untitled'}"
 Duration: ${durationMin} minute${durationMin !== 1 ? 's' : ''}
 XP earned: ${sessionData.xpEarned || 0}${sessionData.streakBonus ? ` (includes streak bonus)` : ''}${sessionData.multiplier && sessionData.multiplier > 1 ? `, depth multiplier ${sessionData.multiplier}x` : ''}
-${sessionData.currentStreak ? `Current streak: ${sessionData.currentStreak} day${sessionData.currentStreak !== 1 ? 's' : ''}` : ''}
+${streakCountedMsg}
 
 Write a brief coaching message to the user about this session. Be specific and personal.`;
 
@@ -1796,11 +1804,14 @@ Write a brief coaching message to the user about this session. Be specific and p
     let fullContent = '';
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
+    let lineBuffer = '';
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      const chunk = decoder.decode(value, { stream: true });
-      for (const line of chunk.split('\n')) {
+      lineBuffer += decoder.decode(value, { stream: true });
+      const lines = lineBuffer.split('\n');
+      lineBuffer = lines.pop() ?? ''; // last element may be incomplete
+      for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
         const raw = line.slice(6).trim();
         if (raw === '[DONE]') continue;
@@ -1891,11 +1902,14 @@ ipcMain.handle('agent:summarizeChat', async (_event, chatId) => {
     let summary = '';
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
+    let lineBuffer = '';
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      const chunk = decoder.decode(value, { stream: true });
-      for (const line of chunk.split('\n')) {
+      lineBuffer += decoder.decode(value, { stream: true });
+      const lines = lineBuffer.split('\n');
+      lineBuffer = lines.pop() ?? '';
+      for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
         const raw = line.slice(6).trim();
         if (raw === '[DONE]') continue;
@@ -1939,6 +1953,7 @@ ipcMain.handle('agent:sendMessage', async (_event, chatId, content, previousMess
 
     const level = profile?.level || 1;
     const totalXp = profile?.total_xp || 0;
+    const currentStreak = profile?.current_streak || 0;
 
     const windowContext = await buildWindowContext(user, activeSession);
     const pastSummaries = getRecentChatSummaries(user.id, chatId);
@@ -1953,7 +1968,7 @@ ipcMain.handle('agent:sendMessage', async (_event, chatId, content, previousMess
 
 Current session: "${activeSession.task || 'Untitled'}" — ${elapsedMinutes} minute${elapsedMinutes !== 1 ? 's' : ''} in.${windowContext}
 Today: ${xpToday} XP earned across ${sessionCountToday} session${sessionCountToday !== 1 ? 's' : ''}.
-User level: ${level} (${totalXp} XP total).
+User level: ${level} (${totalXp} XP total). Daily streak: ${currentStreak} day${currentStreak !== 1 ? 's' : ''} (only sessions ≥ 10 min count toward the streak).
 Recent sessions: ${recentNames || 'none yet'}.${pastContext}
 
 Answer concisely. You already know what they're working on — don't ask them to re-explain.`;
@@ -1961,7 +1976,7 @@ Answer concisely. You already know what they're working on — don't ask them to
       resolvedSystemPrompt = `You are the Promethee AI agent. You help users stay focused and get unstuck.
 
 Today: ${xpToday} XP earned across ${sessionCountToday} session${sessionCountToday !== 1 ? 's' : ''}.${windowContext}
-User level: ${level} (${totalXp} XP total).
+User level: ${level} (${totalXp} XP total). Daily streak: ${currentStreak} day${currentStreak !== 1 ? 's' : ''} (only sessions ≥ 10 min count toward the streak).
 Recent sessions: ${recentNames || 'none yet'}.${pastContext}
 
 Answer concisely.`;
@@ -1992,13 +2007,15 @@ Answer concisely.`;
     let fullContent = '';
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
+    let lineBuffer = '';
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      const chunk = decoder.decode(value, { stream: true });
-      // Parse SSE lines: "data: {...}\n\n"
-      for (const line of chunk.split('\n')) {
+      lineBuffer += decoder.decode(value, { stream: true });
+      const lines = lineBuffer.split('\n');
+      lineBuffer = lines.pop() ?? ''; // keep incomplete last line for next read
+      for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
         const raw = line.slice(6).trim();
         if (raw === '[DONE]') continue;
@@ -2133,12 +2150,15 @@ Answer concisely.`;
     let fullContent = '';
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
+    let lineBuffer = '';
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      const chunk = decoder.decode(value, { stream: true });
-      for (const line of chunk.split('\n')) {
+      lineBuffer += decoder.decode(value, { stream: true });
+      const lines = lineBuffer.split('\n');
+      lineBuffer = lines.pop() ?? '';
+      for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
         const raw = line.slice(6).trim();
         if (raw === '[DONE]') continue;
@@ -2914,7 +2934,7 @@ Data:
 - Total focus minutes (30d): ${allMinutes}
 - Avg session duration: ${avgDuration} min
 - Peak work hour: ${peakHours || 'unknown'}
-- Current streak: ${streak} days
+- Current streak: ${streak} days (only sessions ≥ 10 min count)
 - Deep sessions (≥2h, 30d): ${deepCount}
 - Quest completion rate: ${questRate}%
 

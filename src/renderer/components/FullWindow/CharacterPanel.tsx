@@ -523,7 +523,7 @@ function CharacterPanel({ user }: CharacterPanelProps) {
         <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground pb-1">Skills</p>
         <p className="text-xs text-muted-foreground pb-2" style={{ margin: 0, lineHeight: 1.45 }}>
           {skillsRaw
-            ? `Last 30 days: ${skillsRaw.sessionCount != null ? skillsRaw.sessionCount : '—'} sessions · ${skillsRaw.totalMinutes ?? 0} min · ${skillsRaw.deepSessions ?? 0} deep (≥2h) · ${skillsRaw.streak ?? 0}d streak`
+            ? `Last 30 days: ${skillsRaw.sessionCount != null ? skillsRaw.sessionCount : '—'} sessions · ${skillsRaw.totalMinutes ?? 0} min · ${skillsRaw.deepSessions ?? 0} deep (≥2h) · ${skillsRaw.streak ?? 0}d streak (≥10 min sessions only)`
             : 'Loading…'}
         </p>
         <div style={{ paddingTop: 4, paddingBottom: 4 }}>

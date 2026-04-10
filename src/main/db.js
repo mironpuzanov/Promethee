@@ -1303,6 +1303,7 @@ export function upsertTaskFromRemote(task) {
 }
 
 export function upsertNoteFromRemote(note) {
+  if (!note.session_id) return; // session_id is NOT NULL in schema; skip orphan notes
   const database = getDb();
   database.prepare(`
     INSERT INTO session_notes (id, session_id, user_id, text, created_at, deleted, sync_state)
@@ -1313,7 +1314,7 @@ export function upsertNoteFromRemote(note) {
       sync_state = 'synced'
   `).run(
     note.id,
-    note.session_id || null,
+    note.session_id,
     note.user_id,
     note.text,
     note.created_at,

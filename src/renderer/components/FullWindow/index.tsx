@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Component, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { Zap } from 'lucide-react';
 import Sidebar from './Sidebar';
@@ -17,6 +17,37 @@ import SessionsTab from './SessionsTab';
 import ToDoTab from './ToDoTab';
 import CoachTab from './CoachTab';
 import './FullWindow.css';
+
+class TabErrorBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(err: Error) {
+    return { error: err?.message || 'Unknown error' };
+  }
+  componentDidCatch(err: Error) {
+    console.error('[TabErrorBoundary] caught:', err);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: 8, color: 'var(--text-muted)', fontSize: 13, background: 'var(--background)', padding: 32 }}>
+          <p style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>Something went wrong</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'center', maxWidth: 320 }}>{this.state.error}</p>
+          <button
+            type="button"
+            onClick={() => this.setState({ error: null })}
+            style={{ marginTop: 8, padding: '6px 16px', borderRadius: 8, background: 'rgba(255,255,255,0.08)', color: 'var(--text-secondary)', border: '1px solid var(--border)', fontSize: 12, cursor: 'pointer' }}
+          >
+            Retry
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const listVariants = {
   hidden: { opacity: 0 },
@@ -195,22 +226,23 @@ function FullWindow({ user, setUser }: FullWindowProps) {
   }, []);
 
   const renderMain = () => {
+    const wrap = (node: React.ReactElement) => <TabErrorBoundary key={activeTab}>{node}</TabErrorBoundary>;
     switch (activeTab) {
-      case 'home':        return <CharacterPanel user={user} />;
-      case 'sessions':    return <SessionsTab />;
-      case 'todo':        return <ToDoTab />;
-      case 'coach':       return <CoachTab />;
+      case 'home':        return wrap(<CharacterPanel user={user} />);
+      case 'sessions':    return wrap(<SessionsTab />);
+      case 'todo':        return wrap(<ToDoTab />);
+      case 'coach':       return wrap(<CoachTab />);
       // legacy routes — keep so old bookmarks still work
-      case 'log':         return <SessionsTab />;
-      case 'tasks':       return <ToDoTab />;
-      case 'mentor':      return <MentorTab />;
-      case 'leaderboard': return <LeaderboardTab />;
-      case 'rooms':       return <RoomsTab />;
-      case 'quests':      return <QuestsTab />;
-      case 'habits':      return <HabitsTab />;
-      case 'memory':      return <MemoryTab />;
-      case 'settings':    return <SettingsTab user={user} setUser={setUser} />;
-      default:            return <CharacterPanel user={user} />;
+      case 'log':         return wrap(<SessionsTab />);
+      case 'tasks':       return wrap(<ToDoTab />);
+      case 'mentor':      return wrap(<MentorTab />);
+      case 'leaderboard': return wrap(<LeaderboardTab />);
+      case 'rooms':       return wrap(<RoomsTab />);
+      case 'quests':      return wrap(<QuestsTab />);
+      case 'habits':      return wrap(<HabitsTab />);
+      case 'memory':      return wrap(<MemoryTab />);
+      case 'settings':    return wrap(<SettingsTab user={user} setUser={setUser} />);
+      default:            return wrap(<CharacterPanel user={user} />);
     }
   };
 

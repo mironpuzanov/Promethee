@@ -11,21 +11,26 @@ export default function CoachTab() {
     try {
       const api = (window.promethee as any).coach;
       if (!api?.getOrCreate) {
+        console.error('[CoachTab] coach API not found on window.promethee — preload needs refresh');
         setError('Restart the app to activate Mentor AI (preload needs a refresh).');
         setLoading(false);
         return;
       }
+      console.log('[CoachTab] calling getOrCreate...');
       api.getOrCreate()
         .then((r: { success: boolean; chat?: Chat; error?: string }) => {
+          console.log('[CoachTab] getOrCreate result:', r);
           if (r.success && r.chat) setChat(r.chat);
           else setError(r.error || 'Could not load Mentor AI');
           setLoading(false);
         })
         .catch((e: Error) => {
+          console.error('[CoachTab] getOrCreate threw:', e);
           setError(e?.message || 'Could not connect to Mentor AI');
           setLoading(false);
         });
     } catch (e: unknown) {
+      console.error('[CoachTab] sync error:', e);
       setError((e as Error)?.message || 'Mentor AI unavailable — restart the app');
       setLoading(false);
     }

@@ -123,24 +123,21 @@ export const UserProfileSidebar = React.forwardRef<HTMLDivElement, UserProfileSi
                     {item.icon}
                   </span>
                   <span>{item.label}</span>
-                  {item.badge && item.badge > 0 && (
+                  {item.badge && item.badge > 0 ? (
                     <span
-                      style={{ marginLeft: 'auto', minWidth: 16, height: 16, borderRadius: 8, background: 'var(--accent-fire, #e8922a)', color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}
+                      style={{ marginLeft: 'auto', minWidth: 18, height: 18, borderRadius: 9, background: 'var(--accent-fire, #e8922a)', color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px', flexShrink: 0 }}
                     >
                       {item.badge > 9 ? '9+' : item.badge}
                     </span>
-                  )}
-                  {item.comingSoon && (
+                  ) : item.comingSoon ? (
                     <span className="ml-auto text-[10px] tracking-wide text-muted-foreground/50">coming soon</span>
-                  )}
-                  {!item.comingSoon && item.isGroupHeader && (
+                  ) : item.isGroupHeader ? (
                     <ChevronRight
                       className={cn('ml-auto h-3.5 w-3.5 text-muted-foreground transition-transform', item.isOpen && 'rotate-90')}
                     />
-                  )}
-                  {!item.comingSoon && !item.isGroupHeader && !item.isChild && (
+                  ) : !item.isChild ? (
                     <ChevronRight className="ml-auto h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100" />
-                  )}
+                  ) : null}
                 </motion.button>
               </React.Fragment>
             );

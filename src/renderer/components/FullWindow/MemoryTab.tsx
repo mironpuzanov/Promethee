@@ -111,9 +111,9 @@ function TagBadge({ tag }: { tag: string }) {
   );
 }
 
-function SkillBar({ label, value, display }: { label: string; value: number; display: string }) {
+function SkillBar({ label, value, display, tooltip }: { label: string; value: number; display: string; tooltip?: string }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }} title={tooltip}>
       <span style={{ width: 70, fontSize: 12, color: 'var(--text-secondary)', flexShrink: 0 }}>{label}</span>
       <div style={{ flex: 1, height: 3, background: 'rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
         <motion.div
@@ -375,7 +375,7 @@ export default function MemoryTab() {
             icon={<Flame size={12} />}
             label="Streak"
             value={`${current.streak}d`}
-            sub="consecutive days"
+            sub="consecutive days · ≥10 min sessions only"
             accent={current.streak >= 7 ? 'var(--accent-fire)' : undefined}
           />
           <StatCard
@@ -477,6 +477,7 @@ export default function MemoryTab() {
               label="Consistency"
               value={liveSkills.volonte}
               display={`${liveSkillsRaw?.streak || 0}d`}
+              tooltip="Daily streak — only sessions ≥ 10 min count"
             />
             <SkillBar
               label="Deep runs"

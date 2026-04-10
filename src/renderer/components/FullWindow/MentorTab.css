@@ -190,7 +190,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
+  line-height: 1;
   transition: filter 0.15s ease, transform 0.12s ease, opacity 0.15s ease;
+}
+
+.mentor-chat-send svg {
+  display: block;
+  margin: 0;
 }
 
 .mentor-chat-send:enabled {
