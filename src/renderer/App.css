@@ -25,9 +25,9 @@ body {
   --accent-glow:    rgba(232, 146, 42, 0.15);
   --accent-glow-strong: rgba(232, 146, 42, 0.25);
   --text-primary:   #F2EDE8;
-  --text-secondary: #B8AFA8;
-  --text-muted:     #7A706A;
-  --text-faint:     #4A4440;
+  --text-secondary: #CEC8C0;
+  --text-muted:     #9E9590;
+  --text-faint:     #6E6560;
   --surface:        rgba(20, 17, 14, 0.62);
   /* Dark chips over transparent overlay: keep hover opaque so light wallpapers don’t wash them out */
   --surface-glass-hover: rgba(18, 15, 12, 0.96);
@@ -52,10 +52,10 @@ body {
   --primary-foreground: #0C0A09;
 
   --secondary:          rgba(26, 23, 20, 0.60);
-  --secondary-foreground: #B8AFA8;
+  --secondary-foreground: #CEC8C0;
 
   --muted:              rgba(26, 23, 20, 0.60);
-  --muted-foreground:   #7A706A;
+  --muted-foreground:   #9E9590;
 
   --accent:             rgba(255,255,255,0.05);
   --accent-foreground:  #F2EDE8;

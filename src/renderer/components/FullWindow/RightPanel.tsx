@@ -268,7 +268,7 @@ function RightPanel() {
                 <div key={name} className="flex items-center gap-2">
                   <span className="text-xs text-secondary-foreground truncate" style={{ width: 90 }}>{name}</span>
                   <div className="flex-1 h-1 rounded-full bg-card overflow-hidden">
-                    <div className="h-full rounded-full bg-muted-foreground/40" style={{ width: `${pct}%` }} />
+                    <div className="h-full rounded-full bg-muted-foreground/60" style={{ width: `${pct}%` }} />
                   </div>
                   <span className="text-xs text-muted-foreground" style={{ width: 28, textAlign: 'right' }}>{pct}%</span>
                 </div>

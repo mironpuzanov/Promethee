@@ -17,7 +17,7 @@ const STYLES = `
     border-radius: 10px;
     background: transparent;
     border: 1px solid rgba(255,255,255,0.1);
-    color: rgba(255,255,255,0.55);
+    color: rgba(255,255,255,0.78);
     font-size: 13px;
     font-weight: 500;
     letter-spacing: 0.01em;
@@ -44,7 +44,7 @@ const STYLES = `
   .sfb-btn:hover {
     background: rgba(232, 146, 42, 0.08);
     border-color: rgba(232, 146, 42, 0.35);
-    color: rgba(255,255,255,0.9);
+    color: rgba(255,255,255,1);
   }
   .sfb-btn:hover .sfb-spark {
     opacity: 1;
