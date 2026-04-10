@@ -64,7 +64,12 @@ contextBridge.exposeInMainWorld('promethee', {
   // DB APIs
   db: {
     getSessions: () => ipcRenderer.invoke('db:getSessions'),
-    getUserProfile: () => ipcRenderer.invoke('db:getUserProfile')
+    getUserProfile: () => ipcRenderer.invoke('db:getUserProfile'),
+    onProfileUpdated: (callback) => {
+      const listener = (_event, profile) => callback(profile);
+      ipcRenderer.on('profile:updated', listener);
+      return () => ipcRenderer.removeListener('profile:updated', listener);
+    },
   },
 
   // Window controls

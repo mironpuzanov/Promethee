@@ -29,10 +29,19 @@ async function poll() {
 
   try {
     const activeWin = await getActiveWin();
-    const win = await activeWin();
-    if (!win) return;
 
-    const appName = win.owner?.name || 'Unknown';
+    // Try with full screen recording permission first (gets window title too).
+    // Falls back to accessibility-only if Screen Recording isn't granted — this
+    // still returns the app name so usage tracking always works even without the
+    // full Screen Recording entitlement (common after app updates reset TCC).
+    let win = await activeWin();
+    if (!win || !win.owner) {
+      win = await activeWin({ screenRecordingPermission: false, accessibilityPermission: true });
+    }
+    if (!win || !win.owner) return;
+
+    const appName = win.owner.name || 'Unknown';
+    // Window title is only available with Screen Recording — null otherwise.
     const windowTitle = win.title || null;
 
     // Always record — time-based sampling gives accurate % breakdowns

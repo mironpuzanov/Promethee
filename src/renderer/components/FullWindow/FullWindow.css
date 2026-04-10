@@ -47,6 +47,11 @@
   -webkit-app-region: no-drag;
 }
 
+/* Home panel: motion.main renders as <main>, hide its scrollbar */
+.full-window > main::-webkit-scrollbar {
+  display: none;
+}
+
 .tab-panel {
   padding: 32px 40px;
   overflow-y: auto;

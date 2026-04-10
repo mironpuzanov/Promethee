@@ -277,7 +277,7 @@ export default function SessionCompleteScreen({ task, durationSeconds, xpEarned,
         )}
 
         {/* App breakdown */}
-        {topApps.length > 0 && (
+        {topApps.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
             <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.16em' }}>
               Apps used
@@ -294,7 +294,16 @@ export default function SessionCompleteScreen({ task, durationSeconds, xpEarned,
               </div>
             ))}
           </div>
-        )}
+        ) : sessionId ? (
+          <div style={{ marginTop: 4 }}>
+            <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.16em' }}>
+              Apps used
+            </span>
+            <p style={{ margin: '6px 0 0', fontSize: 10, color: 'rgba(255,255,255,0.3)', lineHeight: 1.5 }}>
+              No app data — grant Screen Recording in Settings → Privacy to track usage.
+            </p>
+          </div>
+        ) : null}
       </motion.div>
 
       {/* SHARE SHEET — slides up from bottom */}

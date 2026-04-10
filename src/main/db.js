@@ -487,7 +487,7 @@ export function updateUserXP(userId, xpToAdd) {
   const database = getDb();
   const stmt = database.prepare(`
     UPDATE user_profile
-    SET total_xp = total_xp + ?
+    SET total_xp = MAX(0, total_xp + ?)
     WHERE id = ?
   `);
 

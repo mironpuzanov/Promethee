@@ -178,6 +178,8 @@ function SkillRadarChart({ rigueur, volonte, courage, raw }: SkillScores & { raw
 function CharacterPanel({ user }: CharacterPanelProps) {
   const userName = user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'Guest';
   const [profile, setProfile] = useState<UserProfile>({ total_xp: 0, level: 1 });
+  const [xpFlashes, setXpFlashes] = useState<Array<{ id: number; amount: number }>>([]);
+  const xpFlashCounter = useRef(0);
   const [skills, setSkills] = useState<SkillScores | null>(null);
   const [skillsRaw, setSkillsRaw] = useState<SkillsRaw | null>(null);
   const [memoryTeaser, setMemoryTeaser] = useState<string | null>(null);
@@ -194,6 +196,11 @@ function CharacterPanel({ user }: CharacterPanelProps) {
       if (result.success && result.profile) {
         setProfile(result.profile);
       }
+    });
+
+    // Listen for profile updates pushed from the main process (task/habit XP changes)
+    const unsubProfile = (window.promethee.db as any).onProfileUpdated?.((p: UserProfile) => {
+      setProfile(p);
     });
 
     window.promethee.skills.get().then((result) => {
@@ -235,18 +242,30 @@ function CharacterPanel({ user }: CharacterPanelProps) {
       }
     });
 
-    return unsub;
+    return () => {
+      unsub();
+      unsubProfile?.();
+    };
   }, []);
 
   const onToggleTask = useCallback(async (taskId: string) => {
-    await window.promethee.tasks.toggle(taskId);
-    // Check if the task is now complete — if so, animate it out after a short delay
+    const toggleResult = await window.promethee.tasks.toggle(taskId) as { success: boolean; task?: StandaloneTask; xpEarned?: number; profile?: UserProfile };
+    // Update XP bar immediately using the profile returned by the toggle handler
+    if (toggleResult?.profile) setProfile(toggleResult.profile);
+
+    // Show XP flash animation when earning XP
+    if (toggleResult?.xpEarned && toggleResult.xpEarned > 0) {
+      const id = ++xpFlashCounter.current;
+      setXpFlashes((prev) => [...prev, { id, amount: toggleResult.xpEarned! }]);
+      setTimeout(() => setXpFlashes((prev) => prev.filter((f) => f.id !== id)), 1200);
+    }
+
+    // Refresh the task list
     const r = await window.promethee.tasks.listAll() as { success: boolean; tasks?: StandaloneTask[] };
     if (!r.success) return;
     const all = (r.tasks || []).filter((t: any) => !t.session_id && !t.completed);
-    const toggled = all.find((t) => t.id === taskId);
-    if (toggled && toggled.completed) {
-      // Mark as "removing" so it shows checked briefly, then remove from list
+    if (toggleResult?.task?.completed) {
+      // Task was just completed — animate it out after a short delay
       setRemovingIds((prev) => new Set(prev).add(taskId));
       const timer = setTimeout(() => {
         setStandaloneTasks((prev) => prev.filter((t) => t.id !== taskId));
@@ -265,16 +284,16 @@ function CharacterPanel({ user }: CharacterPanelProps) {
   return (
     <motion.main
       className="flex flex-col bg-background gap-4"
-      style={{ overflow: 'hidden', height: '100%' }}
+      style={{ overflowY: 'auto', height: '100%', scrollbarWidth: 'none' } as React.CSSProperties}
       initial="hidden"
       animate="visible"
       variants={containerVariants}
     >
-      {/* Hero header */}
+      {/* Hero header — static, used as window drag handle */}
       <motion.div
         variants={itemVariants}
-        className="px-10"
-        style={{ paddingTop: 32, paddingBottom: 8, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}
+        className="px-6"
+        style={{ paddingTop: 32, paddingBottom: 8, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8, WebkitAppRegion: 'drag' } as React.CSSProperties}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <h1 style={{ margin: 0, fontSize: 26, fontWeight: 400, letterSpacing: '-0.02em', color: 'var(--foreground)' }}>{userName}</h1>
@@ -284,7 +303,37 @@ function CharacterPanel({ user }: CharacterPanelProps) {
         </div>
 
         {/* XP progress bar */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, position: 'relative' }}>
+          {/* Floating XP flash bubbles */}
+          <AnimatePresence>
+            {xpFlashes.map((flash) => (
+              <motion.span
+                key={flash.id}
+                initial={{ opacity: 1, y: 0, scale: 0.85 }}
+                animate={{ opacity: 0, y: -32, scale: 1.1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 1.1, ease: 'easeOut' }}
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  top: -4,
+                  pointerEvents: 'none',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: 'var(--accent-fire)',
+                  background: 'rgba(232,146,42,0.15)',
+                  border: '1px solid rgba(232,146,42,0.35)',
+                  borderRadius: 8,
+                  padding: '2px 8px',
+                  letterSpacing: '0.04em',
+                  whiteSpace: 'nowrap',
+                  zIndex: 10,
+                }}
+              >
+                +{flash.amount} XP
+              </motion.span>
+            ))}
+          </AnimatePresence>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
             <span>Progress to Level {level + 1}</span>
             <span>{xpIntoLevel} / {xpForCurrentLevel} XP</span>
@@ -312,7 +361,7 @@ function CharacterPanel({ user }: CharacterPanelProps) {
             initial="hidden"
             animate="visible"
             exit={{ opacity: 0 }}
-            style={{ paddingLeft: 40, paddingRight: 40, flexShrink: 0 }}
+            style={{ paddingLeft: 24, paddingRight: 24, flexShrink: 0 }}
           >
             <div style={{
               position: 'relative',
@@ -371,7 +420,7 @@ function CharacterPanel({ user }: CharacterPanelProps) {
 
       {/* Standalone tasks */}
       {standaloneTasks.length > 0 && (
-        <motion.div variants={itemVariants} className="px-10" style={{ flexShrink: 0 }}>
+        <motion.div variants={itemVariants} className="px-6" style={{ flexShrink: 0 }}>
           <div style={{
             background: 'var(--surface)',
             border: '1px solid var(--border)',
@@ -411,16 +460,21 @@ function CharacterPanel({ user }: CharacterPanelProps) {
                       {task.text}
                     </span>
                     {task.xp_reward ? (
-                      <span style={{
-                        fontSize: 9,
-                        fontWeight: 700,
-                        background: 'rgba(232,146,42,0.12)',
-                        color: 'var(--accent-fire)',
-                        borderRadius: 6,
-                        padding: '2px 6px',
-                        letterSpacing: '0.06em',
-                        flexShrink: 0,
-                      }}>+{task.xp_reward} XP</span>
+                      <motion.span
+                        animate={done ? { scale: [1, 1.3, 1], opacity: [1, 1, 0] } : { scale: 1, opacity: 1 }}
+                        transition={done ? { duration: 0.5, times: [0, 0.4, 1] } : { duration: 0 }}
+                        style={{
+                          fontSize: 9,
+                          fontWeight: 700,
+                          background: done ? 'rgba(232,146,42,0.25)' : 'rgba(232,146,42,0.12)',
+                          color: 'var(--accent-fire)',
+                          borderRadius: 6,
+                          padding: '2px 6px',
+                          letterSpacing: '0.06em',
+                          flexShrink: 0,
+                          display: 'inline-block',
+                        }}
+                      >+{task.xp_reward} XP</motion.span>
                     ) : null}
                   </motion.div>
                 );
@@ -431,7 +485,7 @@ function CharacterPanel({ user }: CharacterPanelProps) {
       )}
 
       {/* Memory preview (Supabase snapshots — same source as Memory tab) */}
-      <motion.div variants={itemVariants} className="px-10" style={{ flexShrink: 0 }}>
+      <motion.div variants={itemVariants} className="px-6" style={{ flexShrink: 0 }}>
         <div style={{
           background: 'var(--surface)',
           border: '1px solid var(--border)',
@@ -458,7 +512,7 @@ function CharacterPanel({ user }: CharacterPanelProps) {
       </motion.div>
 
       {/* Skill triangle */}
-      <motion.div variants={itemVariants} className="flex flex-col gap-1 px-10" style={{ flex: 1, minHeight: 0, overflow: 'hidden', paddingBottom: 16 }}>
+      <motion.div variants={itemVariants} className="flex flex-col gap-1 px-6" style={{ flexShrink: 0, paddingBottom: 24 }}>
         <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground pb-1">Skills</p>
         <p className="text-xs text-muted-foreground pb-2" style={{ margin: 0, lineHeight: 1.45 }}>
           {skillsRaw
@@ -468,9 +522,6 @@ function CharacterPanel({ user }: CharacterPanelProps) {
         <div style={{ paddingTop: 4, paddingBottom: 4 }}>
           {skills ? <SkillRadarChart {...skills} raw={skillsRaw} /> : <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Loading…</p>}
         </div>
-        <p className="text-xs text-muted-foreground pt-1" style={{ margin: 0, opacity: 0.75 }}>
-          Scores scale to caps: 3 000 min · 30-day streak · 20 deep sessions
-        </p>
       </motion.div>
     </motion.main>
   );

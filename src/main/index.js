@@ -792,7 +792,9 @@ ipcMain.handle('session:start', async (event, task, roomId = null) => {
         if (isScreenRecordingAcknowledged()) return; // went to Settings, awaiting restart
         if (isScreenRecordingRejected()) return;   // user said "don't ask again"
         if (await canSampleForegroundApp()) return;
-        resetScreenRecordingPromptGate();
+        // Do NOT call resetScreenRecordingPromptGate() here — the startup prompt already
+        // checked permissions. Re-running the gate on every session start causes spurious
+        // dialogs when active-win has a brief TCC hiccup at session begin.
         const parent =
           fullWindow && !fullWindow.isDestroyed()
             ? fullWindow
@@ -2420,17 +2422,28 @@ ipcMain.handle('tasks:toggle', async (_event, taskId) => {
     const task = toggleTask(taskId, user.id);
     if (!task) return { success: false, error: 'Task not found' };
 
-    // Award XP when a task is marked complete
+    // Award or revoke XP on toggle
+    const reward = task.xp_reward || 25;
     let xpEarned = 0;
     if (task.completed) {
-      const reward = task.xp_reward || 25;
       updateUserXP(user.id, reward);
       xpEarned = reward;
       track('task_completed', { xp_earned: reward });
+    } else {
+      // Undo: subtract XP that was previously awarded
+      updateUserXP(user.id, -reward);
+      xpEarned = -reward;
     }
 
+    const updatedProfile = getUserProfile(user.id);
+    // Broadcast updated profile so all open windows (CharacterPanel, etc.) stay in sync
+    if (updatedProfile) {
+      [fullWindow, floatingWindow].forEach(w => {
+        if (w && !w.isDestroyed()) w.webContents.send('profile:updated', updatedProfile);
+      });
+    }
     void syncPendingTasks(user.id).catch(e => debugLog(`tasks:toggle sync: ${e.message}`));
-    return { success: true, task, xpEarned };
+    return { success: true, task, xpEarned, profile: updatedProfile };
   } catch (error) {
     return { success: false, error: error.message };
   }

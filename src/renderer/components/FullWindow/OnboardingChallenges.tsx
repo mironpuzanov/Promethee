@@ -166,7 +166,7 @@ export default function OnboardingChallenges() {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -6 }}
         transition={{ type: 'spring', stiffness: 120, damping: 18 }}
-        style={{ paddingLeft: 40, paddingRight: 40, flexShrink: 0 }}
+        style={{ paddingLeft: 24, paddingRight: 24, flexShrink: 0 }}
       >
         {/* Header */}
         <div style={{

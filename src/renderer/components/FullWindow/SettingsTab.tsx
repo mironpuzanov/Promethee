@@ -144,15 +144,18 @@ function SettingsTab({ user, setUser }: SettingsTabProps) {
 
   useEffect(() => {
     const loadStatus = async () => {
-      // Check if active-win is actually working first
-      const probe = await window.promethee.onboarding.probeScreenRecording();
-      if (probe.ok) {
-        setScreenRecordingStatus('granted');
-        return;
-      }
-      // Not working — check what state we're in
+      // Show the persisted flag state immediately (instant, no active-win probe).
+      // This lets the Allow/restart buttons appear right away rather than after
+      // a 2-4 second probe delay.
       const r = await window.promethee.onboarding.getScreenRecordingStatus?.();
-      setScreenRecordingStatus((r?.status as ScreenRecordingStatus) ?? 'not-set');
+      const flagStatus = (r?.status as ScreenRecordingStatus) ?? 'not-set';
+      setScreenRecordingStatus(flagStatus);
+
+      // Then probe active-win in the background. If it succeeds, upgrade to
+      // 'granted' regardless of what the flags say (permission may have been
+      // granted without going through the in-app flow).
+      const probe = await window.promethee.onboarding.probeScreenRecording();
+      if (probe.ok) setScreenRecordingStatus('granted');
     };
     loadStatus();
   }, []);

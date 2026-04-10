@@ -12,8 +12,8 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ASSETS = path.join(__dirname, '../src/assets');
-const LOGO_BLANC = '/Users/mironpuzanov/Miron/Promethee/Logo - blanc.svg';
-const LOGO_NOIR  = '/Users/mironpuzanov/Miron/Promethee/Logo - noir.svg';
+const LOGO_BLANC = path.join(ASSETS, 'logo-blanc.svg');
+const LOGO_NOIR  = path.join(ASSETS, 'logo-noir.svg');
 
 // App bg: #0C0A09, slightly lightened for icon legibility
 const BG = { r: 18, g: 14, b: 10, alpha: 1 }; // #120E0A
@@ -66,15 +66,19 @@ async function generateAppIcon() {
   fs.writeFileSync(path.join(iconsetDir, 'icon_512x512@2x.png'), icon1024);
   console.log('✓ iconset (all sizes)');
 
-  execSync(`iconutil -c icns "${iconsetDir}" -o "${path.join(ASSETS, 'icon.icns')}"`);
-  console.log('✓ icon.icns');
+  try {
+    execSync(`iconutil -c icns "${iconsetDir}" -o "${path.join(ASSETS, 'icon.icns')}"`);
+    console.log('✓ icon.icns');
+  } catch (e) {
+    console.warn('⚠ iconutil failed (may need to run outside sandbox) — existing icon.icns kept');
+  }
 }
 
 async function generateTrayIcons() {
   const svgBuf = fs.readFileSync(LOGO_NOIR);
-  // 18×18 pt canvas, 13pt content — slightly smaller than 22pt which fills the whole bar
-  const CANVAS_1X = 18, CANVAS_2X = 36;
-  const LOGO_1X = 13, LOGO_2X = 26;
+  // 22×22 pt canvas (Apple HIG max for menu bar), 20pt content — fills the bar properly
+  const CANVAS_1X = 22, CANVAS_2X = 44;
+  const LOGO_1X = 20, LOGO_2X = 40;
 
   const logo1x = await sharp(svgBuf)
     .resize(LOGO_1X, LOGO_1X, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
