@@ -15,24 +15,26 @@ const STYLES = `
     width: 100%;
     padding: 9px 16px;
     border-radius: 10px;
-    background: #E8922A;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    color: #ffffff;
+    background: rgba(232, 146, 42, 0.08);
+    border: 1px solid rgba(232, 146, 42, 0.20);
+    color: rgba(255, 255, 255, 0.78);
     font-size: 13px;
     font-weight: 500;
     letter-spacing: 0.01em;
     cursor: pointer;
     user-select: none;
-    transition: background 0.18s, opacity 0.18s;
+    transition: background 0.18s, border-color 0.18s, color 0.18s;
     font-family: inherit;
   }
 
   .sfb-btn:hover {
-    background: #d4801e;
+    background: rgba(232, 146, 42, 0.15);
+    border-color: rgba(232, 146, 42, 0.35);
+    color: rgba(255, 255, 255, 0.95);
   }
 
   .sfb-btn:active {
-    background: #c07018;
+    background: rgba(232, 146, 42, 0.20);
     transform: scale(0.98);
   }
 `;

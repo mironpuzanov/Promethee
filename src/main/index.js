@@ -1410,15 +1410,16 @@ ipcMain.handle('db:getUserProfile', async () => {
 });
 
 ipcMain.handle('window:startFocusFromDashboard', async (event, roomId) => {
-  // Show overlay FIRST so there's no flash of the desktop between windows
-  floatingWindow?.show();
+  // hide() is instant — no macOS window-close animation, so no desktop flash.
+  // close() triggers the system animation which causes the visible blink.
   if (fullWindow) {
-    fullWindow.close();
+    fullWindow.hide();
   }
+  floatingWindow?.show();
   // Small delay for window transition, then focus the input
   setTimeout(() => {
     floatingWindow?.webContents.send('focus:taskInput', { roomId: roomId || null });
-  }, 120);
+  }, 80);
   return { success: true };
 });
 

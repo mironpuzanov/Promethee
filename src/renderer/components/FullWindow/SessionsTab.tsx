@@ -127,21 +127,27 @@ function ListView({ sessions, tasksBySession, notesBySession, chatsBySession, on
           onClick={() => (window.promethee as any).window.startFocusSession?.()}
           style={{
             display: 'flex', alignItems: 'center', gap: 6,
-            background: '#E8922A',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
+            background: 'rgba(232, 146, 42, 0.08)',
+            border: '1px solid rgba(232, 146, 42, 0.20)',
             borderRadius: 999,
-            color: '#ffffff',
+            color: 'rgba(255, 255, 255, 0.78)',
             fontSize: 13, fontWeight: 500,
             padding: '7px 14px',
             cursor: 'pointer',
-            transition: 'background 0.18s',
+            transition: 'background 0.18s, border-color 0.18s, color 0.18s',
             flexShrink: 0,
           }}
           onMouseEnter={e => {
-            (e.currentTarget as HTMLButtonElement).style.background = '#d4801e';
+            const b = e.currentTarget as HTMLButtonElement;
+            b.style.background = 'rgba(232,146,42,0.15)';
+            b.style.borderColor = 'rgba(232,146,42,0.35)';
+            b.style.color = 'rgba(255,255,255,0.95)';
           }}
           onMouseLeave={e => {
-            (e.currentTarget as HTMLButtonElement).style.background = '#E8922A';
+            const b = e.currentTarget as HTMLButtonElement;
+            b.style.background = 'rgba(232,146,42,0.08)';
+            b.style.borderColor = 'rgba(232,146,42,0.20)';
+            b.style.color = 'rgba(255,255,255,0.78)';
           }}
         >
           Start Focus Session
