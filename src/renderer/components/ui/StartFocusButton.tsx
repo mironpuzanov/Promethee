@@ -17,7 +17,7 @@ const STYLES = `
     border-radius: 10px;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(232, 146, 42, 0.45);
-    color: rgba(255, 255, 255, 0.65);
+    color: rgba(255, 255, 255, 0.90);
     font-size: 13px;
     font-weight: 400;
     letter-spacing: 0.01em;
