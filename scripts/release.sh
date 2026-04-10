@@ -89,8 +89,10 @@ DMG_SPEC_TMP="$(pwd)/out/dmg-spec-tmp.json"
 mkdir -p "$(pwd)/out"
 APP_ABS="$(cd "$(dirname "$APP_PATH")" && pwd)/$(basename "$APP_PATH")"
 BG_ABS="$(pwd)/scripts/dmg-background.png"
+ICON_ABS="$(pwd)/src/assets/icon.icns"
 sed -e "s|__APP_PATH__|${APP_ABS}|g" \
     -e "s|scripts/dmg-background.png|${BG_ABS}|g" \
+    -e "s|src/assets/icon.icns|${ICON_ABS}|g" \
     scripts/dmg-spec.json > "$DMG_SPEC_TMP"
 
 node_modules/.bin/appdmg "$DMG_SPEC_TMP" "$DMG_PATH"
