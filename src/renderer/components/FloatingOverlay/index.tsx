@@ -45,9 +45,11 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
   // Audio: start dashboard ambient when idle. Defer by 3s on mount so that
   // if the full window fails to appear (first launch edge case, PRO-14) the
   // user isn't hit with unexplained music before any UI is visible.
+  // Check the ref at fire time — user may have started a session in those 3s.
   useEffect(() => {
-    if (activeSession) return;
-    const t = setTimeout(() => transitionTo('dashboard'), 3000);
+    const t = setTimeout(() => {
+      if (!activeSessionRef.current) transitionTo('dashboard');
+    }, 3000);
     return () => clearTimeout(t);
   }, []);
 

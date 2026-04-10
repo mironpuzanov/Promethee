@@ -276,6 +276,8 @@
   border-radius: 12px;
   white-space: pre-wrap;
   word-break: break-word;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 /* Markdown-rendered assistant messages */
@@ -299,12 +301,20 @@
 .agent-message-content--md h2 { font-size: 14px; }
 .agent-message-content--md h3 { font-size: 13px; }
 
-.agent-message-content--md ul,
-.agent-message-content--md ol {
+.agent-message-content--md ul {
+  list-style-type: disc;
   margin: 4px 0;
   padding-left: 18px;
 }
-.agent-message-content--md li { margin-bottom: 2px; }
+.agent-message-content--md ol {
+  list-style-type: decimal;
+  margin: 4px 0;
+  padding-left: 18px;
+}
+.agent-message-content--md li {
+  display: list-item;
+  margin-bottom: 2px;
+}
 
 .agent-message-content--md code {
   font-family: 'Geist Mono', 'Menlo', monospace;
