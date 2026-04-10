@@ -172,6 +172,9 @@ const createFloatingWindow = () => {
     visibleOnAllWorkspaces: true,
     hasShadow: false,
     focusable: false,
+    // Force dark appearance so native WebKit elements (inputs, scrollbars) never
+    // flip to light even when macOS system theme is light.
+    appearance: 'dark',
     type: process.platform === 'darwin' ? 'panel' : undefined,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
