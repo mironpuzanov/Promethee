@@ -137,7 +137,9 @@ This is the source of truth for what's in each release.
 Current milestones:
 - `v1.1.4` — Released (PRO-6, PRO-12)
 - `v1.1.5` — Released (PRO-8, PRO-13, PRO-17)
-- `v1.1.6` — In progress (PRO-20)
+- `v1.1.6` — Released (PRO-5, PRO-7, PRO-9, PRO-10, PRO-11, PRO-14, PRO-16, PRO-19, PRO-20, PRO-21)
+- `v1.1.7` — Released (PRO-22, PRO-23, PRO-24, PRO-25, PRO-26, PRO-27, PRO-28, PRO-29, PRO-30, PRO-32)
+- `v1.1.8` — Released (PRO-24, PRO-25, PRO-27, PRO-33, PRO-34, PRO-35, PRO-36)
 
 ---
 
