@@ -1,7 +1,7 @@
 {
   "name": "promethee",
   "productName": "Promethee",
-  "version": "1.1.6",
+  "version": "1.1.7",
   "description": "My Electron application description",
   "main": ".vite/build/index.js",
   "private": true,
