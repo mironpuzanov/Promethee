@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft, Check, Circle, StickyNote, MessageCircle, Zap, Clock, Plus, Play,
+  ArrowLeft, Check, Circle, StickyNote, MessageCircle, Zap, Clock, Plus,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -130,7 +130,7 @@ function ListView({ sessions, tasksBySession, notesBySession, chatsBySession, on
             background: 'rgba(232, 146, 42, 0.12)',
             border: '1px solid rgba(232, 146, 42, 0.30)',
             borderRadius: 999,
-            color: 'var(--accent-fire)',
+            color: 'rgba(255, 255, 255, 0.90)',
             fontSize: 13, fontWeight: 500,
             padding: '7px 14px',
             cursor: 'pointer',
@@ -146,7 +146,6 @@ function ListView({ sessions, tasksBySession, notesBySession, chatsBySession, on
             (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(232,146,42,0.30)';
           }}
         >
-          <Play size={12} fill="currentColor" />
           Start Focus Session
         </button>
       </div>
