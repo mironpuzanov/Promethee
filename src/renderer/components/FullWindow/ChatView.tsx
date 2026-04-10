@@ -68,9 +68,11 @@ export function ChatView({ chat, onBack, backLabel, disableScreenCapture = false
   const streamingContentRef = useRef('');
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const initialScrollDone = useRef(false);
 
   useEffect(() => {
     setLoadingMessages(true);
+    initialScrollDone.current = false;
     void window.promethee.window.clearPendingScreenCapture?.();
     setScreenshotAttached(false);
     setAttachError(null);
@@ -88,7 +90,13 @@ export function ChatView({ chat, onBack, backLabel, disableScreenCapture = false
 
   useEffect(() => {
     if (messages.length > 0 || streamingContent || streaming) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      if (!initialScrollDone.current) {
+        // Jump instantly on first load so user always sees the latest message
+        bottomRef.current?.scrollIntoView({ behavior: 'instant' });
+        initialScrollDone.current = true;
+      } else {
+        bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }
     }
   }, [messages, streamingContent, streaming]);
 
