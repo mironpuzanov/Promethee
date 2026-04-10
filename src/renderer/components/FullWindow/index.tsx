@@ -224,27 +224,30 @@ function FullWindow({ user, setUser }: FullWindowProps) {
       <div className="titlebar-drag" />
       {showUpdatePrompt && (
         <div className="pointer-events-none fixed top-14 left-1/2 z-[120] -translate-x-1/2 w-[420px]">
-          <div style={{ background: '#1a1714', borderRadius: 18, border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 20px 56px rgba(0,0,0,0.7)', overflow: 'hidden' }} className="pointer-events-auto">
+          <div style={{ background: '#1a1714', borderRadius: 18, border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 20px 56px rgba(0,0,0,0.7)', overflow: 'hidden' }} className="pointer-events-auto cursor-default select-none">
             {/* Header */}
-            <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border/50">
+            <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-white/[0.08]">
               <div>
-                <div className="text-sm font-medium text-foreground">
+                <div className="text-sm font-medium" style={{ color: '#F2EDE8' }}>
                   Promethee v{updateState.latestVersion} is available
                 </div>
-                <div className="text-xs text-muted-foreground mt-0.5">
+                <div className="text-xs mt-0.5" style={{ color: '#6E6560' }}>
                   You're on v{updateState.currentVersion}
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setDismissedUpdateVersion(updateState.latestVersion || null)}
-                className="text-muted-foreground/50 hover:text-muted-foreground transition-colors text-lg leading-none"
+                className="transition-colors text-lg leading-none cursor-pointer"
+                style={{ color: '#6E6560' }}
+                onMouseEnter={e => (e.currentTarget.style.color = '#9E9590')}
+                onMouseLeave={e => (e.currentTarget.style.color = '#6E6560')}
               >
                 ×
               </button>
             </div>
             {/* Steps */}
-            <div className="px-5 py-3 flex flex-col gap-2">
+            <div className="px-5 py-3 flex flex-col gap-2.5">
               {[
                 'Download the new version below',
                 'Quit Promethee (⌘Q)',
@@ -252,10 +255,10 @@ function FullWindow({ user, setUser }: FullWindowProps) {
                 'Reopen Promethee',
               ].map((step, i) => (
                 <div key={i} className="flex items-start gap-3">
-                  <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-accent/20 text-[10px] font-semibold text-accent">
+                  <span className="mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full text-[10px] font-semibold" style={{ background: 'rgba(255,255,255,0.08)', color: '#9E9590' }}>
                     {i + 1}
                   </span>
-                  <span className="text-xs text-muted-foreground leading-relaxed">{step}</span>
+                  <span className="text-xs leading-relaxed" style={{ color: '#CEC8C0' }}>{step}</span>
                 </div>
               ))}
             </div>
@@ -264,7 +267,8 @@ function FullWindow({ user, setUser }: FullWindowProps) {
               <button
                 type="button"
                 onClick={() => void window.promethee.update.openDownload()}
-                className="w-full rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground transition-opacity hover:opacity-90"
+                className="w-full rounded-lg px-3 py-2 text-sm font-medium transition-opacity hover:opacity-90 cursor-pointer"
+                style={{ background: 'rgba(255,255,255,0.10)', color: '#F2EDE8' }}
               >
                 Download v{updateState.latestVersion}
               </button>
