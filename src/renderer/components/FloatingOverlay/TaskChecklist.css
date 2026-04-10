@@ -17,7 +17,7 @@
   justify-content: center;
   gap: 6px;
   border-radius: 20px;
-  background: rgba(20, 17, 14, 0.72);
+  background: rgba(18, 15, 12, 0.90);
   border: 1px solid rgba(255, 255, 255, 0.12);
   color: var(--text-secondary);
   backdrop-filter: blur(24px);
@@ -72,7 +72,7 @@
   display: flex;
   flex-direction: column;
   position: relative;
-  background: rgba(20, 17, 14, 0.72);
+  background: rgba(18, 15, 12, 0.90);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -293,7 +293,8 @@
 .task-checklist__note-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 8px;
   margin-top: 3px;
 }
 

@@ -432,7 +432,7 @@ function TaskChecklist({ session, focusAddFieldTrigger = 0, togglePanelTrigger =
             onChange={(e) => {
               setDraft(e.target.value);
               const el = e.currentTarget;
-              el.style.height = '0px';
+              el.style.height = 'auto';
               el.style.height = `${Math.max(34, Math.min(el.scrollHeight, 120))}px`;
             }}
             onKeyDown={(e) => {
