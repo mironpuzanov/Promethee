@@ -31,7 +31,7 @@ function msgTs(msg: Message): number {
 
 interface ChatViewProps {
   chat: Chat;
-  onBack: () => void;
+  onBack?: () => void;
   backLabel?: string;
 }
 
@@ -150,14 +150,16 @@ export function ChatView({ chat, onBack, backLabel }: ChatViewProps) {
     <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%', minHeight: 0, background: 'var(--background)' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '20px 32px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-        <button type="button" onClick={onBack} className="mentor-header-btn--ghost" title={backLabel ?? 'Back'}>
-          <ArrowLeft size={18} />
-        </button>
+        {onBack && (
+          <button type="button" onClick={onBack} className="mentor-header-btn--ghost" title={backLabel ?? 'Back'}>
+            <ArrowLeft size={18} />
+          </button>
+        )}
         {backLabel && (
           <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>{backLabel}</span>
         )}
         <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {chat.title}
+          {chat.title === '__coach__' ? 'Mentor AI' : chat.title}
         </span>
         <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>{formatTime(chat.created_at)}</span>
       </div>

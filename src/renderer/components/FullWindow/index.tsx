@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Zap } from 'lucide-react';
 import Sidebar from './Sidebar';
@@ -15,6 +15,7 @@ import HabitsTab from './HabitsTab';
 import MemoryTab from './MemoryTab';
 import SessionsTab from './SessionsTab';
 import ToDoTab from './ToDoTab';
+import CoachTab from './CoachTab';
 import './FullWindow.css';
 
 const listVariants = {
@@ -140,10 +141,13 @@ interface FullWindowProps {
 
 function FullWindow({ user, setUser }: FullWindowProps) {
   const [activeTab, setActiveTabRaw] = useState('home');
+  const activeTabRef = useRef('home');
   const setActiveTab = (tab: string) => {
     if (tab === 'leaderboard') {
       localStorage.setItem('onboarding:leaderboard_visited', '1');
     }
+    if (tab === 'coach') setUnreadCoach(0);
+    activeTabRef.current = tab;
     setActiveTabRaw(tab);
   };
   const [completedSession, setCompletedSession] = useState<{
@@ -161,6 +165,15 @@ function FullWindow({ user, setUser }: FullWindowProps) {
     currentVersion: '—',
   });
   const [dismissedUpdateVersion, setDismissedUpdateVersion] = useState<string | null>(null);
+  const [unreadCoach, setUnreadCoach] = useState(0);
+
+  // Listen for proactive coach messages; show badge when not on coach tab
+  useEffect(() => {
+    const unsub = (window.promethee as any).coach?.onNewMessage?.(() => {
+      if (activeTabRef.current !== 'coach') setUnreadCoach(n => n + 1);
+    });
+    return () => unsub?.();
+  }, []);
 
   useEffect(() => {
     // Check if main process has a pending session complete from before this window mounted
@@ -186,6 +199,7 @@ function FullWindow({ user, setUser }: FullWindowProps) {
       case 'home':        return <CharacterPanel user={user} />;
       case 'sessions':    return <SessionsTab />;
       case 'todo':        return <ToDoTab />;
+      case 'coach':       return <CoachTab />;
       // legacy routes — keep so old bookmarks still work
       case 'log':         return <SessionsTab />;
       case 'tasks':       return <ToDoTab />;
@@ -281,7 +295,7 @@ function FullWindow({ user, setUser }: FullWindowProps) {
           </div>
         </div>
       )}
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} user={user} />
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} user={user} unreadCoach={unreadCoach} />
       {renderMain()}
       {showRightPanel && <RightPanel />}
     </div>

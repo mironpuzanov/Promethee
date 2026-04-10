@@ -15,6 +15,7 @@ interface NavItem {
   isGroupHeader?: boolean;
   isOpen?: boolean;
   comingSoon?: boolean;
+  badge?: number;
 }
 
 interface UserProfile {
@@ -122,6 +123,13 @@ export const UserProfileSidebar = React.forwardRef<HTMLDivElement, UserProfileSi
                     {item.icon}
                   </span>
                   <span>{item.label}</span>
+                  {item.badge && item.badge > 0 && (
+                    <span
+                      style={{ marginLeft: 'auto', minWidth: 16, height: 16, borderRadius: 8, background: 'var(--accent-fire, #e8922a)', color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}
+                    >
+                      {item.badge > 9 ? '9+' : item.badge}
+                    </span>
+                  )}
                   {item.comingSoon && (
                     <span className="ml-auto text-[10px] tracking-wide text-muted-foreground/50">coming soon</span>
                   )}

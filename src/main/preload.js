@@ -221,6 +221,16 @@ contextBridge.exposeInMainWorld('promethee', {
     }
   },
 
+  // Persistent AI coach
+  coach: {
+    getOrCreate: () => ipcRenderer.invoke('coach:getOrCreate'),
+    onNewMessage: (callback) => {
+      const listener = (_event, data) => callback(data);
+      ipcRenderer.on('coach:newMessage', listener);
+      return () => ipcRenderer.removeListener('coach:newMessage', listener);
+    },
+  },
+
   // Window tracking
   tracking: {
     getEvents: (opts) => ipcRenderer.invoke('window:getEvents', opts)

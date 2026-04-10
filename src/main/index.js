@@ -26,7 +26,7 @@ import { signIn, signUp, signOut, sendMagicLink, getUser, getAccessToken, setSes
 import { setupPowerMonitoring } from './power.js';
 import { setupLeaderboardPolling, stopLeaderboardPolling, getLeaderboard } from './leaderboard.js';
 import { setupPresence, stopPresence, sendHeartbeat, removePresence, postToLiveFeed, getPresenceCount, getRooms, getRoomPresence } from './presence.js';
-import { getTodaysSessions, getSessions, getUserProfile, getCompletedSessionsForSkills, getCompletedSessionsInRange, initializeDatabase, getAgentChats, getOrCreateAgentChat, createAgentChat, getAgentMessages, addAgentMessage, updateChatSummary, getRecentChatSummaries, getUnsummarizedChats, getQuests, createQuest, completeQuest, uncompleteQuest, deleteQuest, resetDailyQuests, setLastDailyJobDate, getLastDailyJobDate, updateStreak, updateUserXP, getWindowEvents, recordWindowEvent, getSessionById, createTask, createStandaloneTask, getTasksBySession, getTasksByUser, toggleTask, deleteTask, createNote, getNotesBySession, getNotesByUser, deleteNote, getMemorySnapshotCache, getMemorySnapshotCacheByDate, upsertMemorySnapshotCache, listHabitCache, getHabitCacheById, upsertHabitCache, markHabitCacheDeleted, removeHabitCache, setHabitCacheSyncState, getPendingHabitCache, recordHabitCompletion, removeHabitCompletion, getHabitCompletionDates, expireHabitStreaks, backfillHabitCompletions, getBlockedDomains, addBlockedDomain, toggleBlockedDomain, removeBlockedDomain, getPendingAgentChats, setAgentChatSyncState, getPendingTasks, setTaskSyncState, getPendingNotes, setNoteSyncState, getUnsyncedHabitCompletions, getUnsyncedWindowEvents, markWindowEventsSynced, upsertTaskFromRemote, upsertNoteFromRemote, upsertAgentChatFromRemote, upsertAgentMessageFromRemote, upsertHabitCompletionFromRemote } from './db.js';
+import { getTodaysSessions, getSessions, getUserProfile, getCompletedSessionsForSkills, getCompletedSessionsInRange, initializeDatabase, getAgentChats, getOrCreateAgentChat, getOrCreateCoachChat, createAgentChat, getAgentMessages, addAgentMessage, updateChatSummary, getRecentChatSummaries, getUnsummarizedChats, getQuests, createQuest, completeQuest, uncompleteQuest, deleteQuest, resetDailyQuests, setLastDailyJobDate, getLastDailyJobDate, updateStreak, updateUserXP, getWindowEvents, recordWindowEvent, getSessionById, createTask, createStandaloneTask, getTasksBySession, getTasksByUser, toggleTask, deleteTask, createNote, getNotesBySession, getNotesByUser, deleteNote, getMemorySnapshotCache, getMemorySnapshotCacheByDate, upsertMemorySnapshotCache, listHabitCache, getHabitCacheById, upsertHabitCache, markHabitCacheDeleted, removeHabitCache, setHabitCacheSyncState, getPendingHabitCache, recordHabitCompletion, removeHabitCompletion, getHabitCompletionDates, expireHabitStreaks, backfillHabitCompletions, getBlockedDomains, addBlockedDomain, toggleBlockedDomain, removeBlockedDomain, getPendingAgentChats, setAgentChatSyncState, getPendingTasks, setTaskSyncState, getPendingNotes, setNoteSyncState, getUnsyncedHabitCompletions, getUnsyncedWindowEvents, markWindowEventsSynced, upsertTaskFromRemote, upsertNoteFromRemote, upsertAgentChatFromRemote, upsertAgentMessageFromRemote, upsertHabitCompletionFromRemote } from './db.js';
 import { startWindowTracking, stopWindowTracking, setTrackingSession, clearTrackingSession, getCurrentApp, canSampleForegroundApp } from './windowTracker.js';
 import { maybePromptScreenRecordingAccess, resetScreenRecordingPromptGate, isScreenRecordingSnoozed, isScreenRecordingAcknowledged, isScreenRecordingRejected } from './screenRecordingPrompt.js';
 import { shouldIncludeAppInUsageStats } from '../lib/appUsageFilter.js';
@@ -1451,6 +1451,12 @@ ipcMain.handle('window:openSessionComplete', async (event, sessionData) => {
     fullWindow.webContents.send('window:sessionComplete', sessionData);
     pendingSessionComplete = null;
   }
+
+  // Fire-and-forget: coach posts a message about the completed session
+  void getUser().then(user => {
+    if (user) void triggerCoachPost(user, sessionData);
+  }).catch(() => {});
+
   return { success: true };
 });
 
@@ -1724,6 +1730,101 @@ ipcMain.handle('agent:getChats', async () => {
     return { success: false, error: error.message };
   }
 });
+
+// ── Coach (persistent Mentor AI) ──────────────────────────────────────────────
+
+ipcMain.handle('coach:getOrCreate', async () => {
+  try {
+    const user = await getUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+    const chat = getOrCreateCoachChat(user.id);
+    return { success: true, chat };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Fire-and-forget: ask the AI coach to send a message about a completed session.
+ * Called after session:end, never blocks the user.
+ */
+async function triggerCoachPost(user, sessionData) {
+  try {
+    const accessToken = await getAccessToken();
+    if (!accessToken) return;
+
+    const chat = getOrCreateCoachChat(user.id);
+    const profile = getUserProfile(user.id);
+    const recentSessions = getSessions(user.id, 10);
+
+    const level = profile?.level || 1;
+    const totalXp = profile?.total_xp || 0;
+    const sessionList = recentSessions.slice(0, 8).map(s => {
+      const mins = s.duration_seconds ? Math.round(s.duration_seconds / 60) : '?';
+      return `- "${s.task || 'Untitled'}" — ${mins}m, ${s.xp_earned || 0} XP`;
+    }).join('\n');
+
+    const systemPrompt = `You are the Promethee AI Coach. You track this user's entire productivity journey and send them brief, warm coaching messages after each focus session.
+
+User profile:
+- Level ${level} (${totalXp} total XP)
+Recent sessions:
+${sessionList || '(none yet)'}
+
+Your style: specific, warm, never generic. Keep messages under 3 sentences. Never start with "Great job" or "Well done" — be more insightful. Reference what they actually did.`;
+
+    const durationMin = Math.round((sessionData.durationSeconds || 0) / 60);
+    const triggerPrompt = `The user just completed a focus session:
+Task: "${sessionData.task || 'Untitled'}"
+Duration: ${durationMin} minute${durationMin !== 1 ? 's' : ''}
+XP earned: ${sessionData.xpEarned || 0}${sessionData.streakBonus ? ` (includes streak bonus)` : ''}${sessionData.multiplier && sessionData.multiplier > 1 ? `, depth multiplier ${sessionData.multiplier}x` : ''}
+${sessionData.currentStreak ? `Current streak: ${sessionData.currentStreak} day${sessionData.currentStreak !== 1 ? 's' : ''}` : ''}
+
+Write a brief coaching message to the user about this session. Be specific and personal.`;
+
+    const previousMessages = getAgentMessages(chat.id);
+    const messagesForApi = [
+      { role: 'system', content: systemPrompt },
+      ...previousMessages.slice(-6).map(m => ({ role: m.role, content: m.content })),
+      { role: 'user', content: triggerPrompt },
+    ];
+
+    const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/mentor-chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
+      body: JSON.stringify({ messages: messagesForApi }),
+    });
+    if (!res.ok) return;
+
+    let fullContent = '';
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      for (const line of chunk.split('\n')) {
+        if (!line.startsWith('data: ')) continue;
+        const raw = line.slice(6).trim();
+        if (raw === '[DONE]') continue;
+        try {
+          const parsed = JSON.parse(raw);
+          fullContent += parsed.choices?.[0]?.delta?.content || '';
+        } catch { /* skip */ }
+      }
+    }
+
+    if (!fullContent) return;
+    const saved = addAgentMessage(chat.id, 'assistant', fullContent);
+    // Notify renderer so it can show unread badge and stream the message if user has the chat open
+    [floatingWindow, fullWindow].forEach(w => {
+      w?.webContents.send('coach:newMessage', { chatId: chat.id, message: saved });
+      w?.webContents.send('agent:streamEnd', { chatId: chat.id, message: saved });
+    });
+  } catch (e) {
+    debugLog(`triggerCoachPost error: ${e?.message || e}`);
+  }
+}
 
 ipcMain.handle('agent:getOrCreateChat', async (_event, title, sessionId, systemPrompt) => {
   try {

@@ -561,6 +561,25 @@ export function getAgentChats(userId) {
   `).all(userId);
 }
 
+/** Get or create the single persistent coach chat (title = '__coach__', no session). */
+export function getOrCreateCoachChat(userId) {
+  const database = getDb();
+  const existing = database.prepare(`
+    SELECT * FROM agent_chats
+    WHERE user_id = ? AND title = '__coach__' AND session_id IS NULL
+    LIMIT 1
+  `).get(userId);
+  if (existing) return existing;
+
+  const id = require('crypto').randomUUID();
+  const now = Date.now();
+  database.prepare(`
+    INSERT INTO agent_chats (id, user_id, title, session_id, system_prompt, created_at, updated_at, sync_state)
+    VALUES (?, ?, '__coach__', NULL, NULL, ?, ?, 'pending_upsert')
+  `).run(id, userId, now, now);
+  return database.prepare(`SELECT * FROM agent_chats WHERE id = ?`).get(id);
+}
+
 export function getOrCreateAgentChat(userId, title, sessionId, systemPrompt) {
   const database = getDb();
   // If session_id provided, reuse existing chat for that session

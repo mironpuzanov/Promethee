@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  Home, Layers, CheckSquare, CheckCheck, LogOut, Users, Trophy, Settings, Brain, Sword
+  Home, Layers, CheckSquare, CheckCheck, LogOut, Users, Trophy, Settings, Brain, Sword, Sparkles
 } from 'lucide-react';
 import { UserProfileSidebar } from '../ui/menu';
 import { MVP_MODE, MVP_NAV } from '../../../config/mvp';
@@ -15,6 +15,7 @@ interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   user: User | null;
+  unreadCoach?: number;
 }
 
 const COMMUNITY_CHILDREN = [
@@ -22,10 +23,11 @@ const COMMUNITY_CHILDREN = [
   { id: 'rooms',       label: 'Rooms',       icon: <Users size={15} /> },
 ];
 
-const navItems = [
+const BASE_NAV_ITEMS = [
   { id: 'home',      label: 'Home',      icon: <Home size={18} /> },
   { id: 'sessions',  label: 'Sessions',  icon: <Layers size={18} /> },
   { id: 'todo',      label: 'To Do',     icon: <CheckCheck size={18} /> },
+  { id: 'coach',     label: 'Mentor AI', icon: <Sparkles size={18} /> },
   { id: 'community', label: 'Community', icon: <Users size={18} />, children: COMMUNITY_CHILDREN },
   { id: 'quests',    label: 'Quests',    icon: <Sword size={18} />, isSeparator: true },
   { id: 'habits',    label: 'Habits',    icon: <CheckSquare size={18} /> },
@@ -35,7 +37,7 @@ const navItems = [
 
 const COMMUNITY_TABS = new Set(['leaderboard', 'rooms']);
 
-function Sidebar({ activeTab, setActiveTab, user }: SidebarProps) {
+function Sidebar({ activeTab, setActiveTab, user, unreadCoach = 0 }: SidebarProps) {
   const [communityOpen, setCommunityOpen] = useState(
     COMMUNITY_TABS.has(activeTab) || activeTab === 'community'
   );
@@ -54,6 +56,11 @@ function Sidebar({ activeTab, setActiveTab, user }: SidebarProps) {
     icon: <LogOut size={18} />,
     onClick: () => window.promethee.auth.signOut(),
   };
+
+  // Inject unread badge on coach item
+  const navItems = BASE_NAV_ITEMS.map(item =>
+    item.id === 'coach' && unreadCoach > 0 ? { ...item, badge: unreadCoach } : item
+  );
 
   // Filter nav items by MVP_NAV when MVP_MODE is on
   const visibleItems = MVP_MODE
