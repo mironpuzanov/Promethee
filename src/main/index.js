@@ -2186,10 +2186,14 @@ ipcMain.handle('habits:complete', async (_event, habitId) => {
 
     // Record in per-day history
     recordHabitCompletion(user.id, habitId, todayStr);
-    track('habit_completed', { streak: newStreak, frequency: habit.frequency });
+
+    // Award XP for completing a habit
+    const HABIT_XP = 20;
+    updateUserXP(user.id, HABIT_XP);
+    track('habit_completed', { streak: newStreak, frequency: habit.frequency, xp_earned: HABIT_XP });
 
     void syncPendingHabits(user.id).catch((e) => debugLog(`habits:complete sync failed: ${e.message}`));
-    return { success: true, habit: updated };
+    return { success: true, habit: updated, xpEarned: HABIT_XP };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -2414,8 +2418,18 @@ ipcMain.handle('tasks:toggle', async (_event, taskId) => {
     if (!user) return { success: false, error: 'Not authenticated' };
     const task = toggleTask(taskId, user.id);
     if (!task) return { success: false, error: 'Task not found' };
+
+    // Award XP when a task is marked complete
+    let xpEarned = 0;
+    if (task.completed) {
+      const reward = task.xp_reward || 25;
+      updateUserXP(user.id, reward);
+      xpEarned = reward;
+      track('task_completed', { xp_earned: reward });
+    }
+
     void syncPendingTasks(user.id).catch(e => debugLog(`tasks:toggle sync: ${e.message}`));
-    return { success: true, task };
+    return { success: true, task, xpEarned };
   } catch (error) {
     return { success: false, error: error.message };
   }

@@ -28,21 +28,21 @@ body {
   --text-secondary: #A09890;
   --text-muted:     #5C5450;
   --text-faint:     #2E2A27;
-  --surface:        rgba(20, 17, 14, 0.40);
+  --surface:        rgba(20, 17, 14, 0.88);
   /* Dark chips over transparent overlay: keep hover opaque so light wallpapers don’t wash them out */
   --surface-glass-hover: rgba(18, 15, 12, 0.96);
   --border-glass-hover:  rgba(255, 255, 255, 0.22);
-  --surface-overlay: rgba(12, 10, 9, 0.65);
-  --border:         rgba(255, 255, 255, 0.06);
+  --surface-overlay: rgba(12, 10, 9, 0.85);
+  --border:         rgba(255, 255, 255, 0.07);
   --border-accent:  rgba(232, 146, 42, 0.30);
-  --bg:             rgba(12, 10, 9, 0.55);
-  --sidebar-bg:     rgba(7, 6, 5, 0.50);
+  --bg:             rgba(12, 10, 9, 0.92);
+  --sidebar-bg:     rgba(9, 7, 6, 0.94);
 
   /* shadcn-compatible tokens — mapped to Promethee palette */
-  --background:         rgba(12, 10, 9, 0.55);
+  --background:         rgba(12, 10, 9, 0.92);
   --foreground:         #F2EDE8;
 
-  --card:               rgba(14, 12, 10, 0.45);
+  --card:               rgba(18, 15, 12, 0.92);
   --card-foreground:    #F2EDE8;
 
   --popover:            rgba(19, 17, 9, 0.88);
@@ -51,10 +51,10 @@ body {
   --primary:            #F2EDE8;
   --primary-foreground: #0C0A09;
 
-  --secondary:          rgba(26, 23, 20, 0.50);
+  --secondary:          rgba(26, 23, 20, 0.80);
   --secondary-foreground: #A09890;
 
-  --muted:              rgba(26, 23, 20, 0.50);
+  --muted:              rgba(26, 23, 20, 0.80);
   --muted-foreground:   #5C5450;
 
   --accent:             rgba(255,255,255,0.05);
@@ -63,7 +63,7 @@ body {
   --destructive:        #ef4444;
   --destructive-foreground: #F2EDE8;
 
-  --border-color:       rgba(255,255,255,0.06);
+  --border-color:       rgba(255,255,255,0.07);
   --input:              rgba(255,255,255,0.07);
   --ring:               #E8922A;
 }
@@ -231,6 +231,6 @@ body {
 }
 
 .daily-signal-close:hover {
-  background: rgba(255, 255, 255, 0.06) !important;
+  background: rgba(255, 255, 255, 0.07) !important;
   color: var(--text-secondary) !important;
 }
