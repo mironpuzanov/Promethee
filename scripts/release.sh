@@ -83,10 +83,15 @@ step "2/4  Creating styled DMG (appdmg)..."
 mkdir -p "$(dirname "$DMG_PATH")"
 [ -f "$DMG_PATH" ] && rm "$DMG_PATH"
 
-# Build a per-run appdmg spec with the absolute .app path injected
-DMG_SPEC_TMP="$(mktemp /tmp/dmg-spec-XXXXXX.json)"
+# Build a per-run appdmg spec with absolute paths injected
+# (appdmg resolves paths relative to the spec file, so we use a spec next to the assets)
+DMG_SPEC_TMP="$(pwd)/out/dmg-spec-tmp.json"
+mkdir -p "$(pwd)/out"
 APP_ABS="$(cd "$(dirname "$APP_PATH")" && pwd)/$(basename "$APP_PATH")"
-sed "s|__APP_PATH__|${APP_ABS}|g" scripts/dmg-spec.json > "$DMG_SPEC_TMP"
+BG_ABS="$(pwd)/scripts/dmg-background.png"
+sed -e "s|__APP_PATH__|${APP_ABS}|g" \
+    -e "s|scripts/dmg-background.png|${BG_ABS}|g" \
+    scripts/dmg-spec.json > "$DMG_SPEC_TMP"
 
 node_modules/.bin/appdmg "$DMG_SPEC_TMP" "$DMG_PATH"
 rm -f "$DMG_SPEC_TMP"
