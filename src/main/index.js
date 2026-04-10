@@ -1120,9 +1120,10 @@ async function syncWindowEventsBatch(userId) {
   if (events.length === 0) return;
   const { supabase } = await import('../lib/supabase.js');
 
+  // Null out session_ids to avoid FK violations from sessions not yet synced.
   const payload = events.map(e => ({
     user_id: userId,
-    session_id: e.session_id || null,
+    session_id: null,
     app_name: e.app_name,
     window_title: e.window_title || null,
     recorded_at: e.recorded_at,
@@ -2726,7 +2727,9 @@ async function generateDailySignal(userId, todayStr, yesterday = getLocalDayWind
 
 async function generateMemorySnapshot(userId, snapshotDay = getLocalDayWindow(-1), { allowAi = true } = {}) {
   const existing = getMemorySnapshotCacheByDate(userId, snapshotDay.dateStr);
-  if (existing) return existing;
+  // Skip only if: we're not generating AI (just backfill) and snapshot exists,
+  // OR the snapshot already has an AI-generated summary.
+  if (existing && (!allowAi || existing.behavioral_summary)) return existing;
 
   const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
 
@@ -2766,10 +2769,10 @@ async function generateMemorySnapshot(userId, snapshotDay = getLocalDayWindow(-1
   const deepCount = (allRecentSessions || []).filter(s => (s.duration_seconds || 0) >= 7200).length;
   const courage = Math.min(Math.round((deepCount / 20) * 100), 100);
 
-  // Quest completion rate from local SQLite so memory generation stays local-first.
-  const allQuests = getQuests(userId);
-  const questTotal = allQuests.length || 0;
-  const questDone = allQuests.filter(q => q.completed_at).length;
+  // Task completion rate (quests table migrated to tasks).
+  const allTasks = getTasksByUser(userId) || [];
+  const questTotal = allTasks.length || 0;
+  const questDone = allTasks.filter(t => t.completed).length;
   const questRate = questTotal > 0 ? Math.round((questDone / questTotal) * 10000) / 100 : 0;
 
   // Generate behavioral summary via GPT (only if API key available)

@@ -658,47 +658,12 @@ export function getRecentChatSummaries(userId, excludeChatId, limit = 3) {
 
 // ── Quest functions ───────────────────────────────────────────────────────────
 
-export function getQuests(userId) {
-  const database = getDb();
-  return database.prepare(`
-    SELECT * FROM quests WHERE user_id = ? ORDER BY created_at ASC
-  `).all(userId);
-}
-
-export function createQuest(userId, title, type, xpReward) {
-  const database = getDb();
-  const id = crypto.randomUUID();
-  const now = Date.now();
-  // Default XP by type if not provided
-  const xp = xpReward != null ? xpReward : (type === 'daily' ? 15 : type === 'mid' ? 50 : 200);
-  const resetInterval = type === 'daily' ? 'daily' : null;
-  database.prepare(`
-    INSERT INTO quests (id, user_id, title, type, xp_reward, reset_interval, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(id, userId, title, type, xp, resetInterval, now);
-  return database.prepare(`SELECT * FROM quests WHERE id = ?`).get(id);
-}
-
-export function completeQuest(questId, userId) {
-  const database = getDb();
-  const quest = database.prepare(`SELECT * FROM quests WHERE id = ? AND user_id = ?`).get(questId, userId);
-  if (!quest) return null;
-  if (quest.completed_at) return quest; // already done
-  const now = Date.now();
-  database.prepare(`UPDATE quests SET completed_at = ? WHERE id = ?`).run(now, questId);
-  return database.prepare(`SELECT * FROM quests WHERE id = ?`).get(questId);
-}
-
-export function uncompleteQuest(questId, userId) {
-  const database = getDb();
-  database.prepare(`UPDATE quests SET completed_at = NULL WHERE id = ? AND user_id = ?`).run(questId, userId);
-  return database.prepare(`SELECT * FROM quests WHERE id = ?`).get(questId);
-}
-
-export function deleteQuest(questId, userId) {
-  const database = getDb();
-  database.prepare(`DELETE FROM quests WHERE id = ? AND user_id = ?`).run(questId, userId);
-}
+// Quests were migrated to tasks — these stubs prevent crashes from old IPC handlers.
+export function getQuests(_userId) { return []; }
+export function createQuest(_userId, _title, _type, _xpReward) { return null; }
+export function completeQuest(_questId, _userId) { return null; }
+export function uncompleteQuest(_questId, _userId) { return null; }
+export function deleteQuest(_questId, _userId) {}
 
 // ── Session task checklist (local SQLite only) ─────────────────────────────
 
@@ -805,24 +770,9 @@ export function deleteNote(noteId, userId) {
   return true;
 }
 
-// Reset daily quests whose last_reset_date != today's local date
-// Returns array of quest IDs that were reset
-export function resetDailyQuests(userId, todayDateStr) {
-  const database = getDb();
-  const dailyQuests = database.prepare(`
-    SELECT * FROM quests WHERE user_id = ? AND type = 'daily' AND completed_at IS NOT NULL
-  `).all(userId);
-
-  const reset = [];
-  for (const q of dailyQuests) {
-    if (q.last_reset_date !== todayDateStr) {
-      database.prepare(`
-        UPDATE quests SET completed_at = NULL, last_reset_date = ? WHERE id = ?
-      `).run(todayDateStr, q.id);
-      reset.push(q.id);
-    }
-  }
-  return reset;
+// Reset daily quests — quests were migrated to tasks, no-op kept for compatibility
+export function resetDailyQuests(_userId, _todayDateStr) {
+  return [];
 }
 
 // Update the last_daily_job_date in user_profile
