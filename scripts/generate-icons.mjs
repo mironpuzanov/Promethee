@@ -30,8 +30,18 @@ async function generateAppIcon() {
     .png()
     .toBuffer();
 
-  const icon1024 = await sharp({ create: { width: SIZE, height: SIZE, channels: 4, background: BG } })
+  const flat = await sharp({ create: { width: SIZE, height: SIZE, channels: 4, background: BG } })
     .composite([{ input: logoPng, top: OFFSET, left: OFFSET }])
+    .png()
+    .toBuffer();
+
+  // Bake rounded corners (macOS standard ~22.5% radius) so Cmd+Tab looks correct
+  const R = Math.round(SIZE * 0.225); // 230px for 1024
+  const mask = Buffer.from(
+    `<svg width="${SIZE}" height="${SIZE}"><rect width="${SIZE}" height="${SIZE}" rx="${R}" ry="${R}" fill="white"/></svg>`
+  );
+  const icon1024 = await sharp(flat)
+    .composite([{ input: mask, blend: 'dest-in' }])
     .png()
     .toBuffer();
 
