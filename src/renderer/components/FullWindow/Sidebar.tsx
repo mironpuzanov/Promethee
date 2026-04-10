@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  Home, Layers, CheckSquare, CheckCheck, LogOut, Users, Trophy, Settings, Brain, Sword, Sparkles
+  Home, Layers, CheckSquare, CheckCheck, LogOut, Users, Trophy, Settings, Brain, Sparkles
 } from 'lucide-react';
 import { UserProfileSidebar } from '../ui/menu';
 import { MVP_MODE, MVP_NAV } from '../../../config/mvp';
@@ -25,12 +25,11 @@ const COMMUNITY_CHILDREN = [
 
 const BASE_NAV_ITEMS = [
   { id: 'home',      label: 'Home',      icon: <Home size={18} /> },
-  { id: 'sessions',  label: 'Sessions',  icon: <Layers size={18} /> },
-  { id: 'todo',      label: 'To Do',     icon: <CheckCheck size={18} /> },
+  { id: 'sessions',  label: 'Session',   icon: <Layers size={18} /> },
   { id: 'coach',     label: 'Mentor AI', icon: <Sparkles size={18} /> },
-  { id: 'community', label: 'Community', icon: <Users size={18} />, children: COMMUNITY_CHILDREN },
-  { id: 'quests',    label: 'Quests',    icon: <Sword size={18} />, isSeparator: true },
+  { id: 'todo',      label: 'To-do',     icon: <CheckCheck size={18} /> },
   { id: 'habits',    label: 'Habits',    icon: <CheckSquare size={18} /> },
+  { id: 'community', label: 'Community', icon: <Users size={18} />, children: COMMUNITY_CHILDREN },
   { id: 'memory',    label: 'Memory',    icon: <Brain size={18} /> },
   { id: 'settings',  label: 'Settings',  icon: <Settings size={18} />, isSeparator: true },
 ];
