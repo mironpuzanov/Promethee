@@ -1,7 +1,7 @@
 // 1. Import Dependencies
 import * as React from 'react';
 import { motion } from 'framer-motion';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Settings } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import StartFocusButton from './StartFocusButton';
 
@@ -35,6 +35,7 @@ interface UserProfileSidebarProps {
     onClick: () => void;
   };
   onStartFocusSession?: () => void;
+  onSettings?: () => void;
   className?: string;
 }
 
@@ -64,7 +65,7 @@ const itemVariants = {
 
 // 4. Create the Component
 export const UserProfileSidebar = React.forwardRef<HTMLDivElement, UserProfileSidebarProps>(
-  ({ user, navItems, activeTab, onTabChange, logoutItem, onStartFocusSession, className }, ref) => {
+  ({ user, navItems, activeTab, onTabChange, logoutItem, onStartFocusSession, onSettings, className }, ref) => {
     return (
       <motion.aside
         ref={ref}
@@ -154,11 +155,22 @@ export const UserProfileSidebar = React.forwardRef<HTMLDivElement, UserProfileSi
           })}
         </nav>
 
-        {/* Logout Button */}
-        <motion.div variants={itemVariants} className="mt-2">
+        {/* Settings + Logout row */}
+        <motion.div variants={itemVariants} className="mt-2 flex items-center gap-1">
+          {onSettings && (
+            <button
+              onClick={onSettings}
+              className="group flex items-center rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground flex-shrink-0"
+              title="Settings"
+            >
+              <span className="flex h-5 w-5 items-center justify-center">
+                <Settings size={18} />
+              </span>
+            </button>
+          )}
           <button
             onClick={logoutItem.onClick}
-            className="group flex w-full items-center rounded-md px-3 py-2.5 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
+            className="group flex flex-1 items-center rounded-md px-3 py-2.5 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
           >
             <span className="mr-3 flex h-5 w-5 items-center justify-center flex-shrink-0">
               {logoutItem.icon}

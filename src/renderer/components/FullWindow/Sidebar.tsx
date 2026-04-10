@@ -31,7 +31,6 @@ const BASE_NAV_ITEMS = [
   { id: 'habits',    label: 'Habits',    icon: <CheckSquare size={18} /> },
   { id: 'community', label: 'Community', icon: <Users size={18} />, children: COMMUNITY_CHILDREN },
   { id: 'memory',    label: 'Memory',    icon: <Brain size={18} /> },
-  { id: 'settings',  label: 'Settings',  icon: <Settings size={18} />, isSeparator: true },
 ];
 
 const COMMUNITY_TABS = new Set(['leaderboard', 'rooms']);
@@ -109,6 +108,7 @@ function Sidebar({ activeTab, setActiveTab, user, unreadCoach = 0 }: SidebarProp
         }
       }}
       logoutItem={logoutItem}
+      onSettings={() => setActiveTab('settings')}
       onStartFocusSession={() => window.promethee.window.startFocusSession(null)}
       className="pt-14"
     />
