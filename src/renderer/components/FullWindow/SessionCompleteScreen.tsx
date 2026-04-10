@@ -3,7 +3,7 @@ import { shouldIncludeAppInUsageStats } from '../../../lib/appUsageFilter.js';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Zap, Clock, Trophy, Share2, X, Download } from 'lucide-react';
 import forestBg from '../../../assets/forest-bg.png';
-import logoIcon from '../../../assets/icon.png';
+import logoIcon from '../../../assets/logo-blanc.svg';
 
 interface Props {
   task: string;
