@@ -1765,75 +1765,107 @@ ipcMain.handle('coach:clearUnread', async () => {
 
 /**
  * Build the rich context block injected into every coach system prompt.
- * Covers: profile, all sessions, tasks, habits, memory, leaderboard rank.
+ * Uses aggregated stats for sessions (scales to any history size) + last 10 in detail.
  */
 function buildCoachContext(userId) {
   const profile = getUserProfile(userId);
-  const allSessions = getSessions(userId, 50);
+  // Fetch all sessions for aggregation — we never dump all of them into the prompt
+  const allSessions = getSessions(userId, 9999);
   const tasks = getTasksByUser(userId);
   const habits = listHabitCache(userId);
   const memorySnaps = getMemorySnapshotCache(userId, 3);
-  const notes = getNotesByUser(userId).slice(0, 10);
+  const notes = getNotesByUser(userId).slice(0, 5);
   const leaderboard = getCachedLeaderboard();
 
   const level = profile?.level || 1;
   const totalXp = profile?.total_xp || 0;
   const streak = profile?.current_streak || 0;
 
-  // Sessions summary
+  // ── Aggregated session stats (scales to any history size) ──────────────────
   const totalSessions = allSessions.length;
   const totalFocusMin = Math.round(allSessions.reduce((s, x) => s + (x.duration_seconds || 0), 0) / 60);
+  const totalFocusHours = (totalFocusMin / 60).toFixed(1);
+  const avgSessionMin = totalSessions > 0 ? Math.round(totalFocusMin / totalSessions) : 0;
+
+  // This week (Mon–Sun)
+  const now = Date.now();
+  const weekStart = now - ((new Date().getDay() || 7) - 1) * 86400000;
+  const thisWeekSessions = allSessions.filter(s => s.started_at >= weekStart);
+  const thisWeekMin = Math.round(thisWeekSessions.reduce((s, x) => s + (x.duration_seconds || 0), 0) / 60);
+  const thisWeekXp = thisWeekSessions.reduce((s, x) => s + (x.xp_earned || 0), 0);
+
+  // Top 5 most-worked tasks all time
+  const taskFreq = {};
+  allSessions.forEach(s => {
+    const t = s.task?.trim() || 'Untitled';
+    taskFreq[t] = (taskFreq[t] || 0) + 1;
+  });
+  const topTasks = Object.entries(taskFreq)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([t, n]) => `  - "${t}" (${n} session${n !== 1 ? 's' : ''})`)
+    .join('\n');
+
+  // Last 10 sessions in detail
   const recentSessionLines = allSessions.slice(0, 10).map(s => {
     const mins = s.duration_seconds ? Math.round(s.duration_seconds / 60) : '?';
     const date = new Date(s.started_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
     return `  - [${date}] "${s.task || 'Untitled'}" — ${mins}m, ${s.xp_earned || 0} XP`;
   }).join('\n');
 
-  // Tasks
+  // ── Tasks ──────────────────────────────────────────────────────────────────
   const pendingTasks = tasks.filter(t => !t.completed && !t.session_id);
-  const completedTasks = tasks.filter(t => t.completed && !t.session_id);
+  const completedTasksCount = tasks.filter(t => t.completed && !t.session_id).length;
   const taskLines = pendingTasks.slice(0, 8).map(t => `  - ${t.title}${t.xp ? ` (${t.xp} XP)` : ''}`).join('\n');
 
-  // Habits
-  const habitLines = habits.slice(0, 8).map(h =>
-    `  - "${h.title}" (${h.frequency}, streak: ${h.current_streak || 0} days, last done: ${h.last_completed_date || 'never'})`
-  ).join('\n');
+  // ── Habits ─────────────────────────────────────────────────────────────────
+  const habitLines = habits.slice(0, 8).map(h => {
+    const lastDone = h.last_completed_date || 'never';
+    const streakStr = h.current_streak > 0 ? `${h.current_streak}-day streak` : 'streak broken';
+    return `  - "${h.title}" (${h.frequency}, ${streakStr}, last: ${lastDone})`;
+  }).join('\n');
 
-  // Memory
+  // ── Memory ─────────────────────────────────────────────────────────────────
   const memoryLines = memorySnaps.map(m =>
     `  - [${m.snapshot_date}] ${m.summary || '(no summary)'}`
   ).join('\n');
 
-  // Session notes
+  // ── Session notes ──────────────────────────────────────────────────────────
   const noteLines = notes.map(n => `  - ${n.text}`).join('\n');
 
-  // Leaderboard rank
+  // ── Community rank ─────────────────────────────────────────────────────────
   let rankLine = '';
   if (leaderboard.length > 0) {
     const userEntry = leaderboard.find(e => e.user_id === userId || e.email === profile?.email);
     if (userEntry) {
       const rank = leaderboard.indexOf(userEntry) + 1;
-      rankLine = `\nCommunity rank: #${rank} of ${leaderboard.length} this week (${userEntry.weekly_xp || 0} XP this week)`;
+      rankLine = `\nCommunity: #${rank} of ${leaderboard.length} this week (${userEntry.weekly_xp || 0} XP this week)`;
     }
   }
 
-  return `User profile:
-- Level ${level} | ${totalXp} total XP | ${streak}-day streak${rankLine}
-- Total sessions: ${totalSessions} (${totalFocusMin} min focused all time)
+  return `--- USER PROFILE ---
+Level ${level} | ${totalXp.toLocaleString()} total XP | ${streak}-day streak${rankLine}
 
-Recent sessions (last 10):
+--- SESSION HISTORY ---
+All time: ${totalSessions} sessions | ${totalFocusHours}h focused | avg ${avgSessionMin}m/session
+This week: ${thisWeekSessions.length} sessions | ${thisWeekMin}m | ${thisWeekXp} XP
+
+Top tasks (by session count):
+${topTasks || '  (none yet)'}
+
+Last 10 sessions:
 ${recentSessionLines || '  (none yet)'}
 
-Standalone to-do tasks (${pendingTasks.length} pending, ${completedTasks.length} done):
+--- TO-DO (${pendingTasks.length} open, ${completedTasksCount} done) ---
 ${taskLines || '  (none)'}
 
-Habits:
+--- HABITS ---
 ${habitLines || '  (none)'}
 
-Memory snapshots (last 3 daily summaries):
+--- MEMORY (last 3 daily snapshots) ---
 ${memoryLines || '  (none)'}
 
-Recent session notes:
+--- RECENT SESSION NOTES ---
 ${noteLines || '  (none)'}`;
 }
 
@@ -1849,13 +1881,20 @@ async function triggerCoachPost(user, sessionData) {
     const chat = getOrCreateCoachChat(user.id);
     const coachContext = buildCoachContext(user.id);
 
-    const systemPrompt = `You are the Promethee AI Coach — a personal productivity coach with full knowledge of this user's history, habits, tasks, and goals.
+    const systemPrompt = `You are the Promethee productivity coach. You know everything about this user — their sessions, habits, tasks, memory, and goals. You text them proactively after sessions and they can text you anytime. Same personality whether you're reaching out or they're asking you something.
 
 ${coachContext}
 
-Streak rule: only focus sessions of 10 minutes or more count toward the daily streak.
+Streak rule: only sessions ≥10 minutes count toward the daily streak.
 
-Your style: specific, warm, never generic. Keep messages under 3 sentences. Never start with "Great job" or "Well done" — be more insightful. Reference what they actually did. Use their habits, tasks, and memory context to make observations feel personal and earned.`;
+Your style:
+- Short and direct. Chat message energy, not an essay. Max 2–3 sentences.
+- Never open with "Great job", "Well done", "Amazing" or any filler.
+- Always reference something specific — a task name, a number, a habit. Never be generic.
+- Easy-going and supportive, but cut through noise when needed. Zero judgment.
+- Notice patterns when they're there ("three sessions this week on the same thing").
+- If something's off — broken streak, short session, same task stuck — be honest without being harsh. No toxic positivity.
+- Connect dots between habits and focus when relevant.`;
 
     const durationMin = Math.round((sessionData.durationSeconds || 0) / 60);
     const streakCountedMsg = durationMin >= 10
@@ -2174,25 +2213,31 @@ ipcMain.handle('agent:sendMessageWithImages', async (_event, chatId, content, im
       : '';
     const coachContext = buildCoachContext(user.id);
 
+    const mentorPersona = `You are the Promethee productivity coach. You know everything about this user — their sessions, habits, tasks, memory, and goals. Same easy-going, direct personality whether you're reaching out or they're asking you something.
+
+Your style:
+- Never open with "Great job", "Well done", "Amazing" or any filler.
+- Always reference something specific — a task name, a number, a habit. Never be generic.
+- Easy-going and supportive, but cut through noise when needed. Zero judgment.
+- Connect dots between habits and focus when relevant.`;
+
     let resolvedSystemPrompt;
     if (activeSession) {
       const elapsedMinutes = Math.floor((Date.now() - activeSession.startedAt) / 60000);
-      resolvedSystemPrompt = `You are the Promethee AI Coach — a personal productivity coach with full knowledge of this user's history, habits, tasks, and goals. Right now they're in a focus session and need help staying on track.
+      resolvedSystemPrompt = `You are the Promethee productivity coach. The user is mid-session right now — they need quick, sharp answers. Don't break their flow.
 
-Current session: "${activeSession.task || 'Untitled'}" — ${elapsedMinutes} minute${elapsedMinutes !== 1 ? 's' : ''} in.${windowContext}
-Today: ${xpToday} XP across ${sessionCountToday} session${sessionCountToday !== 1 ? 's' : ''}.
+Current session: "${activeSession.task || 'Untitled'}" — ${elapsedMinutes} minute${elapsedMinutes !== 1 ? 's' : ''} in.
+Today: ${xpToday} XP across ${sessionCountToday} session${sessionCountToday !== 1 ? 's' : ''}.${windowContext}
 
 ${coachContext}
 ${pastContext}
 
-Answer concisely. You already know what they're working on — don't ask them to re-explain.`;
+Ultra short — one or two sentences max. You already know their full context, don't ask them to re-explain anything.`;
     } else {
-      resolvedSystemPrompt = `You are the Promethee AI Coach — a personal productivity coach with full knowledge of this user's history, habits, tasks, and goals.
+      resolvedSystemPrompt = `${mentorPersona}
 
 ${coachContext}
-${windowContext}${pastContext}
-
-Answer concisely. Be specific, warm, and personal — never generic.`;
+${windowContext}${pastContext}`;
     }
 
     if (visionUrls.length > 0) {
