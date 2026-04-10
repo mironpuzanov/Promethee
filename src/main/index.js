@@ -218,7 +218,7 @@ const createFloatingWindow = () => {
 
 const createFullWindow = ({ sessionComplete = false } = {}) => {
   const w = sessionComplete ? 380 : 1200;
-  const h = sessionComplete ? 620 : 900;
+  const h = sessionComplete ? 620 : 1020;
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
   fullWindow = new BrowserWindow({
     width: w,
@@ -1465,11 +1465,11 @@ ipcMain.handle('window:resizeForSessionComplete', () => {
 ipcMain.handle('window:restoreFromSessionComplete', () => {
   if (fullWindow) {
     fullWindow.setResizable(true);
-    fullWindow.setSize(1200, 900, true);
+    fullWindow.setSize(1200, 1020, true);
     const { width, height } = screen.getPrimaryDisplay().workAreaSize;
     fullWindow.setPosition(
       Math.round((width - 1200) / 2),
-      Math.round((height - 900) / 2),
+      Math.round((height - 1020) / 2),
       true
     );
     fullWindow.setResizable(true);

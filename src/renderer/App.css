@@ -25,24 +25,24 @@ body {
   --accent-glow:    rgba(232, 146, 42, 0.15);
   --accent-glow-strong: rgba(232, 146, 42, 0.25);
   --text-primary:   #F2EDE8;
-  --text-secondary: #A09890;
-  --text-muted:     #5C5450;
-  --text-faint:     #2E2A27;
-  --surface:        rgba(20, 17, 14, 0.88);
+  --text-secondary: #B8AFA8;
+  --text-muted:     #7A706A;
+  --text-faint:     #4A4440;
+  --surface:        rgba(20, 17, 14, 0.62);
   /* Dark chips over transparent overlay: keep hover opaque so light wallpapers don’t wash them out */
   --surface-glass-hover: rgba(18, 15, 12, 0.96);
   --border-glass-hover:  rgba(255, 255, 255, 0.22);
-  --surface-overlay: rgba(12, 10, 9, 0.85);
+  --surface-overlay: rgba(12, 10, 9, 0.72);
   --border:         rgba(255, 255, 255, 0.07);
   --border-accent:  rgba(232, 146, 42, 0.30);
-  --bg:             rgba(12, 10, 9, 0.92);
-  --sidebar-bg:     rgba(9, 7, 6, 0.94);
+  --bg:             rgba(12, 10, 9, 0.78);
+  --sidebar-bg:     rgba(7, 6, 5, 0.80);
 
   /* shadcn-compatible tokens — mapped to Promethee palette */
-  --background:         rgba(12, 10, 9, 0.92);
+  --background:         rgba(12, 10, 9, 0.78);
   --foreground:         #F2EDE8;
 
-  --card:               rgba(18, 15, 12, 0.92);
+  --card:               rgba(16, 13, 10, 0.72);
   --card-foreground:    #F2EDE8;
 
   --popover:            rgba(19, 17, 9, 0.88);
@@ -51,11 +51,11 @@ body {
   --primary:            #F2EDE8;
   --primary-foreground: #0C0A09;
 
-  --secondary:          rgba(26, 23, 20, 0.80);
-  --secondary-foreground: #A09890;
+  --secondary:          rgba(26, 23, 20, 0.60);
+  --secondary-foreground: #B8AFA8;
 
-  --muted:              rgba(26, 23, 20, 0.80);
-  --muted-foreground:   #5C5450;
+  --muted:              rgba(26, 23, 20, 0.60);
+  --muted-foreground:   #7A706A;
 
   --accent:             rgba(255,255,255,0.05);
   --accent-foreground:  #F2EDE8;
