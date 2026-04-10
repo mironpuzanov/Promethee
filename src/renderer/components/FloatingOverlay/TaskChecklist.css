@@ -82,20 +82,20 @@
   overflow: hidden;
 }
 
-/* Resize handle — bottom-left corner */
+/* Resize handle — bottom-right corner */
 .task-checklist__resize-handle {
   position: absolute;
   bottom: 0;
-  left: 0;
+  right: 0;
   width: 18px;
   height: 18px;
-  cursor: sw-resize;
+  cursor: se-resize;
   z-index: 10;
   pointer-events: auto;
   -webkit-app-region: no-drag;
   touch-action: none;
-  background: radial-gradient(circle at 14px 14px, rgba(255,255,255,0.12) 2px, transparent 2px);
-  border-bottom-left-radius: 12px;
+  background: radial-gradient(circle at 4px 14px, rgba(255,255,255,0.12) 2px, transparent 2px);
+  border-bottom-right-radius: 12px;
 }
 
 .task-checklist__header {

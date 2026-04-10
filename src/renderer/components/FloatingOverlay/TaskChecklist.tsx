@@ -35,7 +35,7 @@ interface TaskChecklistProps {
   togglePanelTrigger?: number;
 }
 
-const RIGHT_MARGIN = 24;
+const LEFT_MARGIN = 24;
 const TOP_MARGIN = 16;
 const PILL_H = 32;
 const STORAGE_KEY = 'taskChecklistTopY';
@@ -182,8 +182,8 @@ function TaskChecklist({ session, focusAddFieldTrigger = 0, togglePanelTrigger =
 
   const onResizePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isResizing.current) return;
-    // Panel anchored to right — dragging left makes it wider
-    const dw = resizeStartX.current - e.clientX;
+    // Panel anchored to left — dragging right makes it wider
+    const dw = e.clientX - resizeStartX.current;
     const dh = e.clientY - resizeStartY.current;
     setPanelSize({
       w: Math.max(TC_MIN_W, Math.min(TC_MAX_W, resizeStartW.current + dw)),
@@ -286,12 +286,13 @@ function TaskChecklist({ session, focusAddFieldTrigger = 0, togglePanelTrigger =
     }
   }, [draft]);
 
-  const totalCount = tasks.filter(t => !t.completed).length + notes.length;
+  const incompleteTasks = tasks.filter(t => !t.completed);
+  const totalCount = incompleteTasks.length + notes.length;
 
   return (
     <div
       className="task-checklist-root promethee-mouse-target"
-      style={{ right: RIGHT_MARGIN, top: topY }}
+      style={{ left: LEFT_MARGIN, top: topY }}
     >
       {collapsed ? (
         <button
@@ -333,7 +334,7 @@ function TaskChecklist({ session, focusAddFieldTrigger = 0, togglePanelTrigger =
             >
               <ListChecks size={13} aria-hidden />
               Tasks
-              {tasks.length > 0 && <span className="task-checklist__tab-count">{tasks.length}</span>}
+              {incompleteTasks.length > 0 && <span className="task-checklist__tab-count">{incompleteTasks.length}</span>}
             </button>
             <button
               type="button"
@@ -349,10 +350,10 @@ function TaskChecklist({ session, focusAddFieldTrigger = 0, togglePanelTrigger =
           {/* Tasks list */}
           {tab === 'tasks' && (
             <div className="task-checklist__list">
-              {tasks.length === 0 && (
+              {incompleteTasks.length === 0 && (
                 <p className="task-checklist__empty">No tasks yet</p>
               )}
-              {tasks.map((task) => {
+              {incompleteTasks.map((task) => {
                 const done = Boolean(task.completed);
                 return (
                   <div
@@ -443,7 +444,7 @@ function TaskChecklist({ session, focusAddFieldTrigger = 0, togglePanelTrigger =
             placeholder={tab === 'tasks' ? 'Add a task… (↵ to save)' : 'Quick note… (↵ to save)'}
             maxLength={1000}
           />
-          {/* Resize handle — bottom-left corner */}
+          {/* Resize handle — bottom-right corner */}
           <div
             className="task-checklist__resize-handle"
             onPointerDown={onResizePointerDown}
