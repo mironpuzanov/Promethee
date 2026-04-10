@@ -15,11 +15,11 @@ const STYLES = `
     width: 100%;
     padding: 9px 16px;
     border-radius: 10px;
-    background: rgba(232, 146, 42, 0.08);
-    border: 1px solid rgba(232, 146, 42, 0.20);
-    color: rgba(255, 255, 255, 0.78);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    color: rgba(255, 255, 255, 0.65);
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 400;
     letter-spacing: 0.01em;
     cursor: pointer;
     user-select: none;
@@ -28,13 +28,13 @@ const STYLES = `
   }
 
   .sfb-btn:hover {
-    background: rgba(232, 146, 42, 0.15);
-    border-color: rgba(232, 146, 42, 0.35);
-    color: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.09);
+    border-color: rgba(255, 255, 255, 0.18);
+    color: rgba(255, 255, 255, 0.90);
   }
 
   .sfb-btn:active {
-    background: rgba(232, 146, 42, 0.20);
+    background: rgba(255, 255, 255, 0.12);
     transform: scale(0.98);
   }
 `;

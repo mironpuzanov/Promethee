@@ -127,11 +127,11 @@ function ListView({ sessions, tasksBySession, notesBySession, chatsBySession, on
           onClick={() => (window.promethee as any).window.startFocusSession?.()}
           style={{
             display: 'flex', alignItems: 'center', gap: 6,
-            background: 'rgba(232, 146, 42, 0.08)',
-            border: '1px solid rgba(232, 146, 42, 0.20)',
+            background: 'rgba(255, 255, 255, 0.05)',
+            border: '1px solid rgba(255, 255, 255, 0.10)',
             borderRadius: 999,
-            color: 'rgba(255, 255, 255, 0.78)',
-            fontSize: 13, fontWeight: 500,
+            color: 'rgba(255, 255, 255, 0.65)',
+            fontSize: 13, fontWeight: 400,
             padding: '7px 14px',
             cursor: 'pointer',
             transition: 'background 0.18s, border-color 0.18s, color 0.18s',
@@ -139,15 +139,15 @@ function ListView({ sessions, tasksBySession, notesBySession, chatsBySession, on
           }}
           onMouseEnter={e => {
             const b = e.currentTarget as HTMLButtonElement;
-            b.style.background = 'rgba(232,146,42,0.15)';
-            b.style.borderColor = 'rgba(232,146,42,0.35)';
-            b.style.color = 'rgba(255,255,255,0.95)';
+            b.style.background = 'rgba(255,255,255,0.09)';
+            b.style.borderColor = 'rgba(255,255,255,0.18)';
+            b.style.color = 'rgba(255,255,255,0.90)';
           }}
           onMouseLeave={e => {
             const b = e.currentTarget as HTMLButtonElement;
-            b.style.background = 'rgba(232,146,42,0.08)';
-            b.style.borderColor = 'rgba(232,146,42,0.20)';
-            b.style.color = 'rgba(255,255,255,0.78)';
+            b.style.background = 'rgba(255,255,255,0.05)';
+            b.style.borderColor = 'rgba(255,255,255,0.10)';
+            b.style.color = 'rgba(255,255,255,0.65)';
           }}
         >
           Start Focus Session

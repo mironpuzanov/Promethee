@@ -1410,16 +1410,14 @@ ipcMain.handle('db:getUserProfile', async () => {
 });
 
 ipcMain.handle('window:startFocusFromDashboard', async (event, roomId) => {
-  // hide() is instant — no macOS window-close animation, so no desktop flash.
-  // close() triggers the system animation which causes the visible blink.
-  if (fullWindow) {
-    fullWindow.hide();
-  }
+  // Send reset + focus message while the window is still hidden — the renderer
+  // processes IPC even when not visible, so React can clear any stale activeSession
+  // state before the window is shown, preventing the timer/panel flash.
+  floatingWindow?.webContents.send('focus:taskInput', { roomId: roomId || null });
+  // Give React one animation frame to process the state update
+  await new Promise(resolve => setTimeout(resolve, 32));
+  if (fullWindow) fullWindow.hide();
   floatingWindow?.show();
-  // Small delay for window transition, then focus the input
-  setTimeout(() => {
-    floatingWindow?.webContents.send('focus:taskInput', { roomId: roomId || null });
-  }, 80);
   return { success: true };
 });
 

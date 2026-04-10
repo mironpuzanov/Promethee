@@ -70,6 +70,9 @@ function FloatingOverlay({ user, setUser }: FloatingOverlayProps) {
 
     const unsubFocus = window.promethee.window.onFocusTaskInput((data: { roomId: string | null }) => {
       if (data.roomId) setSelectedRoomId(data.roomId);
+      // Always clear any stale active session so the idle bar renders — not the
+      // timer/panel — when the overlay is shown after a completed session.
+      setActiveSession(null);
       setFocusTaskInput(true);
     });
     const unsubBlocker = window.promethee.blocker.onStatus((data) => setBlockerState(data.state));
