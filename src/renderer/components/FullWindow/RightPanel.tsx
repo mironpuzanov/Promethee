@@ -217,14 +217,16 @@ function RightPanel() {
           {todayStats.streak > 0 && (
             <div
               className="right-panel-streak"
-              title={`${todayStats.streak}-day streak`}
+              title={`${todayStats.streak}-day streak — sessions ≥ 10 min only`}
             >
               <div className="right-panel-streak__icon">
-                <Flame size={12} />
+                <Flame size={18} />
               </div>
               <div className="right-panel-streak__body">
-                <span className="right-panel-streak__label">Streak</span>
-                <span className="right-panel-streak__value">{todayStats.streak} day{todayStats.streak === 1 ? '' : 's'}</span>
+                <div className="right-panel-streak__count">
+                  <span className="right-panel-streak__value">{todayStats.streak}</span>
+                  <span className="right-panel-streak__unit">day{todayStats.streak === 1 ? '' : 's'}</span>
+                </div>
                 <span className="right-panel-streak__hint">≥ 10 min sessions only</span>
               </div>
             </div>
