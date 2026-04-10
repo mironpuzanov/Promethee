@@ -694,7 +694,8 @@ export function createStandaloneTask(userId, text, xpReward) {
     SELECT COALESCE(MAX(position), -1) + 1 AS next FROM tasks WHERE session_id IS NULL AND user_id = ?
   `).get(userId);
   const position = row?.next ?? 0;
-  const xp = xpReward && Number(xpReward) > 0 ? Math.round(Number(xpReward)) : null;
+  // Cap declared XP at 50 — actual awarded XP is further discounted at toggle time
+  const xp = xpReward && Number(xpReward) > 0 ? Math.min(50, Math.round(Number(xpReward))) : null;
   database.prepare(`
     INSERT INTO tasks (id, session_id, user_id, text, completed, position, xp_reward, created_at, sync_state)
     VALUES (?, NULL, ?, ?, 0, ?, ?, ?, 'pending_upsert')

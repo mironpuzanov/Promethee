@@ -2423,16 +2423,23 @@ ipcMain.handle('tasks:toggle', async (_event, taskId) => {
     if (!task) return { success: false, error: 'Task not found' };
 
     // Award or revoke XP on toggle
-    const reward = task.xp_reward || 25;
+    // Anti-cheat: standalone (user-created) tasks get 10% XP, declared value capped at 50.
+    // Session tasks (created inside a focus session) get full XP up to 50.
+    const declaredXp = task.xp_reward || 25;
+    const isUserTask = task.session_id == null;
+    const actualReward = isUserTask
+      ? Math.max(1, Math.round(Math.min(50, declaredXp) * 0.1))
+      : Math.min(50, declaredXp);
+
     let xpEarned = 0;
     if (task.completed) {
-      updateUserXP(user.id, reward);
-      xpEarned = reward;
-      track('task_completed', { xp_earned: reward });
+      updateUserXP(user.id, actualReward);
+      xpEarned = actualReward;
+      track('task_completed', { xp_earned: actualReward, declared_xp: declaredXp, is_user_task: isUserTask });
     } else {
-      // Undo: subtract XP that was previously awarded
-      updateUserXP(user.id, -reward);
-      xpEarned = -reward;
+      // Undo: subtract exactly what was awarded (uses same formula)
+      updateUserXP(user.id, -actualReward);
+      xpEarned = -actualReward;
     }
 
     const updatedProfile = getUserProfile(user.id);
