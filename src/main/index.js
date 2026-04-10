@@ -446,10 +446,17 @@ app.whenReady().then(async () => {
   }
 
   initAnalytics();
+
+  // Crash detection: if flag file exists from last run, it wasn't a clean exit
+  const runFlagPath = path.join(app.getPath('userData'), '.running');
+  const prevCrashed = fs.existsSync(runFlagPath);
+  fs.writeFileSync(runFlagPath, Date.now().toString());
+
   track('app_launched', {
     version: app.getVersion(),
     os: process.platform,
     arch: process.arch,
+    after_crash: prevCrashed,
   });
 
   // Auth check first — create windows based on result
@@ -564,6 +571,10 @@ app.on('before-quit', async () => {
     const elapsedMin = Math.round((Date.now() - activeOnQuit.startedAt) / 60000);
     track('session_abandoned', { elapsed_min: elapsedMin });
   }
+
+  track('app_quit');
+  // Clean exit — remove crash flag
+  try { fs.unlinkSync(path.join(app.getPath('userData'), '.running')); } catch {}
 
   if (user) await removePresence(user.id);
   await analyticsShutdown();
@@ -763,6 +774,7 @@ ipcMain.handle('session:start', async (event, task, roomId = null) => {
     const session = startSession(user.id, task, roomId);
     setTrackingSession(session.id);
     track('session_started', { task_length: (task || '').length, has_room: Boolean(roomId) });
+    if (roomId) track('room_joined', { room_id: roomId });
 
     setImmediate(() => {
       void (async () => {
@@ -813,6 +825,7 @@ ipcMain.handle('session:end', async () => {
       depth_bonus: Boolean(session.depthBonus),
       streak_bonus: Boolean(session.streakBonus),
     });
+    if (session.roomId) track('room_left', { room_id: session.roomId });
 
     // Fire-and-forget: never stall session:end on network or active-win
     if (user?.id && session?.id) {
@@ -1202,6 +1215,7 @@ ipcMain.handle('auth:signIn', async (event, email, password) => {
     const result = await signIn(email, password);
     if (result.user) {
       identify(result.user.id);
+      track('signed_in');
       // Password sign-in succeeded — open dashboard immediately, no deep link needed
       if (fullWindow) fullWindow.close();
       floatingWindow?.webContents.send('auth:success', result.user);
@@ -1315,6 +1329,7 @@ ipcMain.handle('auth:uploadAvatar', async (event, fileBuffer, mimeType) => {
 ipcMain.handle('leaderboard:get', async () => {
   try {
     const leaderboard = await getLeaderboard();
+    track('leaderboard_viewed');
     return { success: true, leaderboard };
   } catch (error) {
     return { success: false, error: error.message };

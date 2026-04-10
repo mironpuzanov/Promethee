@@ -2,6 +2,7 @@ import { app, shell } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { supabase } from '../lib/supabase.js';
+import { track } from '../lib/analytics.js';
 
 const UPDATE_CHANNEL = 'stable';
 const FALLBACK_RELEASES_PAGE_URL = 'https://promethee.app';
@@ -170,8 +171,12 @@ export async function checkForAppUpdate({ force = false } = {}) {
     const releaseUrl = release.release_url || release.download_url || FALLBACK_RELEASES_PAGE_URL;
     const downloadUrl = release.download_url || release.release_url || FALLBACK_RELEASES_PAGE_URL;
 
+    const isAvailable = compareVersions(latestVersion, app.getVersion()) > 0;
+    if (isAvailable) {
+      track('update_banner_shown', { available_version: latestVersion });
+    }
     return setUpdateState({
-      status: compareVersions(latestVersion, app.getVersion()) > 0 ? 'available' : 'up-to-date',
+      status: isAvailable ? 'available' : 'up-to-date',
       latestVersion,
       checkedAt: Date.now(),
       releaseUrl,
@@ -208,8 +213,9 @@ export function clearSkippedUpdateVersion() {
 }
 
 export async function openUpdateDownload() {
-  const { downloadUrl, releaseUrl } = getUpdateState();
+  const { downloadUrl, releaseUrl, latestVersion } = getUpdateState();
   const target = downloadUrl || releaseUrl || FALLBACK_RELEASES_PAGE_URL;
+  track('update_banner_clicked', { available_version: latestVersion || null });
   await shell.openExternal(target);
   return { success: true, url: target };
 }
