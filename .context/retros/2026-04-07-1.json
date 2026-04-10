@@ -1,0 +1,53 @@
+{
+  "date": "2026-04-07",
+  "window": "7d",
+  "metrics": {
+    "commits": 43,
+    "contributors": 1,
+    "prs_merged": 0,
+    "insertions": 305,
+    "deletions": 98,
+    "net_loc": 207,
+    "test_loc": 177,
+    "test_ratio": 0.5803,
+    "active_days": 7,
+    "sessions": 13,
+    "deep_sessions": 2,
+    "avg_session_minutes": 17.4,
+    "loc_per_session_hour": 55.0,
+    "feat_pct": 0.3256,
+    "fix_pct": 0.4419,
+    "peak_hour": 12,
+    "ai_assisted_commits": 0
+  },
+  "authors": {
+    "mironpuzanov": {
+      "commits": 43,
+      "insertions": 305,
+      "deletions": 98,
+      "test_ratio": 0.5803,
+      "top_area": "src"
+    }
+  },
+  "version_range": [
+    "",
+    "1.1.0"
+  ],
+  "streak_days": 2,
+  "tweetable": "Week of Mar 31: 43 commits (1 contributor), 0.3k LOC, 58% tests, 0 PRs, peak: 12:00 | Streak: 2d",
+  "test_health": {
+    "total_test_files": 2,
+    "tests_added_this_period": 1,
+    "regression_test_commits": 0,
+    "test_files_changed": 1
+  },
+  "focus": {
+    "dir": "src",
+    "score_pct": 81.6
+  },
+  "ship_of_week": {
+    "subject": "fix(qa): ISSUE-011 \u2014 wire RightPanel Active Quest to real quests.list()",
+    "hash": "a38ae40b2491373e9e93d28c705b605ec904c3ff",
+    "loc": 78
+  }
+}

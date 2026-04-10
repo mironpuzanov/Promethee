@@ -13,6 +13,8 @@ import QuestsTab from './QuestsTab';
 import TasksTab from './TasksTab';
 import HabitsTab from './HabitsTab';
 import MemoryTab from './MemoryTab';
+import SessionsTab from './SessionsTab';
+import ToDoTab from './ToDoTab';
 import './FullWindow.css';
 
 const listVariants = {
@@ -182,16 +184,19 @@ function FullWindow({ user, setUser }: FullWindowProps) {
   const renderMain = () => {
     switch (activeTab) {
       case 'home':        return <CharacterPanel user={user} />;
-      case 'log':         return <SessionLog />;
-      case 'tasks':       return <TasksTab />;
+      case 'sessions':    return <SessionsTab />;
+      case 'todo':        return <ToDoTab />;
+      // legacy routes — keep so old bookmarks still work
+      case 'log':         return <SessionsTab />;
+      case 'tasks':       return <ToDoTab />;
+      case 'mentor':      return <MentorTab />;
       case 'leaderboard': return <LeaderboardTab />;
       case 'rooms':       return <RoomsTab />;
       case 'quests':      return <QuestsTab />;
       case 'habits':      return <HabitsTab />;
       case 'memory':      return <MemoryTab />;
-      case 'mentor':      return <MentorTab />;
       case 'settings':    return <SettingsTab user={user} setUser={setUser} />;
-      default:        return <CharacterPanel user={user} />;
+      default:            return <CharacterPanel user={user} />;
     }
   };
 

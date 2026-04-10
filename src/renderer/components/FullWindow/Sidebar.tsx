@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  Home, ScrollText, Sword, CheckSquare, MessageCircle, LogOut, Users, Trophy, Settings, Brain, ListChecks
+  Home, Layers, CheckSquare, CheckCheck, LogOut, Users, Trophy, Settings, Brain, Sword
 } from 'lucide-react';
 import { UserProfileSidebar } from '../ui/menu';
 import { MVP_MODE, MVP_NAV } from '../../../config/mvp';
@@ -23,15 +23,14 @@ const COMMUNITY_CHILDREN = [
 ];
 
 const navItems = [
-  { id: 'home',    label: 'Home',    icon: <Home size={18} /> },
-  { id: 'log',     label: 'Sessions', icon: <ScrollText size={18} /> },
-  { id: 'tasks',   label: 'Focus Log', icon: <ListChecks size={18} /> },
-  { id: 'mentor',  label: 'Mentor',  icon: <MessageCircle size={18} /> },
+  { id: 'home',      label: 'Home',      icon: <Home size={18} /> },
+  { id: 'sessions',  label: 'Sessions',  icon: <Layers size={18} /> },
+  { id: 'todo',      label: 'To Do',     icon: <CheckCheck size={18} /> },
   { id: 'community', label: 'Community', icon: <Users size={18} />, children: COMMUNITY_CHILDREN },
-  { id: 'quests',  label: 'Quests',  icon: <Sword size={18} />, isSeparator: true },
-  { id: 'habits',  label: 'Habits',  icon: <CheckSquare size={18} /> },
-  { id: 'memory',  label: 'Memory',  icon: <Brain size={18} /> },
-  { id: 'settings', label: 'Settings', icon: <Settings size={18} />, isSeparator: true },
+  { id: 'quests',    label: 'Quests',    icon: <Sword size={18} />, isSeparator: true },
+  { id: 'habits',    label: 'Habits',    icon: <CheckSquare size={18} /> },
+  { id: 'memory',    label: 'Memory',    icon: <Brain size={18} /> },
+  { id: 'settings',  label: 'Settings',  icon: <Settings size={18} />, isSeparator: true },
 ];
 
 const COMMUNITY_TABS = new Set(['leaderboard', 'rooms']);
