@@ -391,6 +391,8 @@ function CharacterPanel({ user }: CharacterPanelProps) {
                     tabIndex={0}
                     onClick={() => onToggleTask(task.id)}
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggleTask(task.id); } }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.03)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
                     initial={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0, paddingTop: 0, paddingBottom: 0, overflow: 'hidden' }}
                     transition={{ duration: 0.35, ease: 'easeInOut' }}
@@ -399,6 +401,7 @@ function CharacterPanel({ user }: CharacterPanelProps) {
                       padding: '8px 16px', cursor: 'pointer',
                       borderTop: '1px solid var(--border)',
                       opacity: done ? 0.45 : 1,
+                      transition: 'background 0.15s',
                     }}
                   >
                     <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>
