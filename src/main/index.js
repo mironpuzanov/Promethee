@@ -26,7 +26,7 @@ import { signIn, signUp, signOut, sendMagicLink, getUser, getAccessToken, setSes
 import { setupPowerMonitoring } from './power.js';
 import { setupLeaderboardPolling, stopLeaderboardPolling, getLeaderboard } from './leaderboard.js';
 import { setupPresence, stopPresence, sendHeartbeat, removePresence, postToLiveFeed, getPresenceCount, getRooms, getRoomPresence } from './presence.js';
-import { getTodaysSessions, getSessions, getUserProfile, getCompletedSessionsForSkills, getCompletedSessionsInRange, initializeDatabase, getAgentChats, getOrCreateAgentChat, createAgentChat, getAgentMessages, addAgentMessage, updateChatSummary, getRecentChatSummaries, getUnsummarizedChats, getQuests, createQuest, completeQuest, uncompleteQuest, deleteQuest, resetDailyQuests, setLastDailyJobDate, getLastDailyJobDate, updateStreak, updateUserXP, getWindowEvents, recordWindowEvent, getSessionById, createTask, createStandaloneTask, getTasksBySession, getTasksByUser, toggleTask, deleteTask, createNote, getNotesBySession, getNotesByUser, deleteNote, getMemorySnapshotCache, getMemorySnapshotCacheByDate, upsertMemorySnapshotCache, listHabitCache, getHabitCacheById, upsertHabitCache, markHabitCacheDeleted, removeHabitCache, setHabitCacheSyncState, getPendingHabitCache, recordHabitCompletion, removeHabitCompletion, getHabitCompletionDates, expireHabitStreaks, backfillHabitCompletions, getBlockedDomains, addBlockedDomain, toggleBlockedDomain, removeBlockedDomain } from './db.js';
+import { getTodaysSessions, getSessions, getUserProfile, getCompletedSessionsForSkills, getCompletedSessionsInRange, initializeDatabase, getAgentChats, getOrCreateAgentChat, createAgentChat, getAgentMessages, addAgentMessage, updateChatSummary, getRecentChatSummaries, getUnsummarizedChats, getQuests, createQuest, completeQuest, uncompleteQuest, deleteQuest, resetDailyQuests, setLastDailyJobDate, getLastDailyJobDate, updateStreak, updateUserXP, getWindowEvents, recordWindowEvent, getSessionById, createTask, createStandaloneTask, getTasksBySession, getTasksByUser, toggleTask, deleteTask, createNote, getNotesBySession, getNotesByUser, deleteNote, getMemorySnapshotCache, getMemorySnapshotCacheByDate, upsertMemorySnapshotCache, listHabitCache, getHabitCacheById, upsertHabitCache, markHabitCacheDeleted, removeHabitCache, setHabitCacheSyncState, getPendingHabitCache, recordHabitCompletion, removeHabitCompletion, getHabitCompletionDates, expireHabitStreaks, backfillHabitCompletions, getBlockedDomains, addBlockedDomain, toggleBlockedDomain, removeBlockedDomain, getPendingAgentChats, setAgentChatSyncState, getPendingTasks, setTaskSyncState, getPendingNotes, setNoteSyncState, getUnsyncedHabitCompletions, getUnsyncedWindowEvents, markWindowEventsSynced, upsertTaskFromRemote, upsertNoteFromRemote, upsertAgentChatFromRemote, upsertAgentMessageFromRemote, upsertHabitCompletionFromRemote } from './db.js';
 import { startWindowTracking, stopWindowTracking, setTrackingSession, clearTrackingSession, getCurrentApp, canSampleForegroundApp } from './windowTracker.js';
 import { maybePromptScreenRecordingAccess, resetScreenRecordingPromptGate, isScreenRecordingSnoozed, isScreenRecordingAcknowledged, isScreenRecordingRejected } from './screenRecordingPrompt.js';
 import { shouldIncludeAppInUsageStats } from '../lib/appUsageFilter.js';
@@ -48,6 +48,7 @@ import {
   clearSkippedUpdateVersion,
 } from './updateCheck.js';
 import { activate as blockerActivate, deactivate as blockerDeactivate, cleanupOnStartup as blockerCleanupOnStartup, installHelper as blockerInstall, uninstallHelper as blockerUninstall, checkInstallation as blockerCheckInstall } from './blocker.js';
+import { initAnalytics, identify, track, captureException, shutdown as analyticsShutdown } from '../lib/analytics.js';
 
 function scheduleDailyJobs(userId) {
   if (!userId) return;
@@ -339,11 +340,14 @@ process.on('uncaughtException', (error) => {
   debugLog(error.stack);
   console.error('Uncaught exception:', error);
   console.error(error.stack);
+  captureException(error, { source: 'uncaughtException' });
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   debugLog(`UNHANDLED REJECTION: ${reason}`);
   console.error('Unhandled rejection at:', promise, 'reason:', reason);
+  const error = reason instanceof Error ? reason : new Error(String(reason));
+  captureException(error, { source: 'unhandledRejection' });
 });
 
 // Register promethee:// deep link protocol (must be before app.whenReady)
@@ -399,6 +403,9 @@ async function handleDeepLink(url) {
           }, 200);
           // Run daily jobs for the newly authenticated user
           runDailyJobs(user.id).catch(e => debugLog(`runDailyJobs error: ${e.message}`));
+          // Restore all data from Supabase for new login
+          flushAllPendingSyncs(user.id).catch(e => debugLog(`login flushAllPendingSyncs: ${e.message}`));
+          restoreAllFromSupabase(user.id).catch(e => debugLog(`login restoreAllFromSupabase: ${e.message}`));
         }
       }
     }
@@ -438,6 +445,13 @@ app.whenReady().then(async () => {
     throw error;
   }
 
+  initAnalytics();
+  track('app_launched', {
+    version: app.getVersion(),
+    os: process.platform,
+    arch: process.arch,
+  });
+
   // Auth check first — create windows based on result
   try {
     debugLog('Attempting to restore user session...');
@@ -452,8 +466,12 @@ app.whenReady().then(async () => {
       createFullWindow();
     } else {
       // Session restored — go straight to dashboard, floating hidden
+      identify(user.id);
       createFullWindow();
       await flushPendingSyncs();
+      // Flush pending syncs for all local tables + restore from Supabase (background)
+      flushAllPendingSyncs(user.id).catch(e => debugLog(`startup flushAllPendingSyncs: ${e.message}`));
+      restoreAllFromSupabase(user.id).catch(e => debugLog(`startup restoreAllFromSupabase: ${e.message}`));
       startTrackingWithPermissionPrompt(user.id);
       // Run once-per-day jobs (quest resets, etc.)
       scheduleDailyJobs(user.id);
@@ -539,7 +557,16 @@ app.on('before-quit', async () => {
     updateCheckInterval = null;
   }
   const user = getCurrentUser();
+
+  // Track abandoned session if app quits mid-session
+  const activeOnQuit = getActiveSession();
+  if (activeOnQuit) {
+    const elapsedMin = Math.round((Date.now() - activeOnQuit.startedAt) / 60000);
+    track('session_abandoned', { elapsed_min: elapsedMin });
+  }
+
   if (user) await removePresence(user.id);
+  await analyticsShutdown();
 });
 
 ipcMain.handle('update:getState', () => getUpdateState());
@@ -735,6 +762,7 @@ ipcMain.handle('session:start', async (event, task, roomId = null) => {
 
     const session = startSession(user.id, task, roomId);
     setTrackingSession(session.id);
+    track('session_started', { task_length: (task || '').length, has_room: Boolean(roomId) });
 
     setImmediate(() => {
       void (async () => {
@@ -779,6 +807,12 @@ ipcMain.handle('session:end', async () => {
     const user = getCurrentUser();
     const session = await endSessionAndSync();
     clearTrackingSession();
+    track('session_ended', {
+      duration_min: Math.round((session.durationSeconds || 0) / 60),
+      xp_earned: session.xpEarned || 0,
+      depth_bonus: Boolean(session.depthBonus),
+      streak_bonus: Boolean(session.streakBonus),
+    });
 
     // Fire-and-forget: never stall session:end on network or active-win
     if (user?.id && session?.id) {
@@ -917,6 +951,209 @@ async function syncPendingHabits(userId) {
   }
 }
 
+
+// ── Sync functions for all local-only tables ─────────────────────────────────
+
+async function syncPendingAgentChats(userId) {
+  const pending = getPendingAgentChats(userId);
+  if (pending.length === 0) return;
+  const { supabase } = await import('../lib/supabase.js');
+
+  for (const chat of pending) {
+    const payload = {
+      id: chat.id,
+      user_id: userId,
+      title: chat.title,
+      session_id: chat.session_id || null,
+      system_prompt: chat.system_prompt || '',
+      summary: chat.summary || null,
+      created_at: chat.created_at,
+      updated_at: chat.updated_at,
+    };
+    const { error } = await supabase
+      .from('agent_chats')
+      .upsert(payload, { onConflict: 'id' });
+    if (error) throw error;
+    setAgentChatSyncState(chat.id, 'synced');
+
+    // Sync all messages for this chat
+    const { supabase: sb2 } = await import('../lib/supabase.js');
+    const { getAgentMessages: getMessages } = await import('./db.js');
+    const msgs = getMessages(chat.id);
+    for (const msg of msgs) {
+      const { error: mErr } = await sb2.from('agent_messages').upsert({
+        id: msg.id,
+        chat_id: msg.chat_id,
+        user_id: userId,
+        role: msg.role,
+        content: msg.content,
+        created_at: msg.created_at,
+      }, { onConflict: 'id', ignoreDuplicates: true });
+      if (mErr) debugLog(`syncPendingAgentChats: msg upsert error: ${mErr.message}`);
+    }
+  }
+}
+
+async function syncPendingTasks(userId) {
+  const pending = getPendingTasks(userId);
+  if (pending.length === 0) return;
+  const { supabase } = await import('../lib/supabase.js');
+
+  for (const task of pending) {
+    if (task.sync_state === 'pending_delete') {
+      const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('id', task.id)
+        .eq('user_id', userId);
+      if (error) throw error;
+      setTaskSyncState(task.id, 'synced');
+      continue;
+    }
+    const { error } = await supabase.from('tasks').upsert({
+      id: task.id,
+      user_id: userId,
+      session_id: task.session_id || null,
+      text: task.text,
+      completed: task.completed === 1,
+      position: task.position ?? 0,
+      xp_reward: task.xp_reward ?? null,
+      created_at: task.created_at,
+      deleted: task.deleted === 1,
+    }, { onConflict: 'id' });
+    if (error) throw error;
+    setTaskSyncState(task.id, 'synced');
+  }
+}
+
+async function syncPendingNotes(userId) {
+  const pending = getPendingNotes(userId);
+  if (pending.length === 0) return;
+  const { supabase } = await import('../lib/supabase.js');
+
+  for (const note of pending) {
+    if (note.sync_state === 'pending_delete') {
+      const { error } = await supabase
+        .from('session_notes')
+        .delete()
+        .eq('id', note.id)
+        .eq('user_id', userId);
+      if (error) throw error;
+      setNoteSyncState(note.id, 'synced');
+      continue;
+    }
+    const { error } = await supabase.from('session_notes').upsert({
+      id: note.id,
+      user_id: userId,
+      session_id: note.session_id || null,
+      text: note.text,
+      created_at: note.created_at,
+      deleted: note.deleted === 1,
+    }, { onConflict: 'id' });
+    if (error) throw error;
+    setNoteSyncState(note.id, 'synced');
+  }
+}
+
+async function syncPendingHabitCompletions(userId) {
+  const completions = getUnsyncedHabitCompletions(userId);
+  if (completions.length === 0) return;
+  const { supabase } = await import('../lib/supabase.js');
+
+  const payload = completions.map(c => ({
+    id: c.id,
+    user_id: userId,
+    habit_id: c.habit_id,
+    completed_date: c.completed_date,
+    created_at: c.created_at,
+  }));
+  const { error } = await supabase
+    .from('habit_completions')
+    .upsert(payload, { onConflict: 'user_id,habit_id,completed_date', ignoreDuplicates: true });
+  if (error) throw error;
+}
+
+async function syncWindowEventsBatch(userId) {
+  const events = getUnsyncedWindowEvents(userId, 500);
+  if (events.length === 0) return;
+  const { supabase } = await import('../lib/supabase.js');
+
+  const payload = events.map(e => ({
+    user_id: userId,
+    session_id: e.session_id || null,
+    app_name: e.app_name,
+    window_title: e.window_title || null,
+    recorded_at: e.recorded_at,
+  }));
+  const { error } = await supabase.from('window_events').insert(payload);
+  if (error) throw error;
+  markWindowEventsSynced(events.map(e => e.id));
+}
+
+async function restoreAllFromSupabase(userId) {
+  const { supabase } = await import('../lib/supabase.js');
+
+  // Restore tasks
+  try {
+    const { data: tasks } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('deleted', false)
+      .order('created_at', { ascending: true });
+    for (const task of tasks || []) upsertTaskFromRemote(task);
+    debugLog(`restoreAllFromSupabase: restored ${(tasks || []).length} tasks`);
+  } catch (e) { debugLog(`restoreAllFromSupabase tasks: ${e.message}`); }
+
+  // Restore session_notes
+  try {
+    const { data: notes } = await supabase
+      .from('session_notes')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('deleted', false)
+      .order('created_at', { ascending: true });
+    for (const note of notes || []) upsertNoteFromRemote(note);
+    debugLog(`restoreAllFromSupabase: restored ${(notes || []).length} notes`);
+  } catch (e) { debugLog(`restoreAllFromSupabase notes: ${e.message}`); }
+
+  // Restore agent_chats
+  try {
+    const { data: chats } = await supabase
+      .from('agent_chats')
+      .select('*')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false })
+      .limit(100);
+    for (const chat of chats || []) {
+      upsertAgentChatFromRemote(chat);
+    }
+    debugLog(`restoreAllFromSupabase: restored ${(chats || []).length} agent_chats`);
+  } catch (e) { debugLog(`restoreAllFromSupabase agent_chats: ${e.message}`); }
+
+  // Restore habit completions (last 90 days)
+  try {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 90);
+    const cutoffStr = cutoff.toLocaleDateString('en-CA');
+    const { data: completions } = await supabase
+      .from('habit_completions')
+      .select('*')
+      .eq('user_id', userId)
+      .gte('completed_date', cutoffStr);
+    for (const c of completions || []) upsertHabitCompletionFromRemote(c);
+    debugLog(`restoreAllFromSupabase: restored ${(completions || []).length} habit_completions`);
+  } catch (e) { debugLog(`restoreAllFromSupabase habit_completions: ${e.message}`); }
+}
+
+async function flushAllPendingSyncs(userId) {
+  await syncPendingAgentChats(userId).catch(e => debugLog(`flushAllPendingSyncs agent_chats: ${e.message}`));
+  await syncPendingTasks(userId).catch(e => debugLog(`flushAllPendingSyncs tasks: ${e.message}`));
+  await syncPendingNotes(userId).catch(e => debugLog(`flushAllPendingSyncs notes: ${e.message}`));
+  await syncPendingHabitCompletions(userId).catch(e => debugLog(`flushAllPendingSyncs habit_completions: ${e.message}`));
+  await syncWindowEventsBatch(userId).catch(e => debugLog(`flushAllPendingSyncs window_events: ${e.message}`));
+}
+
 ipcMain.handle('session:getToday', async () => {
   try {
     const user = await getUser();
@@ -944,6 +1181,7 @@ ipcMain.handle('auth:signIn', async (event, email, password) => {
   try {
     const result = await signIn(email, password);
     if (result.user) {
+      identify(result.user.id);
       // Password sign-in succeeded — open dashboard immediately, no deep link needed
       if (fullWindow) fullWindow.close();
       floatingWindow?.webContents.send('auth:success', result.user);
@@ -974,6 +1212,8 @@ ipcMain.handle('auth:signUp', async (event, email, password) => {
       // Auto-confirmed — set session and open dashboard
       const user = await setSession(result.session.access_token, result.session.refresh_token);
       if (user) {
+        identify(user.id);
+        track('signup_completed');
         if (user.id) startTrackingWithPermissionPrompt(user.id);
         if (fullWindow) fullWindow.close();
         createFullWindow();
@@ -1535,6 +1775,7 @@ ipcMain.handle('agent:sendMessage', async (_event, chatId, content, previousMess
 
     // Persist user message
     addAgentMessage(chatId, 'user', content);
+    track('mentor_message_sent', { has_active_session: Boolean(getActiveSession()) });
 
     // Build system prompt fresh from DB so the agent always has current stats
     const activeSession = getActiveSession();
@@ -1627,6 +1868,7 @@ Answer concisely.`;
     // Persist assistant message
     const saved = addAgentMessage(chatId, 'assistant', fullContent);
     [floatingWindow, fullWindow].forEach(w => w?.webContents.send('agent:streamEnd', { chatId, message: saved }));
+    void syncPendingAgentChats(user.id).catch(e => debugLog(`agent:sendMessage sync: ${e.message}`));
 
     return { success: true };
   } catch (error) {
@@ -1765,6 +2007,7 @@ Answer concisely.`;
 
     const saved = addAgentMessage(chatId, 'assistant', fullContent);
     [floatingWindow, fullWindow].forEach(w => w?.webContents.send('agent:streamEnd', { chatId, message: saved }));
+    void syncPendingAgentChats(user.id).catch(e => debugLog(`agent:sendMessageWithImages sync: ${e.message}`));
 
     return { success: true };
   } catch (error) {
@@ -1899,6 +2142,7 @@ ipcMain.handle('habits:complete', async (_event, habitId) => {
 
     // Record in per-day history
     recordHabitCompletion(user.id, habitId, todayStr);
+    track('habit_completed', { streak: newStreak, frequency: habit.frequency });
 
     void syncPendingHabits(user.id).catch((e) => debugLog(`habits:complete sync failed: ${e.message}`));
     return { success: true, habit: updated };
@@ -2014,7 +2258,10 @@ ipcMain.handle('quests:complete', async (_event, questId) => {
     const quest = completeQuest(questId, user.id);
     if (!quest) return { success: false, error: 'Quest not found' };
     // Add XP only on first completion
-    if (!wasAlreadyDone) updateUserXP(user.id, quest.xp_reward);
+    if (!wasAlreadyDone) {
+      updateUserXP(user.id, quest.xp_reward);
+      track('quest_completed', { quest_type: quest.type, xp_reward: quest.xp_reward });
+    }
     // Sync XP to Supabase
     try {
       const { supabase } = await import('../lib/supabase.js');
@@ -2097,6 +2344,7 @@ ipcMain.handle('tasks:add', async (_event, sessionId, text) => {
     }
     const task = createTask(sessionId, user.id, text);
     if (!task) return { success: false, error: 'empty text' };
+    void syncPendingTasks(user.id).catch(e => debugLog(`tasks:add sync: ${e.message}`));
     return { success: true, task };
   } catch (error) {
     return { success: false, error: error.message };
@@ -2109,6 +2357,7 @@ ipcMain.handle('tasks:addStandalone', async (_event, text, xpReward) => {
     if (!user) return { success: false, error: 'Not authenticated' };
     const task = createStandaloneTask(user.id, text, xpReward);
     if (!task) return { success: false, error: 'empty text' };
+    void syncPendingTasks(user.id).catch(e => debugLog(`tasks:addStandalone sync: ${e.message}`));
     return { success: true, task };
   } catch (error) {
     return { success: false, error: error.message };
@@ -2121,6 +2370,7 @@ ipcMain.handle('tasks:toggle', async (_event, taskId) => {
     if (!user) return { success: false, error: 'Not authenticated' };
     const task = toggleTask(taskId, user.id);
     if (!task) return { success: false, error: 'Task not found' };
+    void syncPendingTasks(user.id).catch(e => debugLog(`tasks:toggle sync: ${e.message}`));
     return { success: true, task };
   } catch (error) {
     return { success: false, error: error.message };
@@ -2133,6 +2383,7 @@ ipcMain.handle('tasks:delete', async (_event, taskId) => {
     if (!user) return { success: false, error: 'Not authenticated' };
     const ok = deleteTask(taskId, user.id);
     if (!ok) return { success: false, error: 'Task not found' };
+    void syncPendingTasks(user.id).catch(e => debugLog(`tasks:delete sync: ${e.message}`));
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
@@ -2177,6 +2428,7 @@ ipcMain.handle('notes:add', async (_event, sessionId, text) => {
     }
     const note = createNote(sessionId, user.id, text);
     if (!note) return { success: false, error: 'empty text' };
+    void syncPendingNotes(user.id).catch(e => debugLog(`notes:add sync: ${e.message}`));
     return { success: true, note };
   } catch (error) {
     return { success: false, error: error.message };
@@ -2189,6 +2441,7 @@ ipcMain.handle('notes:delete', async (_event, noteId) => {
     if (!user) return { success: false, error: 'Not authenticated' };
     const ok = deleteNote(noteId, user.id);
     if (!ok) return { success: false, error: 'Note not found' };
+    void syncPendingNotes(user.id).catch(e => debugLog(`notes:delete sync: ${e.message}`));
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
@@ -2238,6 +2491,13 @@ async function runDailyJobs(userId) {
     await generateMemorySnapshot(userId, yesterday);
   } catch (e) {
     debugLog(`runDailyJobs: memory snapshot failed: ${e.message}`);
+  }
+
+  // 4. Batch sync window events to Supabase (daily — not per-event)
+  try {
+    await syncWindowEventsBatch(userId);
+  } catch (e) {
+    debugLog(`runDailyJobs: window events sync failed: ${e.message}`);
   }
 
   setLastDailyJobDate(userId, todayStr);

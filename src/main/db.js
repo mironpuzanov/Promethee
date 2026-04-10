@@ -260,6 +260,56 @@ export function initializeDatabase() {
     db.exec(`DROP TABLE quests`);
   }
 
+  // Migration: add sync columns to tasks
+  const tasksInfo2 = db.prepare(`PRAGMA table_info(tasks)`).all();
+  const tasksColNames = tasksInfo2.map(c => c.name);
+  if (!tasksColNames.includes('deleted')) {
+    db.exec(`ALTER TABLE tasks ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0`);
+  }
+  if (!tasksColNames.includes('sync_state')) {
+    db.exec(`ALTER TABLE tasks ADD COLUMN sync_state TEXT NOT NULL DEFAULT 'pending_upsert'`);
+  }
+
+  // Migration: add sync columns to session_notes
+  const notesInfo = db.prepare(`PRAGMA table_info(session_notes)`).all();
+  const notesColNames = notesInfo.map(c => c.name);
+  if (!notesColNames.includes('deleted')) {
+    db.exec(`ALTER TABLE session_notes ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0`);
+  }
+  if (!notesColNames.includes('sync_state')) {
+    db.exec(`ALTER TABLE session_notes ADD COLUMN sync_state TEXT NOT NULL DEFAULT 'pending_upsert'`);
+  }
+
+  // Migration: add uuid + synced_at to window_events for batch Supabase sync
+  const weInfo = db.prepare(`PRAGMA table_info(window_events)`).all();
+  const weColNames = weInfo.map(c => c.name);
+  if (!weColNames.includes('uuid')) {
+    db.exec(`ALTER TABLE window_events ADD COLUMN uuid TEXT`);
+  }
+  if (!weColNames.includes('synced_at')) {
+    db.exec(`ALTER TABLE window_events ADD COLUMN synced_at INTEGER`);
+  }
+
+  // Migration: add user_id to agent_messages (needed for RLS-compatible sync)
+  const amInfo = db.prepare(`PRAGMA table_info(agent_messages)`).all();
+  const amColNames = amInfo.map(c => c.name);
+  if (!amColNames.includes('user_id')) {
+    db.exec(`ALTER TABLE agent_messages ADD COLUMN user_id TEXT`);
+    // Backfill user_id from parent chat
+    db.exec(`
+      UPDATE agent_messages
+      SET user_id = (SELECT user_id FROM agent_chats WHERE agent_chats.id = agent_messages.chat_id)
+      WHERE user_id IS NULL
+    `);
+  }
+
+  // Migration: add sync_state to agent_chats
+  const chatColCheck2 = db.prepare(`PRAGMA table_info(agent_chats)`).all();
+  const chatColNames2 = chatColCheck2.map(c => c.name);
+  if (!chatColNames2.includes('sync_state')) {
+    db.exec(`ALTER TABLE agent_chats ADD COLUMN sync_state TEXT NOT NULL DEFAULT 'pending_upsert'`);
+  }
+
   // Seed default preset blocked domains on first init (idempotent via UNIQUE constraint)
   const presetDomains = ['x.com', 'twitter.com', 'instagram.com', 'youtube.com', 'reddit.com', 'tiktok.com'];
   const insertPreset = db.prepare(`
@@ -549,8 +599,8 @@ export function getOrCreateAgentChat(userId, title, sessionId, systemPrompt) {
   const id = crypto.randomUUID();
   const now = Date.now();
   database.prepare(`
-    INSERT INTO agent_chats (id, user_id, title, session_id, system_prompt, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO agent_chats (id, user_id, title, session_id, system_prompt, created_at, updated_at, sync_state)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending_upsert')
   `).run(id, userId, title, sessionId || null, systemPrompt, now, now);
 
   return database.prepare(`SELECT * FROM agent_chats WHERE id = ?`).get(id);
@@ -561,8 +611,8 @@ export function createAgentChat(userId, title, sessionId, systemPrompt) {
   const id = crypto.randomUUID();
   const now = Date.now();
   database.prepare(`
-    INSERT INTO agent_chats (id, user_id, title, session_id, system_prompt, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO agent_chats (id, user_id, title, session_id, system_prompt, created_at, updated_at, sync_state)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending_upsert')
   `).run(id, userId, title, sessionId || null, systemPrompt, now, now);
 
   return database.prepare(`SELECT * FROM agent_chats WHERE id = ?`).get(id);
@@ -592,13 +642,15 @@ export function addAgentMessage(chatId, role, content) {
 
   const id = crypto.randomUUID();
   const now = Date.now();
+  // Look up user_id from parent chat for RLS-compatible sync
+  const chat = database.prepare(`SELECT user_id FROM agent_chats WHERE id = ?`).get(chatId);
   database.prepare(`
-    INSERT INTO agent_messages (id, chat_id, role, content, created_at)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(id, chatId, role, content, now);
+    INSERT INTO agent_messages (id, chat_id, user_id, role, content, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(id, chatId, chat?.user_id || null, role, content, now);
 
-  // Update chat updated_at
-  database.prepare(`UPDATE agent_chats SET updated_at = ? WHERE id = ?`).run(now, chatId);
+  // Update chat updated_at and mark pending so the summary gets re-synced
+  database.prepare(`UPDATE agent_chats SET updated_at = ?, sync_state = 'pending_upsert' WHERE id = ?`).run(now, chatId);
 
   return { id, chatId, role, content, createdAt: now };
 }
@@ -686,8 +738,8 @@ export function createTask(sessionId, userId, text) {
   `).get(sessionId);
   const position = row?.next ?? 0;
   database.prepare(`
-    INSERT INTO tasks (id, session_id, user_id, text, completed, position, created_at)
-    VALUES (?, ?, ?, ?, 0, ?, ?)
+    INSERT INTO tasks (id, session_id, user_id, text, completed, position, created_at, sync_state)
+    VALUES (?, ?, ?, ?, 0, ?, ?, 'pending_upsert')
   `).run(id, sessionId, userId, trimmed, position, now);
   return database.prepare(`SELECT * FROM tasks WHERE id = ?`).get(id);
 }
@@ -704,8 +756,8 @@ export function createStandaloneTask(userId, text, xpReward) {
   const position = row?.next ?? 0;
   const xp = xpReward && Number(xpReward) > 0 ? Math.round(Number(xpReward)) : null;
   database.prepare(`
-    INSERT INTO tasks (id, session_id, user_id, text, completed, position, xp_reward, created_at)
-    VALUES (?, NULL, ?, ?, 0, ?, ?, ?)
+    INSERT INTO tasks (id, session_id, user_id, text, completed, position, xp_reward, created_at, sync_state)
+    VALUES (?, NULL, ?, ?, 0, ?, ?, ?, 'pending_upsert')
   `).run(id, userId, trimmed, position, xp, now);
   return database.prepare(`SELECT * FROM tasks WHERE id = ?`).get(id);
 }
@@ -713,14 +765,14 @@ export function createStandaloneTask(userId, text, xpReward) {
 export function getTasksBySession(sessionId) {
   const database = getDb();
   return database.prepare(`
-    SELECT * FROM tasks WHERE session_id = ? ORDER BY position ASC, created_at ASC
+    SELECT * FROM tasks WHERE session_id = ? AND (deleted IS NULL OR deleted = 0) ORDER BY position ASC, created_at ASC
   `).all(sessionId);
 }
 
 export function getTasksByUser(userId) {
   const database = getDb();
   return database.prepare(`
-    SELECT * FROM tasks WHERE user_id = ? ORDER BY created_at DESC
+    SELECT * FROM tasks WHERE user_id = ? AND (deleted IS NULL OR deleted = 0) ORDER BY created_at DESC
   `).all(userId);
 }
 
@@ -730,15 +782,16 @@ export function toggleTask(taskId, userId) {
     const task = database.prepare(`SELECT * FROM tasks WHERE id = ? AND user_id = ?`).get(taskId, userId);
     if (!task) return null;
     const next = task.completed ? 0 : 1;
-    database.prepare(`UPDATE tasks SET completed = ? WHERE id = ?`).run(next, taskId);
+    database.prepare(`UPDATE tasks SET completed = ?, sync_state = 'pending_upsert' WHERE id = ?`).run(next, taskId);
     return database.prepare(`SELECT * FROM tasks WHERE id = ?`).get(taskId);
   })();
 }
 
 export function deleteTask(taskId, userId) {
   const database = getDb();
-  const result = database.prepare(`DELETE FROM tasks WHERE id = ? AND user_id = ?`).run(taskId, userId);
-  return result.changes > 0;
+  // Soft-delete so Supabase sync can propagate the deletion
+  database.prepare(`UPDATE tasks SET deleted = 1, sync_state = 'pending_delete' WHERE id = ? AND user_id = ?`).run(taskId, userId);
+  return true;
 }
 
 // ── Session notes (quick capture during focus) ─────────────────────────────
@@ -750,8 +803,8 @@ export function createNote(sessionId, userId, text) {
   const id = crypto.randomUUID();
   const now = Date.now();
   database.prepare(`
-    INSERT INTO session_notes (id, session_id, user_id, text, created_at)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO session_notes (id, session_id, user_id, text, created_at, sync_state)
+    VALUES (?, ?, ?, ?, ?, 'pending_upsert')
   `).run(id, sessionId, userId, trimmed, now);
   return database.prepare(`SELECT * FROM session_notes WHERE id = ?`).get(id);
 }
@@ -759,21 +812,22 @@ export function createNote(sessionId, userId, text) {
 export function getNotesBySession(sessionId) {
   const database = getDb();
   return database.prepare(`
-    SELECT * FROM session_notes WHERE session_id = ? ORDER BY created_at ASC
+    SELECT * FROM session_notes WHERE session_id = ? AND (deleted IS NULL OR deleted = 0) ORDER BY created_at ASC
   `).all(sessionId);
 }
 
 export function getNotesByUser(userId) {
   const database = getDb();
   return database.prepare(`
-    SELECT * FROM session_notes WHERE user_id = ? ORDER BY created_at DESC
+    SELECT * FROM session_notes WHERE user_id = ? AND (deleted IS NULL OR deleted = 0) ORDER BY created_at DESC
   `).all(userId);
 }
 
 export function deleteNote(noteId, userId) {
   const database = getDb();
-  const result = database.prepare(`DELETE FROM session_notes WHERE id = ? AND user_id = ?`).run(noteId, userId);
-  return result.changes > 0;
+  // Soft-delete so Supabase sync can propagate the deletion
+  database.prepare(`UPDATE session_notes SET deleted = 1, sync_state = 'pending_delete' WHERE id = ? AND user_id = ?`).run(noteId, userId);
+  return true;
 }
 
 // Reset daily quests whose last_reset_date != today's local date
@@ -1175,6 +1229,190 @@ export function removeBlockedDomain(id) {
   const database = getDb();
   const result = database.prepare(`DELETE FROM blocked_domains WHERE id = ?`).run(id);
   return result.changes > 0;
+}
+
+// ── Sync helpers for agent_chats ──────────────────────────────────────────────
+
+export function getPendingAgentChats(userId) {
+  const database = getDb();
+  return database.prepare(`
+    SELECT * FROM agent_chats
+    WHERE user_id = ? AND sync_state != 'synced'
+    ORDER BY updated_at ASC
+  `).all(userId);
+}
+
+export function setAgentChatSyncState(chatId, syncState) {
+  const database = getDb();
+  database.prepare(`UPDATE agent_chats SET sync_state = ? WHERE id = ?`).run(syncState, chatId);
+}
+
+export function getPendingAgentMessages(userId) {
+  const database = getDb();
+  return database.prepare(`
+    SELECT am.*, ac.user_id
+    FROM agent_messages am
+    JOIN agent_chats ac ON ac.id = am.chat_id
+    WHERE ac.user_id = ? AND (am.user_id IS NULL OR am.user_id = ?)
+    AND NOT EXISTS (
+      SELECT 1 FROM agent_chats c2 WHERE c2.id = am.chat_id AND c2.sync_state != 'synced'
+    )
+    ORDER BY am.created_at ASC
+    LIMIT 200
+  `).all(userId, userId);
+}
+
+// ── Sync helpers for tasks ────────────────────────────────────────────────────
+
+export function getPendingTasks(userId) {
+  const database = getDb();
+  return database.prepare(`
+    SELECT * FROM tasks WHERE user_id = ? AND sync_state != 'synced'
+    ORDER BY created_at ASC
+  `).all(userId);
+}
+
+export function setTaskSyncState(taskId, syncState) {
+  const database = getDb();
+  database.prepare(`UPDATE tasks SET sync_state = ? WHERE id = ?`).run(syncState, taskId);
+}
+
+// ── Sync helpers for session_notes ────────────────────────────────────────────
+
+export function getPendingNotes(userId) {
+  const database = getDb();
+  return database.prepare(`
+    SELECT * FROM session_notes WHERE user_id = ? AND sync_state != 'synced'
+    ORDER BY created_at ASC
+  `).all(userId);
+}
+
+export function setNoteSyncState(noteId, syncState) {
+  const database = getDb();
+  database.prepare(`UPDATE session_notes SET sync_state = ? WHERE id = ?`).run(syncState, noteId);
+}
+
+// ── Sync helpers for habit_completions ───────────────────────────────────────
+
+export function getUnsyncedHabitCompletions(userId) {
+  const database = getDb();
+  // completions that haven't been assigned a sync_state yet — track via synced_at-like approach
+  // We use the absence of a synced marker. For simplicity, track via a synced_at column approach:
+  // but we don't have that column. Instead, just sync all completions from the last 90 days.
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 90);
+  const cutoffStr = cutoff.toLocaleDateString('en-CA');
+  return database.prepare(`
+    SELECT * FROM habit_completions
+    WHERE user_id = ? AND completed_date >= ?
+    ORDER BY completed_date DESC
+  `).all(userId, cutoffStr);
+}
+
+// ── Sync helpers for window_events ────────────────────────────────────────────
+
+export function getUnsyncedWindowEvents(userId, batchSize = 500) {
+  const database = getDb();
+  return database.prepare(`
+    SELECT * FROM window_events
+    WHERE user_id = ? AND synced_at IS NULL
+    ORDER BY recorded_at ASC
+    LIMIT ?
+  `).all(userId, batchSize);
+}
+
+export function markWindowEventsSynced(ids) {
+  if (!ids || ids.length === 0) return;
+  const database = getDb();
+  const now = Date.now();
+  const placeholders = ids.map(() => '?').join(',');
+  database.prepare(`
+    UPDATE window_events SET synced_at = ? WHERE id IN (${placeholders})
+  `).run(now, ...ids);
+}
+
+// ── Restore helpers (pull from Supabase into local SQLite on login) ───────────
+
+export function upsertTaskFromRemote(task) {
+  const database = getDb();
+  database.prepare(`
+    INSERT INTO tasks (id, session_id, user_id, text, completed, position, xp_reward, created_at, deleted, sync_state)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced')
+    ON CONFLICT(id) DO UPDATE SET
+      text = excluded.text,
+      completed = excluded.completed,
+      position = excluded.position,
+      xp_reward = excluded.xp_reward,
+      deleted = excluded.deleted,
+      sync_state = 'synced'
+  `).run(
+    task.id,
+    task.session_id || null,
+    task.user_id,
+    task.text,
+    task.completed ? 1 : 0,
+    task.position ?? 0,
+    task.xp_reward ?? null,
+    task.created_at,
+    task.deleted ? 1 : 0
+  );
+}
+
+export function upsertNoteFromRemote(note) {
+  const database = getDb();
+  database.prepare(`
+    INSERT INTO session_notes (id, session_id, user_id, text, created_at, deleted, sync_state)
+    VALUES (?, ?, ?, ?, ?, ?, 'synced')
+    ON CONFLICT(id) DO UPDATE SET
+      text = excluded.text,
+      deleted = excluded.deleted,
+      sync_state = 'synced'
+  `).run(
+    note.id,
+    note.session_id || null,
+    note.user_id,
+    note.text,
+    note.created_at,
+    note.deleted ? 1 : 0
+  );
+}
+
+export function upsertAgentChatFromRemote(chat) {
+  const database = getDb();
+  database.prepare(`
+    INSERT INTO agent_chats (id, user_id, title, session_id, system_prompt, summary, created_at, updated_at, sync_state)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'synced')
+    ON CONFLICT(id) DO UPDATE SET
+      title = excluded.title,
+      summary = excluded.summary,
+      updated_at = excluded.updated_at,
+      sync_state = 'synced'
+  `).run(
+    chat.id,
+    chat.user_id,
+    chat.title,
+    chat.session_id || null,
+    chat.system_prompt || '',
+    chat.summary || null,
+    chat.created_at,
+    chat.updated_at
+  );
+}
+
+export function upsertAgentMessageFromRemote(msg) {
+  const database = getDb();
+  database.prepare(`
+    INSERT OR IGNORE INTO agent_messages (id, chat_id, user_id, role, content, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(msg.id, msg.chat_id, msg.user_id, msg.role, msg.content, msg.created_at);
+}
+
+export function upsertHabitCompletionFromRemote(completion) {
+  const database = getDb();
+  database.prepare(`
+    INSERT OR IGNORE INTO habit_completions (id, user_id, habit_id, completed_date, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(completion.id, completion.user_id, completion.habit_id, completion.completed_date, completion.created_at);
 }
 
 // ── Streak helpers ─────────────────────────────────────────────────────────────
