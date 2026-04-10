@@ -24,7 +24,7 @@ const __dirname = path.dirname(__filename);
 import { startSession, endSessionAndSync, getActiveSession, flushPendingSyncs } from './session.js';
 import { signIn, signUp, signOut, sendMagicLink, getUser, getAccessToken, setSession, getCurrentUser, updateProfile, updatePassword, uploadAvatar, hasStoredSession } from './auth.js';
 import { setupPowerMonitoring } from './power.js';
-import { setupLeaderboardPolling, stopLeaderboardPolling, getLeaderboard } from './leaderboard.js';
+import { setupLeaderboardPolling, stopLeaderboardPolling, getLeaderboard, getCachedLeaderboard } from './leaderboard.js';
 import { setupPresence, stopPresence, sendHeartbeat, removePresence, postToLiveFeed, getPresenceCount, getRooms, getRoomPresence } from './presence.js';
 import { getTodaysSessions, getSessions, getUserProfile, getCompletedSessionsForSkills, getCompletedSessionsInRange, initializeDatabase, getAgentChats, getOrCreateAgentChat, getOrCreateCoachChat, createAgentChat, getAgentMessages, addAgentMessage, updateChatSummary, getRecentChatSummaries, getUnsummarizedChats, getQuests, createQuest, completeQuest, uncompleteQuest, deleteQuest, resetDailyQuests, setLastDailyJobDate, getLastDailyJobDate, updateStreak, updateUserXP, getWindowEvents, recordWindowEvent, getSessionById, createTask, createStandaloneTask, getTasksBySession, getTasksByUser, toggleTask, deleteTask, createNote, getNotesBySession, getNotesByUser, deleteNote, getMemorySnapshotCache, getMemorySnapshotCacheByDate, upsertMemorySnapshotCache, listHabitCache, getHabitCacheById, upsertHabitCache, markHabitCacheDeleted, removeHabitCache, setHabitCacheSyncState, getPendingHabitCache, recordHabitCompletion, removeHabitCompletion, getHabitCompletionDates, expireHabitStreaks, backfillHabitCompletions, getBlockedDomains, addBlockedDomain, toggleBlockedDomain, removeBlockedDomain, getPendingAgentChats, setAgentChatSyncState, getPendingTasks, setTaskSyncState, getPendingNotes, setNoteSyncState, getUnsyncedHabitCompletions, getUnsyncedWindowEvents, markWindowEventsSynced, upsertTaskFromRemote, upsertNoteFromRemote, upsertAgentChatFromRemote, upsertAgentMessageFromRemote, upsertHabitCompletionFromRemote, getCoachUnread, incrementCoachUnread, clearCoachUnread } from './db.js';
 import { startWindowTracking, stopWindowTracking, setTrackingSession, clearTrackingSession, getCurrentApp, canSampleForegroundApp } from './windowTracker.js';
@@ -1764,6 +1764,80 @@ ipcMain.handle('coach:clearUnread', async () => {
 });
 
 /**
+ * Build the rich context block injected into every coach system prompt.
+ * Covers: profile, all sessions, tasks, habits, memory, leaderboard rank.
+ */
+function buildCoachContext(userId) {
+  const profile = getUserProfile(userId);
+  const allSessions = getSessions(userId, 50);
+  const tasks = getTasksByUser(userId);
+  const habits = listHabitCache(userId);
+  const memorySnaps = getMemorySnapshotCache(userId, 3);
+  const notes = getNotesByUser(userId).slice(0, 10);
+  const leaderboard = getCachedLeaderboard();
+
+  const level = profile?.level || 1;
+  const totalXp = profile?.total_xp || 0;
+  const streak = profile?.current_streak || 0;
+
+  // Sessions summary
+  const totalSessions = allSessions.length;
+  const totalFocusMin = Math.round(allSessions.reduce((s, x) => s + (x.duration_seconds || 0), 0) / 60);
+  const recentSessionLines = allSessions.slice(0, 10).map(s => {
+    const mins = s.duration_seconds ? Math.round(s.duration_seconds / 60) : '?';
+    const date = new Date(s.started_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    return `  - [${date}] "${s.task || 'Untitled'}" — ${mins}m, ${s.xp_earned || 0} XP`;
+  }).join('\n');
+
+  // Tasks
+  const pendingTasks = tasks.filter(t => !t.completed && !t.session_id);
+  const completedTasks = tasks.filter(t => t.completed && !t.session_id);
+  const taskLines = pendingTasks.slice(0, 8).map(t => `  - ${t.title}${t.xp ? ` (${t.xp} XP)` : ''}`).join('\n');
+
+  // Habits
+  const habitLines = habits.slice(0, 8).map(h =>
+    `  - "${h.title}" (${h.frequency}, streak: ${h.current_streak || 0} days, last done: ${h.last_completed_date || 'never'})`
+  ).join('\n');
+
+  // Memory
+  const memoryLines = memorySnaps.map(m =>
+    `  - [${m.snapshot_date}] ${m.summary || '(no summary)'}`
+  ).join('\n');
+
+  // Session notes
+  const noteLines = notes.map(n => `  - ${n.text}`).join('\n');
+
+  // Leaderboard rank
+  let rankLine = '';
+  if (leaderboard.length > 0) {
+    const userEntry = leaderboard.find(e => e.user_id === userId || e.email === profile?.email);
+    if (userEntry) {
+      const rank = leaderboard.indexOf(userEntry) + 1;
+      rankLine = `\nCommunity rank: #${rank} of ${leaderboard.length} this week (${userEntry.weekly_xp || 0} XP this week)`;
+    }
+  }
+
+  return `User profile:
+- Level ${level} | ${totalXp} total XP | ${streak}-day streak${rankLine}
+- Total sessions: ${totalSessions} (${totalFocusMin} min focused all time)
+
+Recent sessions (last 10):
+${recentSessionLines || '  (none yet)'}
+
+Standalone to-do tasks (${pendingTasks.length} pending, ${completedTasks.length} done):
+${taskLines || '  (none)'}
+
+Habits:
+${habitLines || '  (none)'}
+
+Memory snapshots (last 3 daily summaries):
+${memoryLines || '  (none)'}
+
+Recent session notes:
+${noteLines || '  (none)'}`;
+}
+
+/**
  * Fire-and-forget: ask the AI coach to send a message about a completed session.
  * Called after session:end, never blocks the user.
  */
@@ -1773,26 +1847,15 @@ async function triggerCoachPost(user, sessionData) {
     if (!accessToken) return;
 
     const chat = getOrCreateCoachChat(user.id);
-    const profile = getUserProfile(user.id);
-    const recentSessions = getSessions(user.id, 10);
+    const coachContext = buildCoachContext(user.id);
 
-    const level = profile?.level || 1;
-    const totalXp = profile?.total_xp || 0;
-    const sessionList = recentSessions.slice(0, 8).map(s => {
-      const mins = s.duration_seconds ? Math.round(s.duration_seconds / 60) : '?';
-      return `- "${s.task || 'Untitled'}" — ${mins}m, ${s.xp_earned || 0} XP`;
-    }).join('\n');
+    const systemPrompt = `You are the Promethee AI Coach — a personal productivity coach with full knowledge of this user's history, habits, tasks, and goals.
 
-    const systemPrompt = `You are the Promethee AI Coach. You track this user's entire productivity journey and send them brief, warm coaching messages after each focus session.
-
-User profile:
-- Level ${level} (${totalXp} total XP)
-Recent sessions:
-${sessionList || '(none yet)'}
+${coachContext}
 
 Streak rule: only focus sessions of 10 minutes or more count toward the daily streak.
 
-Your style: specific, warm, never generic. Keep messages under 3 sentences. Never start with "Great job" or "Well done" — be more insightful. Reference what they actually did.`;
+Your style: specific, warm, never generic. Keep messages under 3 sentences. Never start with "Great job" or "Well done" — be more insightful. Reference what they actually did. Use their habits, tasks, and memory context to make observations feel personal and earned.`;
 
     const durationMin = Math.round((sessionData.durationSeconds || 0) / 60);
     const streakCountedMsg = durationMin >= 10
@@ -2109,26 +2172,27 @@ ipcMain.handle('agent:sendMessageWithImages', async (_event, chatId, content, im
     const pastContext = pastSummaries.length > 0
       ? '\nPast conversations:\n' + pastSummaries.map(c => `- ${c.summary}`).join('\n')
       : '';
+    const coachContext = buildCoachContext(user.id);
 
     let resolvedSystemPrompt;
     if (activeSession) {
       const elapsedMinutes = Math.floor((Date.now() - activeSession.startedAt) / 60000);
-      resolvedSystemPrompt = `You are the Promethee AI agent. You help users stay focused and get unstuck without leaving their work.
+      resolvedSystemPrompt = `You are the Promethee AI Coach — a personal productivity coach with full knowledge of this user's history, habits, tasks, and goals. Right now they're in a focus session and need help staying on track.
 
 Current session: "${activeSession.task || 'Untitled'}" — ${elapsedMinutes} minute${elapsedMinutes !== 1 ? 's' : ''} in.${windowContext}
-Today: ${xpToday} XP earned across ${sessionCountToday} session${sessionCountToday !== 1 ? 's' : ''}.
-User level: ${level} (${totalXp} XP total).
-Recent sessions: ${recentNames || 'none yet'}.${pastContext}
+Today: ${xpToday} XP across ${sessionCountToday} session${sessionCountToday !== 1 ? 's' : ''}.
+
+${coachContext}
+${pastContext}
 
 Answer concisely. You already know what they're working on — don't ask them to re-explain.`;
     } else {
-      resolvedSystemPrompt = `You are the Promethee AI agent. You help users stay focused and get unstuck.
+      resolvedSystemPrompt = `You are the Promethee AI Coach — a personal productivity coach with full knowledge of this user's history, habits, tasks, and goals.
 
-Today: ${xpToday} XP earned across ${sessionCountToday} session${sessionCountToday !== 1 ? 's' : ''}.${windowContext}
-User level: ${level} (${totalXp} XP total).
-Recent sessions: ${recentNames || 'none yet'}.${pastContext}
+${coachContext}
+${windowContext}${pastContext}
 
-Answer concisely.`;
+Answer concisely. Be specific, warm, and personal — never generic.`;
     }
 
     if (visionUrls.length > 0) {

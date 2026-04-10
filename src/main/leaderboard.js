@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase.js';
 import { BrowserWindow } from 'electron';
 
 let pollInterval = null;
+let cachedLeaderboard = [];
 
 async function queryLeaderboard() {
   const rpcResult = await supabase
@@ -50,6 +51,7 @@ export function stopLeaderboardPolling() {
 async function fetchLeaderboard() {
   try {
     const topUsers = await queryLeaderboard();
+    cachedLeaderboard = topUsers || [];
 
     // Broadcast to all open windows so both overlay and dashboard stay current
     BrowserWindow.getAllWindows().forEach(w => {
@@ -58,6 +60,10 @@ async function fetchLeaderboard() {
   } catch (error) {
     console.error('Failed to fetch leaderboard:', error);
   }
+}
+
+export function getCachedLeaderboard() {
+  return cachedLeaderboard;
 }
 
 export async function getLeaderboard() {
