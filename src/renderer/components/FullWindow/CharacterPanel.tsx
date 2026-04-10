@@ -72,23 +72,28 @@ function buildMemoryTeaser(snapshot?: MemorySnap | null): string | null {
     return truncateText(snapshot.behavioral_summary, 220);
   }
 
-  const parts: string[] = [];
   const minutes = snapshot.total_minutes || 0;
   const sessions = snapshot.session_count || 0;
   const streak = snapshot.streak_at_snapshot || 0;
 
-  if (minutes > 0) parts.push(`${minutes}m focused`);
+  // Build a natural-language sentence from raw stats
+  const parts: string[] = [];
+  if (minutes > 0) {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    parts.push(h > 0 ? (m > 0 ? `${h}h ${m}m focused` : `${h}h focused`) : `${m}m focused`);
+  }
   if (sessions > 0) parts.push(`${sessions} session${sessions === 1 ? '' : 's'}`);
-  if (snapshot.peak_hours) parts.push(`peak ${snapshot.peak_hours}`);
-  if (streak > 0) parts.push(`${streak}d streak`);
+  if (streak > 0) parts.push(`${streak}-day streak`);
+  if (snapshot.peak_hours) parts.push(`most active ${snapshot.peak_hours}`);
 
   if (parts.length > 0) {
-    return `Latest memory: ${parts.join(' · ')}.`;
+    return parts.join(' · ') + '.';
   }
 
   const tags = snapshot.emotional_tags || [];
   if (tags.length > 0) {
-    return `Recent tags: ${tags.slice(0, 5).join(', ')}`;
+    return `Tagged: ${tags.slice(0, 5).join(', ')}.`;
   }
 
   return null;
@@ -403,7 +408,16 @@ function CharacterPanel({ user }: CharacterPanelProps) {
                       {task.text}
                     </span>
                     {task.xp_reward ? (
-                      <span style={{ fontSize: 11, fontWeight: 600, color: '#fbbf24' }}>+{task.xp_reward} XP</span>
+                      <span style={{
+                        fontSize: 9,
+                        fontWeight: 700,
+                        background: 'rgba(232,146,42,0.12)',
+                        color: 'var(--accent-fire)',
+                        borderRadius: 6,
+                        padding: '2px 6px',
+                        letterSpacing: '0.06em',
+                        flexShrink: 0,
+                      }}>+{task.xp_reward} XP</span>
                     ) : null}
                   </motion.div>
                 );
@@ -420,7 +434,6 @@ function CharacterPanel({ user }: CharacterPanelProps) {
           border: '1px solid var(--border)',
           borderRadius: 12,
           padding: '14px 16px',
-          minHeight: 96,
           display: 'flex',
           flexDirection: 'column',
           gap: 8,
