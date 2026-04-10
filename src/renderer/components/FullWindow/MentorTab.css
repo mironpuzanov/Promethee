@@ -315,3 +315,88 @@
 .mentor-screen-chip-remove:active {
   transform: scale(0.96);
 }
+
+/* Markdown rendered in assistant bubbles */
+.mentor-markdown {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mentor-markdown p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.mentor-markdown strong {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.mentor-markdown em {
+  font-style: italic;
+}
+
+.mentor-markdown code {
+  font-family: ui-monospace, 'SF Mono', monospace;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.mentor-markdown pre {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  margin: 0;
+}
+
+.mentor-markdown pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.mentor-markdown ul,
+.mentor-markdown ol {
+  padding-left: 18px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mentor-markdown li {
+  line-height: 1.6;
+}
+
+.mentor-markdown h1,
+.mentor-markdown h2,
+.mentor-markdown h3 {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.mentor-markdown h1 { font-size: 16px; }
+.mentor-markdown h2 { font-size: 14px; }
+.mentor-markdown h3 { font-size: 13px; }
+
+.mentor-markdown blockquote {
+  margin: 0;
+  padding: 4px 10px;
+  border-left: 3px solid rgba(255, 255, 255, 0.2);
+  color: var(--text-muted);
+}
+
+.mentor-markdown a {
+  color: #e8922a;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

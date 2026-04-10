@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, MessageCircle, Plus, Send, Monitor, X } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { getMentorLiveScreenEveryMessage, setMentorLiveScreenEveryMessage } from '../../lib/mentorLiveScreenPref';
 import './MentorTab.css';
 
@@ -216,9 +218,15 @@ function ChatView({ chat, onBack }: { chat: Chat; onBack: () => void }) {
               background: msg.role === 'user' ? 'rgba(255,255,255,0.1)' : 'var(--surface)',
               color: 'var(--text-primary)',
               border: '1px solid var(--border)',
-              whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+              wordBreak: 'break-word',
             }}>
-              {msg.content}
+              {msg.role === 'user' ? (
+                <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
+              ) : (
+                <ReactMarkdown remarkPlugins={[remarkGfm]} className="mentor-markdown">
+                  {msg.content}
+                </ReactMarkdown>
+              )}
             </div>
             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
               {msg.role === 'user' ? 'You' : 'Mentor'} · {formatTime(msgTs(msg))}
@@ -243,9 +251,11 @@ function ChatView({ chat, onBack }: { chat: Chat; onBack: () => void }) {
               background: 'var(--surface)',
               color: 'var(--text-primary)',
               border: '1px solid var(--border)',
-              whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+              wordBreak: 'break-word',
             }}>
-              {streamingContent}
+              <ReactMarkdown remarkPlugins={[remarkGfm]} className="mentor-markdown">
+                {streamingContent}
+              </ReactMarkdown>
               <span style={{ display: 'inline-block', width: 6, height: 12, background: 'var(--text-secondary)', marginLeft: 2, verticalAlign: 'middle', borderRadius: 1, animation: 'blink 1s step-end infinite' }} />
             </div>
           </div>

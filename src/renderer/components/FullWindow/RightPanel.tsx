@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Square, Trophy, Clock, Zap, Users, Music, VolumeX, Monitor, Flame } from 'lucide-react';
+import { Square, Trophy, Clock, Zap, Users, Music, VolumeX, Monitor, Flame } from 'lucide-react';
 import { shouldIncludeAppInUsageStats } from '../../../lib/appUsageFilter.js';
 import './RightPanel.css';
 
@@ -144,19 +144,7 @@ function RightPanel() {
     >
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto px-4 py-5 flex flex-col gap-6">
-        {/* Search */}
-        <motion.div variants={itemVariants}>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
-            <input
-              type="text"
-              placeholder="Search..."
-              className="w-full bg-input border border-border rounded-xl pl-9 pr-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-ring transition-colors"
-            />
-          </div>
-        </motion.div>
-
-      {/* Active Quests */}
+        {/* Active Quests */}
       {activeQuests.length > 0 && (
         <>
           <motion.div variants={itemVariants} className="flex flex-col gap-3">
