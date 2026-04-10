@@ -1,4 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+import fs from 'fs';
+
+const TEST_USER_DATA = '/tmp/promethee-test-auth';
+
+vi.mock('electron', () => ({
+  app: {
+    getPath: vi.fn(() => TEST_USER_DATA),
+    getVersion: vi.fn(() => '1.1.8'),
+  },
+}));
 
 const keytarState = {
   stored: null,
@@ -42,6 +52,12 @@ describe('auth.getUser', () => {
       access_token: 'access',
       refresh_token: 'refresh',
     });
+    fs.mkdirSync(TEST_USER_DATA, { recursive: true });
+    fs.writeFileSync(`${TEST_USER_DATA}/has-session.json`, JSON.stringify({ ts: Date.now() }));
+  });
+
+  afterEach(() => {
+    try { fs.rmSync(TEST_USER_DATA, { recursive: true, force: true }); } catch { /* ok */ }
   });
 
   it('keeps the keychain when session restore throws a transient network error', async () => {
