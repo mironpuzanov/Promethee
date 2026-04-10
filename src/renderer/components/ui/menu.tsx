@@ -3,6 +3,7 @@ import * as React from 'react';
 import { motion } from 'framer-motion';
 import { ChevronRight } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import StartFocusButton from './StartFocusButton';
 
 // 2. Define Prop Types
 interface NavItem {
@@ -141,27 +142,7 @@ export const UserProfileSidebar = React.forwardRef<HTMLDivElement, UserProfileSi
         {/* Start Focus Session CTA */}
         {onStartFocusSession && (
           <motion.div variants={itemVariants} className="mt-2 mb-2">
-            <button
-              onClick={onStartFocusSession}
-              className="flex w-full items-center justify-center rounded-lg px-3 py-2.5 text-sm font-medium transition-all cursor-pointer"
-              style={{
-                background: 'transparent',
-                color: 'rgba(255,255,255,0.75)',
-                border: '1px solid rgba(255,255,255,0.12)',
-              }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)';
-                (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.22)';
-                (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.95)';
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-                (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.12)';
-                (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.75)';
-              }}
-            >
-              Start focus session
-            </button>
+            <StartFocusButton onClick={onStartFocusSession} />
           </motion.div>
         )}
 
