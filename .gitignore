@@ -7,3 +7,5 @@ out/
 *.sqlite-journal
 .vite/
 .gstack/
+.DS_Store
+.claude/worktrees/
