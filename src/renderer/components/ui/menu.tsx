@@ -29,7 +29,7 @@ interface UserProfileSidebarProps {
   navItems: NavItem[];
   activeTab: string;
   onTabChange: (id: string) => void;
-  logoutItem: {
+  logoutItem?: {
     icon: React.ReactNode;
     label: string;
     onClick: () => void;
@@ -155,29 +155,21 @@ export const UserProfileSidebar = React.forwardRef<HTMLDivElement, UserProfileSi
           })}
         </nav>
 
-        {/* Settings + Logout row */}
-        <motion.div variants={itemVariants} className="mt-2 flex items-center gap-1">
-          {onSettings && (
+        {/* Settings icon — logout lives inside Settings */}
+        {onSettings && (
+          <motion.div variants={itemVariants} className="mt-2">
             <button
               onClick={onSettings}
-              className="group flex items-center rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground flex-shrink-0"
+              className="group flex w-full items-center rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
               title="Settings"
             >
-              <span className="flex h-5 w-5 items-center justify-center">
+              <span className="mr-3 flex h-5 w-5 items-center justify-center flex-shrink-0">
                 <Settings size={18} />
               </span>
+              <span>Settings</span>
             </button>
-          )}
-          <button
-            onClick={logoutItem.onClick}
-            className="group flex flex-1 items-center rounded-md px-3 py-2.5 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
-          >
-            <span className="mr-3 flex h-5 w-5 items-center justify-center flex-shrink-0">
-              {logoutItem.icon}
-            </span>
-            <span>{logoutItem.label}</span>
-          </button>
-        </motion.div>
+          </motion.div>
+        )}
       </motion.aside>
     );
   }

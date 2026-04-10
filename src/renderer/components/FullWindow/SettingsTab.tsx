@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { LogOut } from 'lucide-react';
 import { ShortcutField } from './ShortcutField';
 
 interface User {
@@ -801,6 +802,37 @@ function SettingsTab({ user, setUser }: SettingsTabProps) {
           <StatusMessage {...passwordStatus} />
           <SaveButton loading={passwordLoading} label="Update password" />
         </form>
+      </Section>
+
+      <div className="border-t border-border" />
+
+      {/* Account — Logout */}
+      <Section title="Account">
+        <button
+          onClick={() => window.promethee.auth.signOut()}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: 'transparent',
+            border: '1px solid rgba(239, 68, 68, 0.30)',
+            borderRadius: 8,
+            color: 'rgb(239, 68, 68)',
+            fontSize: 13, fontWeight: 500,
+            padding: '8px 14px',
+            cursor: 'pointer',
+            transition: 'background 0.15s, border-color 0.15s',
+          }}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.08)';
+            (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(239,68,68,0.50)';
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+            (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(239,68,68,0.30)';
+          }}
+        >
+          <LogOut size={14} />
+          Log out
+        </button>
       </Section>
     </div>
   );
