@@ -403,13 +403,10 @@ async function handleDeepLink(url) {
           if (fullWindow) {
             fullWindow.close();
           }
-          // Tell floating overlay the user is now authenticated
+          // Tell floating overlay the user is now authenticated (keeps its state in sync)
           floatingWindow?.webContents.send('auth:success', user);
-          // Show overlay and pre-focus task input so user can start their first session immediately
-          floatingWindow?.show();
-          setTimeout(() => {
-            floatingWindow?.webContents.send('focus:taskInput', { roomId: null });
-          }, 200);
+          // Show main dashboard — same as password sign-in flow
+          createFullWindow();
           // Run daily jobs for the newly authenticated user
           runDailyJobs(user.id).catch(e => debugLog(`runDailyJobs error: ${e.message}`));
           // Restore all data from Supabase for new login
