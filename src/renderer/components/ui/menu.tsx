@@ -98,6 +98,13 @@ export const UserProfileSidebar = React.forwardRef<HTMLDivElement, UserProfileSi
 
         <motion.div variants={itemVariants} className="my-4 border-t border-border" />
 
+        {/* Start Focus Session CTA — above nav */}
+        {onStartFocusSession && (
+          <motion.div variants={itemVariants} className="mb-3">
+            <StartFocusButton onClick={onStartFocusSession} />
+          </motion.div>
+        )}
+
         {/* Navigation Links */}
         <nav className="flex-1 space-y-1" role="navigation">
           {navItems.map((item) => {
@@ -143,13 +150,6 @@ export const UserProfileSidebar = React.forwardRef<HTMLDivElement, UserProfileSi
             );
           })}
         </nav>
-
-        {/* Start Focus Session CTA */}
-        {onStartFocusSession && (
-          <motion.div variants={itemVariants} className="mt-2 mb-2">
-            <StartFocusButton onClick={onStartFocusSession} />
-          </motion.div>
-        )}
 
         {/* Logout Button */}
         <motion.div variants={itemVariants} className="mt-2">
