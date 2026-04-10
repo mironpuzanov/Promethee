@@ -218,7 +218,7 @@ function FullWindow({ user, setUser }: FullWindowProps) {
       <div className="titlebar-drag" />
       {showUpdatePrompt && (
         <div className="pointer-events-none fixed top-14 left-1/2 z-[120] -translate-x-1/2 w-[420px]">
-          <div style={{ background: 'var(--card)', borderRadius: 18, border: '1px solid var(--border-color)', boxShadow: '0 20px 56px rgba(0,0,0,0.45)', overflow: 'hidden' }} className="pointer-events-auto">
+          <div style={{ background: '#1a1714', borderRadius: 18, border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 20px 56px rgba(0,0,0,0.7)', overflow: 'hidden' }} className="pointer-events-auto">
             {/* Header */}
             <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border/50">
               <div>

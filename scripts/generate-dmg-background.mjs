@@ -13,16 +13,21 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const W = 540, H = 380;
 
-// Dark background + subtle right-pointing arrow between app (135,175) and Applications (405,175)
+// Icons: app at x=135, Applications at x=405, y=215 (center)
+// Arrow between ~x=200 and x=340, centered at y=175 (above label)
 const svg = `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
-  <rect width="${W}" height="${H}" fill="#0C0A09"/>
-  <line x1="224" y1="175" x2="310" y2="175"
-        stroke="rgba(255,255,255,0.15)" stroke-width="1.5" stroke-linecap="round"/>
-  <polyline points="302,168 312,175 302,182"
-        fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"
+  <!-- Light warm-white background -->
+  <rect width="${W}" height="${H}" fill="#F0EDE8"/>
+
+  <!-- Arrow shaft -->
+  <line x1="205" y1="175" x2="326" y2="175"
+        stroke="#9C9690" stroke-width="2" stroke-linecap="round"/>
+  <!-- Arrowhead -->
+  <polyline points="314,166 328,175 314,184"
+        fill="none" stroke="#9C9690" stroke-width="2"
         stroke-linejoin="round" stroke-linecap="round"/>
 </svg>`;
 
 const buf = await sharp(Buffer.from(svg)).resize(W, H).png().toBuffer();
 fs.writeFileSync(path.join(__dirname, 'dmg-background.png'), buf);
-console.log('✓ scripts/dmg-background.png');
+console.log('✓ scripts/dmg-background.png (light warm background, visible arrow)');
