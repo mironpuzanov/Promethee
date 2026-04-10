@@ -300,18 +300,12 @@ const getAssetsPath = () => app.isPackaged
 const createTray = () => {
   const assetsPath = getAssetsPath();
   const trayIconPath = path.join(assetsPath, 'tray-icon.png');
-  const trayIcon2xPath = path.join(assetsPath, 'tray-icon@2x.png');
-  let icon;
-  if (fs.existsSync(trayIconPath)) {
-    icon = nativeImage.createEmpty();
-    icon.addRepresentation({ scaleFactor: 1.0, dataURL: nativeImage.createFromPath(trayIconPath).toDataURL() });
-    if (fs.existsSync(trayIcon2xPath)) {
-      icon.addRepresentation({ scaleFactor: 2.0, dataURL: nativeImage.createFromPath(trayIcon2xPath).toDataURL() });
-    }
-    icon.setTemplateImage(true);
-  } else {
-    icon = nativeImage.createEmpty();
-  }
+  // Electron automatically picks up tray-icon@2x.png on Retina when loading tray-icon.png
+  // from a real directory (not inside asar). This gives correct 18pt display size.
+  const icon = fs.existsSync(trayIconPath)
+    ? nativeImage.createFromPath(trayIconPath)
+    : nativeImage.createEmpty();
+  icon.setTemplateImage(true);
   tray = new Tray(icon);
 
   const contextMenu = Menu.buildFromTemplate([

@@ -19,11 +19,11 @@ const svg = `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
   <!-- Light warm-white background -->
   <rect width="${W}" height="${H}" fill="#F0EDE8"/>
 
-  <!-- Arrow shaft — y matches icon center (215) minus half label height (~15px) = ~200 -->
-  <line x1="205" y1="200" x2="326" y2="200"
+  <!-- Arrow shaft -->
+  <line x1="205" y1="220" x2="326" y2="220"
         stroke="#9C9690" stroke-width="2" stroke-linecap="round"/>
   <!-- Arrowhead -->
-  <polyline points="314,191 328,200 314,209"
+  <polyline points="314,211 328,220 314,229"
         fill="none" stroke="#9C9690" stroke-width="2"
         stroke-linejoin="round" stroke-linecap="round"/>
 </svg>`;

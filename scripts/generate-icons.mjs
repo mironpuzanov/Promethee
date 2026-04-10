@@ -72,9 +72,9 @@ async function generateAppIcon() {
 
 async function generateTrayIcons() {
   const svgBuf = fs.readFileSync(LOGO_NOIR);
-  const CANVAS_1X = 22, CANVAS_2X = 44;
-  // Logo content at ~16px within 22px canvas (matches other menu bar icons)
-  const LOGO_1X = 16, LOGO_2X = 32;
+  // 18×18 pt canvas, 13pt content — slightly smaller than 22pt which fills the whole bar
+  const CANVAS_1X = 18, CANVAS_2X = 36;
+  const LOGO_1X = 13, LOGO_2X = 26;
 
   const logo1x = await sharp(svgBuf)
     .resize(LOGO_1X, LOGO_1X, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
@@ -87,7 +87,7 @@ async function generateTrayIcons() {
     .png()
     .toBuffer();
   fs.writeFileSync(path.join(ASSETS, 'tray-icon.png'), t1x);
-  console.log('✓ tray-icon.png (22×22, logo 16×16)');
+  console.log(`✓ tray-icon.png (${CANVAS_1X}×${CANVAS_1X}, logo ${LOGO_1X}×${LOGO_1X})`);
 
   const logo2x = await sharp(svgBuf)
     .resize(LOGO_2X, LOGO_2X, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
@@ -100,7 +100,7 @@ async function generateTrayIcons() {
     .png()
     .toBuffer();
   fs.writeFileSync(path.join(ASSETS, 'tray-icon@2x.png'), t2x);
-  console.log('✓ tray-icon@2x.png (44×44, logo 32×32)');
+  console.log(`✓ tray-icon@2x.png (${CANVAS_2X}×${CANVAS_2X}, logo ${LOGO_2X}×${LOGO_2X})`);
 }
 
 generateAppIcon()
