@@ -274,12 +274,10 @@ function TaskChecklist({ session, focusAddFieldTrigger = 0, togglePanelTrigger =
   // Clear draft when switching tabs
   useEffect(() => { setDraft(''); }, [tab]);
 
-  // Keep textarea height consistent — use same formula for both clear and grow
+  // Reset to base height when draft is cleared (tab switch or submit)
   useLayoutEffect(() => {
     const el = addInputRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.max(34, Math.min(el.scrollHeight, 120))}px`;
+    if (el && draft === '') el.style.height = '34px';
   }, [draft]);
 
   const incompleteTasks = tasks.filter(t => !t.completed);
@@ -418,6 +416,9 @@ function TaskChecklist({ session, focusAddFieldTrigger = 0, togglePanelTrigger =
             value={draft}
             onChange={(e) => {
               setDraft(e.target.value);
+              const el = e.currentTarget;
+              el.style.height = '34px';
+              el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
             }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
