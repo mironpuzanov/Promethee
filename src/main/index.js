@@ -2560,10 +2560,18 @@ ipcMain.handle('memory:get', async () => {
     const user = getCurrentUser();
     if (!user) return { success: false, error: 'Not authenticated' };
     await ensureYesterdaySnapshot(user.id);
-    const snapshots = getMemorySnapshotCache(user.id, 90);
-    void refreshMemorySnapshotCacheFromSupabase(user.id).catch((e) => {
+
+    // Await the remote refresh so a fresh install / new device gets snapshots
+    // on the first open rather than seeing an empty state.
+    // Cap at 5s so a slow network doesn't block the UI indefinitely.
+    await Promise.race([
+      refreshMemorySnapshotCacheFromSupabase(user.id),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000)),
+    ]).catch((e) => {
       debugLog(`memory:get remote refresh skipped: ${e.message}`);
     });
+
+    const snapshots = getMemorySnapshotCache(user.id, 90);
 
     const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
     const recentSessions = getCompletedSessionsForSkills(user.id, thirtyDaysAgo);

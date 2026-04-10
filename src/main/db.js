@@ -427,6 +427,37 @@ export function createOrUpdateUserProfile(userId, email, displayName) {
   return getUserProfile(userId);
 }
 
+// Restore user profile stats from Supabase on login/session restore.
+// Only writes fields where the remote value is higher — never downgrades local data.
+export function restoreUserProfileFromRemote(userId, remote) {
+  const database = getDb();
+  const local = getUserProfile(userId);
+  if (!local) return; // createOrUpdateUserProfile must be called first
+
+  const remoteXp = remote.total_xp || 0;
+  const remoteLevel = remote.level || 1;
+  const remoteStreak = remote.current_streak || 0;
+  const remoteLastSession = remote.last_session_date || null;
+
+  // Take the maximum of local and remote for XP and level
+  const newXp = Math.max(local.total_xp || 0, remoteXp);
+  const newLevel = Math.max(local.level || 1, remoteLevel);
+  // For streak, prefer remote if local is 0 (fresh install) or remote is higher
+  const newStreak = (local.current_streak || 0) === 0 ? remoteStreak : Math.max(local.current_streak, remoteStreak);
+  // For last_session_date, keep the most recent
+  const newLastSession = (!local.last_session_date && remoteLastSession)
+    ? remoteLastSession
+    : (local.last_session_date && remoteLastSession)
+      ? (local.last_session_date > remoteLastSession ? local.last_session_date : remoteLastSession)
+      : local.last_session_date;
+
+  database.prepare(`
+    UPDATE user_profile
+    SET total_xp = ?, level = ?, current_streak = ?, last_session_date = ?
+    WHERE id = ?
+  `).run(newXp, newLevel, newStreak, newLastSession, userId);
+}
+
 export function updateUserXP(userId, xpToAdd) {
   const database = getDb();
   const stmt = database.prepare(`

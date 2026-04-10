@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase.js';
 import keytar from 'keytar';
-import { createOrUpdateUserProfile } from './db.js';
+import { createOrUpdateUserProfile, restoreUserProfileFromRemote } from './db.js';
 import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
@@ -174,8 +174,11 @@ export async function getUser() {
           }
           const displayName = data.user.user_metadata?.display_name || data.user.email;
           createOrUpdateUserProfile(data.user.id, data.user.email, displayName);
-          // Ensure Supabase profile exists (needed for FK on sessions table).
+          // Restore XP/level/streak from Supabase — covers new device / reinstall.
           // Run in background — a failure here must NOT wipe the session.
+          restoreProfileFromSupabase(data.user.id).catch((e) => {
+            debugLog(`restoreProfileFromSupabase failed (non-fatal): ${e.message}`);
+          });
           syncUserProfileToSupabase(data.user.id, data.user.email, displayName).catch((e) => {
             debugLog(`syncUserProfileToSupabase failed (non-fatal): ${e.message}`);
           });
@@ -246,6 +249,12 @@ export async function setSession(accessToken, refreshToken) {
     // Update local database
     createOrUpdateUserProfile(data.user.id, data.user.email, displayName);
 
+    // Restore XP/level/streak from Supabase (new device / reinstall / update).
+    // Fire-and-forget — UI will reflect restored values on next data fetch.
+    restoreProfileFromSupabase(data.user.id).catch((e) => {
+      debugLog(`restoreProfileFromSupabase (setSession) failed (non-fatal): ${e.message}`);
+    });
+
     // Upsert into Supabase user_profile so sessions can sync (FK requires this row)
     await syncUserProfileToSupabase(data.user.id, data.user.email, displayName);
 
@@ -254,6 +263,27 @@ export async function setSession(accessToken, refreshToken) {
 
   debugLog('setSession: no user in response');
   return null;
+}
+
+// Pull user_profile stats from Supabase and restore into local SQLite.
+// Called after every successful login/session restore so XP, level, and streak
+// survive across devices and app reinstalls.
+async function restoreProfileFromSupabase(userId) {
+  try {
+    const { data, error } = await supabase
+      .from('user_profile')
+      .select('total_xp, level, current_streak, last_session_date')
+      .eq('id', userId)
+      .single();
+    if (error || !data) {
+      debugLog(`restoreProfileFromSupabase: no remote profile found (${error?.message})`);
+      return;
+    }
+    restoreUserProfileFromRemote(userId, data);
+    debugLog(`restoreProfileFromSupabase: restored xp=${data.total_xp} streak=${data.current_streak}`);
+  } catch (err) {
+    debugLog(`restoreProfileFromSupabase failed (non-fatal): ${err.message}`);
+  }
 }
 
 async function syncUserProfileToSupabase(userId, email, displayName, avatarUrl) {

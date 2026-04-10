@@ -242,16 +242,14 @@ export default function MemoryTab() {
   const [liveSkillsRaw, setLiveSkillsRaw] = useState<LiveSkillsRaw | null>(null);
   const [todayMinutes, setTodayMinutes] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
+    // Load skills and today's sessions immediately (local SQLite — fast)
     Promise.all([
-      window.promethee.memory.get(),
       window.promethee.skills.get(),
       window.promethee.session.getToday(),
-    ]).then(([memoryResult, skillsResult, sessionsResult]) => {
-      if (memoryResult.success) {
-        setData({ snapshots: memoryResult.snapshots || [], current: memoryResult.current });
-      }
+    ]).then(([skillsResult, sessionsResult]) => {
       if (skillsResult.success && skillsResult.skills) {
         setLiveSkills(skillsResult.skills as LiveSkills);
         if (skillsResult.raw) setLiveSkillsRaw(skillsResult.raw as LiveSkillsRaw);
@@ -263,7 +261,16 @@ export default function MemoryTab() {
         );
         setTodayMinutes(minutes);
       }
+    });
+
+    // memory.get awaits Supabase refresh (up to 5s) — show syncing indicator
+    setSyncing(true);
+    window.promethee.memory.get().then((memoryResult: any) => {
+      if (memoryResult.success) {
+        setData({ snapshots: memoryResult.snapshots || [], current: memoryResult.current });
+      }
       setLoading(false);
+      setSyncing(false);
     });
   }, []);
 
@@ -271,7 +278,7 @@ export default function MemoryTab() {
     return (
       <div className="flex flex-col bg-background px-10 py-10 overflow-y-auto gap-6">
         <h2 className="text-2xl font-light text-foreground">Memory</h2>
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <p className="text-sm text-muted-foreground">Syncing from cloud…</p>
       </div>
     );
   }
@@ -322,6 +329,9 @@ export default function MemoryTab() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Brain size={20} style={{ color: 'var(--text-muted)' }} />
           <h2 className="text-2xl font-light text-foreground" style={{ margin: 0 }}>Memory</h2>
+          {syncing && (
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4 }}>Syncing…</span>
+          )}
         </div>
         <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
           {snapshotCount === 0
