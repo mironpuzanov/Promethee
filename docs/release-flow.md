@@ -7,7 +7,7 @@ How to ship a new version of Promethee to beta users.
 ```bash
 # 1. Bump version in package.json
 # 2. Run:
-rm -rf out && bash scripts/release.sh --notes "What changed in this release"
+rm -rf out && bash scripts/release.sh --notes "Onboarding challenges, animated focus button, AI memory + daily coaching fixed, memory card polish, text contrast improvements"
 ```
 
 That's the whole thing. The script handles build, sign, notarize, DMG, upload, and manifest.
@@ -29,7 +29,7 @@ Use semver: patch (`1.1.x`) for bug fixes, minor (`1.x.0`) for new features.
 ### 2. Run the release script
 
 ```bash
-rm -rf out && bash scripts/release.sh --notes "What changed in this release"
+rm -rf out && bash scripts/release.sh --notes "Onboarding challenges, animated focus button, AI memory + daily coaching fixed, memory card polish, text contrast improvements"
 ```
 
 ### Flags
