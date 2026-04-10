@@ -100,9 +100,12 @@ export const UserProfileSidebar = React.forwardRef<HTMLDivElement, UserProfileSi
 
         {/* Start Focus Session CTA — above nav */}
         {onStartFocusSession && (
-          <motion.div variants={itemVariants} className="mb-3">
-            <StartFocusButton onClick={onStartFocusSession} />
-          </motion.div>
+          <>
+            <motion.div variants={itemVariants} className="mb-3">
+              <StartFocusButton onClick={onStartFocusSession} />
+            </motion.div>
+            <motion.div variants={itemVariants} className="mb-4 border-t border-border" />
+          </>
         )}
 
         {/* Navigation Links */}
