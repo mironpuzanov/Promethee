@@ -184,7 +184,7 @@ function RightPanel() {
               <div key={entry.id} className="flex items-start gap-2 py-1">
                 <div
                   className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 mt-0.5"
-                  style={{ background: 'rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }}
+                  style={{ background: 'var(--muted)', color: 'var(--text-secondary)' }}
                 >
                   {(entry.display_name || '?').charAt(0).toUpperCase()}
                 </div>

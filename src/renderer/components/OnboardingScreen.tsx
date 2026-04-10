@@ -4,7 +4,7 @@ interface OnboardingScreenProps {
   onAuthenticated: (user: any) => void;
 }
 
-type Step = 'restore-session' | 'signin' | 'signup' | 'magic-link' | 'check-email' | 'check-confirm';
+type Step = 'restore-session' | 'signin' | 'signup' | 'magic-link' | 'check-email' | 'check-confirm' | 'setting-up';
 
 const dragBar = (
   <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 48, WebkitAppRegion: 'drag' as any }} />
@@ -270,7 +270,11 @@ export default function OnboardingScreen({ onAuthenticated }: OnboardingScreenPr
         const r = await window.promethee.auth.signUp(em, pw);
         if (!r.success) setError(r.error || 'Failed to create account.');
         else if (r.needsConfirmation) { setEmail(em); setStep('check-confirm'); }
-        // if auto-confirmed, main process handles transition
+        else {
+          // Auto-confirmed — main process is opening the dashboard.
+          // Show a transitional screen so it doesn't look frozen.
+          setStep('setting-up');
+        }
       });
     };
 
@@ -304,6 +308,22 @@ export default function OnboardingScreen({ onAuthenticated }: OnboardingScreenPr
           </p>
         </div>
       </Shell>
+    );
+  }
+
+  // ── Setting up (auto-confirmed signup) ───────────────────────────────────
+  if (step === 'setting-up') {
+    return (
+      <div style={{ ...base, alignItems: 'center', justifyContent: 'center' }}>
+        {dragBar}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, textAlign: 'center', maxWidth: 320, padding: '0 32px', alignItems: 'center' }}>
+          <div style={{ fontSize: 40 }}>🚀</div>
+          <h2 style={{ fontSize: 24, fontWeight: 300, margin: 0, letterSpacing: '-0.02em' }}>Setting up your account</h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.6, margin: 0 }}>
+            You're in. Opening your dashboard now…
+          </p>
+        </div>
+      </div>
     );
   }
 

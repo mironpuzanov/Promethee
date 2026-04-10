@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ShortcutField } from './ShortcutField';
 import { MVP_MODE } from '../../../config/mvp';
-import { useTheme } from '@/hooks/useTheme';
 
 interface User {
   id: string;
@@ -81,7 +80,6 @@ interface BlockedDomain {
 }
 
 function SettingsTab({ user, setUser }: SettingsTabProps) {
-  const [theme, setTheme] = useTheme();
   const [displayName, setDisplayName] = useState(user?.user_metadata?.display_name || '');
   const [avatarPreview, setAvatarPreview] = useState<string>(user?.user_metadata?.avatar_url || '');
   const [pendingFile, setPendingFile] = useState<{ buffer: ArrayBuffer; mimeType: string } | null>(null);
@@ -397,39 +395,6 @@ function SettingsTab({ user, setUser }: SettingsTabProps) {
   return (
     <div className="flex flex-col bg-background px-10 py-10 overflow-y-auto gap-10 h-full">
       <h2 className="text-2xl font-light text-foreground">Settings</h2>
-
-      {/* Appearance */}
-      <Section title="Appearance">
-        <div className="flex items-center justify-between">
-          <div className="flex flex-col gap-0.5">
-            <span className="text-sm text-foreground">Theme</span>
-            <span className="text-xs text-muted-foreground">Choose between dark and light interface</span>
-          </div>
-          <div className="flex items-center gap-1 p-1 rounded-lg border border-border bg-muted">
-            {(['dark', 'light'] as const).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setTheme(t)}
-                style={{
-                  padding: '5px 14px',
-                  borderRadius: 8,
-                  fontSize: 13,
-                  fontWeight: 500,
-                  border: 'none',
-                  cursor: 'pointer',
-                  transition: 'background 0.15s, color 0.15s',
-                  background: theme === t ? 'var(--card)' : 'transparent',
-                  color: theme === t ? 'var(--foreground)' : 'var(--muted-foreground)',
-                  boxShadow: theme === t ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
-                }}
-              >
-                {t === 'dark' ? 'Dark' : 'Light'}
-              </button>
-            ))}
-          </div>
-        </div>
-      </Section>
 
       <div className="border-t border-border" />
 

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, screen, nativeImage } from 'electron';
+import { app, BrowserWindow, ipcMain, Tray, Menu, screen, nativeImage, nativeTheme } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -232,6 +232,7 @@ const createFullWindow = ({ sessionComplete = false } = {}) => {
     transparent: true,
     vibrancy: 'under-window',
     visualEffectState: 'active',
+    appearance: 'dark',
     hasShadow: true,
     movable: true,
     skipTaskbar: false,
@@ -273,14 +274,21 @@ const createFullWindow = ({ sessionComplete = false } = {}) => {
   // Hide overlay while dashboard is open, restore it when dashboard closes
   floatingWindow?.hide();
 
+  const thisWindow = fullWindow;
   fullWindow.on('closed', () => {
-    fullWindow = null;
-    // Only restore the floating overlay if the user is logged in AND has an active session.
-    // Without this guard, closing the dashboard after fresh signup shows the empty overlay.
-    const currentUser = getCurrentUser();
-    const activeSession = getActiveSession();
-    if (currentUser && activeSession) {
-      floatingWindow?.show();
+    // Only null the global ref if it still points to THIS window.
+    // If createFullWindow() was called again before the closed event fired
+    // (e.g. close → createFullWindow() in auth:signIn), fullWindow already
+    // points to the new window — don't overwrite it with null.
+    if (fullWindow === thisWindow) {
+      fullWindow = null;
+      // Only restore the floating overlay if the user is logged in AND has an active session.
+      // Without this guard, closing the dashboard after fresh signup shows the empty overlay.
+      const currentUser = getCurrentUser();
+      const activeSession = getActiveSession();
+      if (currentUser && activeSession) {
+        floatingWindow?.show();
+      }
     }
   });
 };
@@ -425,6 +433,10 @@ debugLog('Setting up app.whenReady handler');
 // App lifecycle
 app.whenReady().then(async () => {
   debugLog('=== App is ready, starting initialization ===');
+
+  // Force dark mode regardless of macOS system theme.
+  // This ensures vibrancy renders with dark material and text/colors stay correct.
+  nativeTheme.themeSource = 'dark';
 
   // Set dock icon — __dirname is .vite/build/ in dev, so go up to project root
   if (process.platform === 'darwin') {

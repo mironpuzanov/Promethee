@@ -35,7 +35,7 @@
 }
 
 .xp-dot {
-  color: #333;
+  color: var(--text-faint);
   font-size: 12px;
   line-height: 1;
 }
@@ -96,7 +96,7 @@
 .habits-chart {
   width: 100%;
   height: 100px;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--muted);
   border-radius: 8px;
   padding: 8px;
 }
@@ -118,6 +118,6 @@
 
 .character-panel-memory-btn:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.12);
+  background: var(--accent);
+  border-color: var(--border);
 }
