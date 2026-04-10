@@ -123,7 +123,7 @@ function SkillBar({ label, value, display }: { label: string; value: number; dis
           transition={{ duration: 0.8, ease: 'easeOut', delay: 0.2 }}
         />
       </div>
-      <span style={{ width: 38, fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'right', flexShrink: 0 }}>
+      <span style={{ width: 52, fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'right', flexShrink: 0, whiteSpace: 'nowrap' }}>
         {display}
       </span>
     </div>
