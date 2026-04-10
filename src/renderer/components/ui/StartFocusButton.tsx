@@ -15,31 +15,24 @@ const STYLES = `
     width: 100%;
     padding: 9px 16px;
     border-radius: 10px;
-    background: rgba(232, 146, 42, 0.12);
-    border: 1px solid rgba(232, 146, 42, 0.32);
-    color: rgba(255, 255, 255, 0.90);
+    background: #E8922A;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #ffffff;
     font-size: 13px;
     font-weight: 500;
     letter-spacing: 0.01em;
     cursor: pointer;
     user-select: none;
-    transition: border-color 0.2s, background 0.2s;
+    transition: background 0.18s, opacity 0.18s;
     font-family: inherit;
   }
 
-  .sfb-letter {
-    display: inline-block;
-  }
-
   .sfb-btn:hover {
-    background: rgba(232, 146, 42, 0.22);
-    border-color: rgba(232, 146, 42, 0.55);
-    color: #ffffff;
+    background: #d4801e;
   }
 
   .sfb-btn:active {
-    background: rgba(232, 146, 42, 0.28);
-    border-color: rgba(232, 146, 42, 0.65);
+    background: #c07018;
     transform: scale(0.98);
   }
 `;

@@ -1410,11 +1410,11 @@ ipcMain.handle('db:getUserProfile', async () => {
 });
 
 ipcMain.handle('window:startFocusFromDashboard', async (event, roomId) => {
-  // Close dashboard, show overlay, tell overlay to open task input
+  // Show overlay FIRST so there's no flash of the desktop between windows
+  floatingWindow?.show();
   if (fullWindow) {
     fullWindow.close();
   }
-  floatingWindow?.show();
   // Small delay for window transition, then focus the input
   setTimeout(() => {
     floatingWindow?.webContents.send('focus:taskInput', { roomId: roomId || null });
