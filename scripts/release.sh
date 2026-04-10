@@ -50,7 +50,6 @@ TEAM_ID="${APPLE_TEAM_ID:-69V9FN6864}"
 ARCH=$(node -e "console.log(process.arch === 'arm64' ? 'arm64' : 'x64')")
 APP_PATH="out/Promethee-darwin-${ARCH}/Promethee.app"
 DMG_PATH="out/make/Promethee-${VERSION}.dmg"
-DMG_STAGING="out/dmg-staging"
 
 echo ""
 echo -e "${CYAN}═══════════════════════════════════════════════${NC}"
@@ -80,24 +79,17 @@ fi
 # IMPORTANT: create DMG from the signed-but-NOT-yet-stapled .app.
 # If we staple first and then copy into a DMG, the staple ticket changes the
 # bundle and invalidates the codesign seal on the main binary.
-step "2/4  Creating DMG..."
+step "2/4  Creating styled DMG (appdmg)..."
 mkdir -p "$(dirname "$DMG_PATH")"
 [ -f "$DMG_PATH" ] && rm "$DMG_PATH"
 
-# Staging folder: .app + /Applications symlink = standard drag-to-install layout
-rm -rf "$DMG_STAGING"
-mkdir -p "$DMG_STAGING"
-ditto "$APP_PATH" "$DMG_STAGING/Promethee.app"
-ln -s /Applications "$DMG_STAGING/Applications"
+# Build a per-run appdmg spec with the absolute .app path injected
+DMG_SPEC_TMP="$(mktemp /tmp/dmg-spec-XXXXXX.json)"
+APP_ABS="$(cd "$(dirname "$APP_PATH")" && pwd)/$(basename "$APP_PATH")"
+sed "s|__APP_PATH__|${APP_ABS}|g" scripts/dmg-spec.json > "$DMG_SPEC_TMP"
 
-hdiutil create \
-  -volname "Promethee" \
-  -srcfolder "$DMG_STAGING" \
-  -ov \
-  -format UDZO \
-  "$DMG_PATH" > /dev/null
-
-rm -rf "$DMG_STAGING"
+node_modules/.bin/appdmg "$DMG_SPEC_TMP" "$DMG_PATH"
+rm -f "$DMG_SPEC_TMP"
 ok "DMG created: $DMG_PATH ($(du -sh "$DMG_PATH" | cut -f1))"
 
 # ── Step 3: Notarize + staple DMG ────────────────────────────────────────────

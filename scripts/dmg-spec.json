@@ -1,0 +1,16 @@
+{
+  "title": "Promethee",
+  "icon": "src/assets/icon.icns",
+  "background": "scripts/dmg-background.png",
+  "icon-size": 100,
+  "window": {
+    "position": { "x": 200, "y": 120 },
+    "size": { "width": 540, "height": 380 }
+  },
+  "contents": [
+    { "x": 135, "y": 215, "type": "file", "path": "__APP_PATH__" },
+    { "x": 405, "y": 215, "type": "link", "path": "/Applications" }
+  ],
+  "format": "UDZO",
+  "filesystem": "HFS+"
+}
