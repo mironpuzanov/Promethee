@@ -129,7 +129,7 @@ function ListView({ sessions, tasksBySession, notesBySession, chatsBySession, on
             display: 'flex', alignItems: 'center', gap: 6,
             background: 'rgba(255, 255, 255, 0.05)',
             border: '1px solid rgba(232, 146, 42, 0.45)',
-            borderRadius: 999,
+            borderRadius: 10,
             color: 'rgba(255, 255, 255, 0.65)',
             fontSize: 13, fontWeight: 400,
             padding: '7px 14px',

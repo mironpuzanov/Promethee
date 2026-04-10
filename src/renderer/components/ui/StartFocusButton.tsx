@@ -14,7 +14,7 @@ const STYLES = `
     justify-content: center;
     width: 100%;
     padding: 9px 16px;
-    border-radius: 999px;
+    border-radius: 10px;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(232, 146, 42, 0.45);
     color: rgba(255, 255, 255, 0.65);
