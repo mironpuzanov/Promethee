@@ -378,7 +378,7 @@ function AgentBubble({ activeSession, openTrigger = 0, toggleTrigger = 0 }: Agen
   const handleBubblePointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
     if (!isDragging.current) return;
     const dy = e.clientY - dragStartClientY.current;
-    if (Math.abs(dy) > 4) didMove.current = true;
+    if (Math.abs(dy) > 12) didMove.current = true;
     setBottomY(clampBottomY(dragStartBottomY.current - dy));
   };
 

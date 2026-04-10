@@ -5,6 +5,7 @@ import './IdleBar.css';
 interface User {
   id: string;
   email: string;
+  user_metadata?: { avatar_url?: string; display_name?: string };
 }
 
 interface IdleBarProps {
@@ -53,13 +54,28 @@ function IdleBar({ user, onStartSession, onOpenRooms, autoFocusInput, onAutoFocu
 
   const handleMenuClick = () => window.promethee.window.toggleFullWindow();
 
+  const avatarUrl = user?.user_metadata?.avatar_url || null;
   const getInitial = () => {
     if (!user) return '?';
-    return (user.email || '').charAt(0).toUpperCase();
+    return (user.user_metadata?.display_name || user.email || '').charAt(0).toUpperCase();
   };
 
   return (
     <div className="idle-bar promethee-mouse-target">
+      {/* Visible drag handle — left edge, makes it obvious the bar is draggable */}
+      <div className="idle-bar__drag-handle" aria-hidden="true">
+        <svg width="6" height="14" viewBox="0 0 6 14" fill="none">
+          <circle cx="1.5" cy="2"  r="1.2" fill="currentColor"/>
+          <circle cx="4.5" cy="2"  r="1.2" fill="currentColor"/>
+          <circle cx="1.5" cy="6"  r="1.2" fill="currentColor"/>
+          <circle cx="4.5" cy="6"  r="1.2" fill="currentColor"/>
+          <circle cx="1.5" cy="10" r="1.2" fill="currentColor"/>
+          <circle cx="4.5" cy="10" r="1.2" fill="currentColor"/>
+          <circle cx="1.5" cy="14" r="1.2" fill="currentColor"/>
+          <circle cx="4.5" cy="14" r="1.2" fill="currentColor"/>
+        </svg>
+      </div>
+
       <button className="mentor-button" onClick={onOpenMentor}>
         Mentor
       </button>
@@ -84,7 +100,11 @@ function IdleBar({ user, onStartSession, onOpenRooms, autoFocusInput, onAutoFocu
 
       <div className="user-controls">
         <PresencePill onClick={onOpenRooms} />
-        <div className="user-avatar">{getInitial()}</div>
+        <div className="user-avatar">
+          {avatarUrl
+            ? <img src={avatarUrl} alt="" className="user-avatar__img" />
+            : getInitial()}
+        </div>
         <button className="menu-button" onClick={handleMenuClick} title="Open dashboard">
           <svg width="14" height="10" viewBox="0 0 14 10" fill="none">
             <circle cx="2" cy="2" r="1.5" fill="currentColor"/>

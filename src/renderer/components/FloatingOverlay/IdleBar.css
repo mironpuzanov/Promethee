@@ -15,10 +15,34 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: 12px 12px 12px 10px;
   pointer-events: auto;
+  /* No global drag — only the handle dot grid is the drag zone */
+  -webkit-app-region: no-drag;
+  cursor: default;
+}
+
+/* ── Grip handle — the ONLY draggable zone on the idle bar ────── */
+.idle-bar__drag-handle {
   -webkit-app-region: drag;
   cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 6px 6px 2px;
+  color: rgba(255, 255, 255, 0.22);
+  flex-shrink: 0;
+  border-radius: 6px;
+  transition: color 0.15s;
+  margin-right: 4px;
+}
+
+.idle-bar__drag-handle:hover {
+  color: rgba(255, 255, 255, 0.50);
+}
+
+.idle-bar__drag-handle:active {
+  cursor: grabbing;
 }
 
 .mentor-button {
@@ -50,20 +74,18 @@
   transform: scale(0.98);
 }
 
-/* ── Start button — accent orange pill ──────────────────────────── */
 .start-button {
   flex: 1;
-  background: rgba(232, 146, 42, 0.12);
-  border: 1px solid rgba(232, 146, 42, 0.30);
-  border-radius: 999px;
-  color: var(--accent-fire);
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.45);
   font-family: 'Geist', sans-serif;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 400;
   cursor: pointer;
   text-align: center;
   -webkit-app-region: no-drag;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  transition: color 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -73,9 +95,7 @@
 }
 
 .start-button:hover {
-  background: rgba(232, 146, 42, 0.20);
-  border-color: rgba(232, 146, 42, 0.50);
-  color: #f0a84a;
+  color: rgba(255, 255, 255, 0.80);
 }
 
 .start-button:active {
@@ -128,6 +148,16 @@
   color: #fff;
   font-size: 11px;
   font-weight: 600;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.user-avatar__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
 }
 
 /* Dashboard / home button — clearly visible on the dark pill */

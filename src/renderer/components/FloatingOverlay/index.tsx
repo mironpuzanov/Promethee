@@ -11,6 +11,7 @@ import './FloatingOverlay.css';
 interface User {
   id: string;
   email: string;
+  user_metadata?: { avatar_url?: string; display_name?: string };
 }
 
 interface Session {
