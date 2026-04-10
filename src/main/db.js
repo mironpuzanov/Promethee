@@ -234,31 +234,6 @@ export function initializeDatabase() {
     }
   }
 
-  // Migration: move quests into tasks (with xp_reward), then drop quests table
-  const tables = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='quests'`).all();
-  if (tables.length > 0) {
-    const questCount = db.prepare(`SELECT COUNT(*) as n FROM quests`).get();
-    if (questCount.n > 0) {
-      const now2 = Date.now();
-      const quests = db.prepare(`SELECT * FROM quests`).all();
-      const insertTask = db.prepare(`
-        INSERT OR IGNORE INTO tasks (id, session_id, user_id, text, completed, position, xp_reward, created_at)
-        VALUES (?, NULL, ?, ?, ?, ?, ?, ?)
-      `);
-      for (const q of quests) {
-        insertTask.run(
-          q.id,
-          q.user_id,
-          q.title,
-          q.completed_at ? 1 : 0,
-          0,
-          q.xp_reward || 50,
-          q.created_at || now2
-        );
-      }
-    }
-    db.exec(`DROP TABLE quests`);
-  }
 
   // Migration: add sync columns to tasks
   const tasksInfo2 = db.prepare(`PRAGMA table_info(tasks)`).all();
