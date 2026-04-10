@@ -2869,10 +2869,12 @@ async function refreshMemorySnapshotCacheFromSupabase(userId) {
 async function ensureYesterdaySnapshot(userId) {
   const yesterday = getLocalDayWindow(-1);
   const existing = getMemorySnapshotCacheByDate(userId, yesterday.dateStr);
-  if (existing) return;
+  // Always use AI — if snapshot exists but has no summary, generateMemorySnapshot
+  // will skip the early-return and regenerate it with GPT.
+  if (existing && existing.behavioral_summary) return;
 
   debugLog(`ensureYesterdaySnapshot: backfilling ${yesterday.dateStr}`);
-  await generateMemorySnapshot(userId, yesterday, { allowAi: false });
+  await generateMemorySnapshot(userId, yesterday, { allowAi: true });
 }
 
 // IPC: fetch memory data for the reveal screen
